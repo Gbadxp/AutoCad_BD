@@ -1,0 +1,58 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "FiberPlugin/1.0.0": {
+        "dependencies": {
+          "AutoCAD.NET": "24.3.0"
+        },
+        "runtime": {
+          "FiberPlugin.dll": {}
+        }
+      },
+      "AutoCAD.NET/24.3.0": {
+        "dependencies": {
+          "AutoCAD.NET.Core": "24.3.0"
+        }
+      },
+      "AutoCAD.NET.Core/24.3.0": {
+        "dependencies": {
+          "AutoCAD.NET.Model": "24.3.0"
+        }
+      },
+      "AutoCAD.NET.Model/24.3.0": {}
+    }
+  },
+  "libraries": {
+    "FiberPlugin/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AutoCAD.NET/24.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-u61vnlIBDgrBu8EvYDxqDwGwGFuZ71ilBvNHbSHe/OJbnhtAILg0RmsoUKdU2NjfMUApnMhCHwp7fzvJCXDvwg==",
+      "path": "autocad.net/24.3.0",
+      "hashPath": "autocad.net.24.3.0.nupkg.sha512"
+    },
+    "AutoCAD.NET.Core/24.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-aA/V5c/LGahuH9qVI0XghGrZtuNzi0xObm9nJWYy3HsqqnUlZ7YngMuqn0kyigzuj70O2GwF8zpJwgQJmvb83Q==",
+      "path": "autocad.net.core/24.3.0",
+      "hashPath": "autocad.net.core.24.3.0.nupkg.sha512"
+    },
+    "AutoCAD.NET.Model/24.3.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-LV37ByKWj0LbHx4gSznJvkFNmTlGsMOtyXvTcBtz6V+WNFPXHlGCscqz1QJimzjyMJwHxOJKUxfTIJ5a4aXFKw==",
+      "path": "autocad.net.model/24.3.0",
+      "hashPath": "autocad.net.model.24.3.0.nupkg.sha512"
+    }
+  }
+}

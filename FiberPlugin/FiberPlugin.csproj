@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- AutoCAD 2025/2026 usa o .NET 8.0 debaixo dos panos -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Necessário para interagir com interfaces do AutoCAD, caso precisemos de janelas no futuro -->
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    
+    <!-- Evita que o AutoCAD bloqueie a DLL quando você estiver testando e compilando -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Referência as bibliotecas base do AutoCAD -->
+    <!-- Caso o AutoCAD 2026 utilize uma versão específica (ex: 26.0), basta ajustar a Version -->
+    <PackageReference Include="AutoCAD.NET" Version="24.3.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>
