@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Manifesto do pacote FiberPlugin.bundle (Autoloader do AutoCAD).
+  O AutoCAD lê este arquivo ao iniciar e carrega a DLL certa para a versão em uso.
+  $VERSION$ é substituído pelo build.ps1 com a versão do FiberPlugin.csproj.
+-->
+<ApplicationPackage
+    SchemaVersion="1.0"
+    AutodeskProduct="AutoCAD"
+    ProductType="Application"
+    Name="Fiber Plugin"
+    AppVersion="$VERSION$"
+    Description="Ferramentas para projetos de redes de fibra óptica (FTTH) no AutoCAD"
+    Author="Fiber Plugin"
+    ProductCode="{7E240BCF-213F-410E-B352-D37A2A8F0569}"
+    UpgradeCode="{A6937BE7-03FA-4FD8-AC06-14773C517517}"
+    SupportedLocales="Enu|Ptb"
+    HelpFile="./Contents/LEIA-ME.txt">
+
+  <CompanyDetails Name="Fiber Plugin" />
+
+  <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.1" SeriesMax="R25.1" />
+
+  <!-- AutoCAD 2022, 2023 e 2024 (.NET Framework 4.8) -->
+  <Components Description="AutoCAD 2022-2024">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.1" SeriesMax="R24.3" />
+    <ComponentEntry
+        AppName="FiberPlugin"
+        Version="$VERSION$"
+        ModuleName="./Contents/net48/FiberPlugin.dll"
+        AppDescription="Fiber Plugin para AutoCAD 2022-2024"
+        LoadOnAutoCADStartup="True" />
+  </Components>
+
+  <!-- AutoCAD 2025 e 2026 (.NET 8) -->
+  <Components Description="AutoCAD 2025-2026">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R25.0" SeriesMax="R25.1" />
+    <ComponentEntry
+        AppName="FiberPlugin"
+        Version="$VERSION$"
+        ModuleName="./Contents/net8/FiberPlugin.dll"
+        AppDescription="Fiber Plugin para AutoCAD 2025-2026"
+        LoadOnAutoCADStartup="True" />
+  </Components>
+
+</ApplicationPackage>

@@ -1,172 +1,116 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
+using FiberPlugin.Core;
+using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace FiberPlugin.Commands
 {
     public class InsertPoleCommand
     {
-        // Persiste o último número utilizado na sessão do AutoCAD
-        private static int _lastPoleCounter = 1;
-
         // Comando exclusivo para inserir postes com numeração sequencial
         [CommandMethod("FIBRA_INSERIR_POSTE")]
         public void InsertPole()
         {
-            Document doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
+            Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            string blockName = null;
-
-            // 1. Busca automaticamente o bloco que representa o Poste
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            // 1. Bloco do poste: do desenho ou da pasta Blocos. Se houver mais de um, o usuário escolhe.
+            string? blockName = ChoosePoleBlock(db);
+            if (blockName == null)
             {
-                BlockTable bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                foreach (ObjectId btrId in bt)
-                {
-                    BlockTableRecord btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
-                    if (!btr.IsLayout && !btr.IsAnonymous && !btr.Name.StartsWith("*"))
-                    {
-                        if (btr.Name.ToUpperInvariant().Contains("POSTE"))
-                        {
-                            blockName = btr.Name;
-                            break; // Encontrou o bloco do poste
-                        }
-                    }
-                }
-                tr.Commit();
-            }
-
-            if (string.IsNullOrEmpty(blockName))
-            {
-                ed.WriteMessage("\n[ERRO]: Nenhum bloco com o nome 'POSTE' (ou contendo 'POSTE') foi encontrado no desenho atual!");
+                ed.WriteMessage("\n[ERRO]: Nenhum bloco com 'POSTE' no nome foi encontrado no desenho nem na pasta Blocos!");
                 return;
             }
 
-            int poleCounter = 1;
-
-            if (_lastPoleCounter > 1)
+            ObjectId blockId = BlockRepository.EnsureInDrawing(db, blockName);
+            if (blockId.IsNull)
             {
-                PromptKeywordOptions pko = new PromptKeywordOptions($"\nDeseja continuar a contagem do poste N° {_lastPoleCounter} ou Iniciar do começo? [Continuar/Iniciar] ", "Continuar Iniciar");
-                pko.Keywords.Default = "Continuar";
-                pko.AllowNone = true;
-                
-                PromptResult pkr = ed.GetKeywords(pko);
-                if (pkr.Status == PromptStatus.Cancel) return;
-
-                if (pkr.StringResult == "Continuar" || pkr.Status == PromptStatus.None)
-                {
-                    poleCounter = _lastPoleCounter;
-                }
-                else
-                {
-                    PromptIntegerOptions pio = new PromptIntegerOptions("\nDigite o novo número sequencial inicial (ex: 1): ");
-                    pio.DefaultValue = 1;
-                    PromptIntegerResult pir = ed.GetInteger(pio);
-                    if (pir.Status != PromptStatus.OK) return;
-
-                    poleCounter = pir.Value;
-                }
+                ed.WriteMessage($"\n[ERRO]: Não foi possível carregar o bloco '{blockName}'.");
+                return;
             }
-            else
+
+            // 2. Numeração: continua a partir do maior número de poste já existente neste desenho
+            int suggested;
+            using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                PromptIntegerOptions pio = new PromptIntegerOptions("\nDigite o número sequencial inicial (ex: 1): ");
-                pio.DefaultValue = 1;
-                PromptIntegerResult pir = ed.GetInteger(pio);
-                if (pir.Status != PromptStatus.OK) return;
-
-                poleCounter = pir.Value;
+                var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForRead);
+                suggested = Poles.NextNumber(tr, space);
+                tr.Commit();
             }
+
+            var pio = new PromptIntegerOptions($"\nNúmero do primeiro poste <{suggested}>: ")
+            {
+                AllowNone = true,
+                AllowNegative = false,
+                AllowZero = false
+            };
+            PromptIntegerResult pir = ed.GetInteger(pio);
+            if (pir.Status == PromptStatus.Cancel) return;
+            int poleCounter = pir.Status == PromptStatus.OK ? pir.Value : suggested;
 
             while (true)
             {
-                PromptPointOptions ppo = new PromptPointOptions($"\nSelecione o ponto de inserção para o Poste #{poleCounter} (ou aperte ENTER/ESC para sair): ");
-                ppo.AllowNone = true;
-                
-                PromptPointResult pPtRes = ed.GetPoint(ppo);
-                
-                if (pPtRes.Status == PromptStatus.Cancel || pPtRes.Status == PromptStatus.None) 
+                var ppo = new PromptPointOptions($"\nSelecione o ponto de inserção para o Poste #{poleCounter} (ou aperte ENTER/ESC para sair): ")
                 {
-                    break;
-                }
-                
+                    AllowNone = true
+                };
+
+                PromptPointResult pPtRes = ed.GetPoint(ppo);
+                if (pPtRes.Status == PromptStatus.Cancel || pPtRes.Status == PromptStatus.None) break;
                 if (pPtRes.Status != PromptStatus.OK) continue;
 
                 Point3d insertionPoint = pPtRes.Value;
+                int number = poleCounter;
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                BlockTable bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+                    var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
 
-                if (!bt.Has(blockName))
-                {
-                    ed.WriteMessage($"\nErro: O bloco '{blockName}' não foi encontrado no desenho atual.");
-                    tr.Abort();
-                    return;
-                }
-
-                BlockTableRecord btr = (BlockTableRecord)tr.GetObject(bt[blockName], OpenMode.ForRead);
-                BlockTableRecord currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
-
-                using (BlockReference blockRef = new BlockReference(insertionPoint, btr.ObjectId))
-                {
-                    blockRef.ScaleFactors = new Scale3d(1.0, 1.0, 1.0);
-
-                    currentSpace.AppendEntity(blockRef);
-                    tr.AddNewlyCreatedDBObject(blockRef, true);
-
-                    if (btr.HasAttributeDefinitions)
+                    CadHelpers.InsertBlock(tr, currentSpace, blockId, insertionPoint, 0, null, tag =>
                     {
-                        foreach (ObjectId id in btr)
-                        {
-                            DBObject obj = tr.GetObject(id, OpenMode.ForRead);
-                            AttributeDefinition attDef = obj as AttributeDefinition;
-                            
-                            if (attDef != null && !attDef.Constant)
-                            {
-                                using (AttributeReference attRef = new AttributeReference())
-                                {
-                                    attRef.SetAttributeFromBlock(attDef, blockRef.BlockTransform);
-                                    
-                                    string tagStr = attDef.Tag.ToUpperInvariant().Trim();
-                                    
-                                    if (tagStr == "NÚMERO" || tagStr == "NUMERO" || tagStr == "ID")
-                                    {
-                                        attRef.TextString = $"N° {poleCounter}";
-                                    }
-                                    else if (tagStr == "COORDENADA_Y" || tagStr == "COORDENADA Y")
-                                    {
-                                        attRef.TextString = $"{insertionPoint.Y.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} m S";
-                                    }
-                                    else if (tagStr == "COORDENADA_X" || tagStr == "COORDENADA X")
-                                    {
-                                        attRef.TextString = $"{insertionPoint.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} m E";
-                                    }
+                        string t = tag.ToUpperInvariant();
+                        if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return $"N° {number}";
+                        if (t == "COORDENADA_Y" || t == "COORDENADA Y") return $"{insertionPoint.Y.ToString("F2", CultureInfo.InvariantCulture)} m S";
+                        if (t == "COORDENADA_X" || t == "COORDENADA X") return $"{insertionPoint.X.ToString("F2", CultureInfo.InvariantCulture)} m E";
+                        return null;
+                    });
 
-                                    blockRef.AttributeCollection.AppendAttribute(attRef);
-                                    tr.AddNewlyCreatedDBObject(attRef, true);
-                                }
-                            }
-                        }
-                    }
+                    tr.Commit();
                 }
 
                 poleCounter++;
-                tr.Commit();
                 ed.UpdateScreen();
-                
-                ed.WriteMessage($"\n[AVISO]: Poste inserido com sucesso em X:{insertionPoint.X:F2}, Y:{insertionPoint.Y:F2}.");
-            } // Fim da transação
-            } // Fim do while(true)
-            
-            _lastPoleCounter = poleCounter;
-            
-            ed.WriteMessage($"\n[AVISO]: Inserção de postes finalizada. Próximo poste será o N° {_lastPoleCounter}");
+                ed.WriteMessage($"\n[AVISO]: Poste N° {number} inserido em X:{insertionPoint.X:F2}, Y:{insertionPoint.Y:F2}.");
+            }
+
+            ed.WriteMessage($"\n[AVISO]: Inserção de postes finalizada. Próximo poste será o N° {poleCounter}");
+        }
+
+        private static string? ChoosePoleBlock(Database db)
+        {
+            List<BlockEntry> candidates = BlockRepository.ListAll(db)
+                .Where(b => Poles.IsPoleBlockName(b.Name))
+                .ToList();
+
+            if (candidates.Count == 0) return null;
+            if (candidates.Count == 1) return candidates[0].Name;
+
+            // Todos na mesma categoria para aparecerem juntos na janela
+            foreach (BlockEntry c in candidates) c.Category = "Postes";
+
+            using (var form = new UI.BlockSelectionForm(candidates, "Fiber Plugin - Escolher Bloco de Poste"))
+            {
+                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return null;
+                return form.SelectedBlock;
+            }
         }
     }
 }

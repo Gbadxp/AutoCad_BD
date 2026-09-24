@@ -1,134 +1,171 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
+using FiberPlugin.Core;
 
 namespace FiberPlugin.UI
 {
     public class BlockSelectionForm : Form
     {
-        private ComboBox cmbCategories;
-        private ComboBox cmbBlocks;
-        private Button btnOk;
-        public string SelectedBlock { get; private set; }
+        private const string AllCategories = "Todas";
 
-        private Dictionary<string, List<string>> categorizedBlocks;
-
-        public BlockSelectionForm(List<string> blockNames)
+        private class CategoryItem
         {
-            this.Text = "Fiber Plugin - Inserir Bloco";
-            this.Size = new Size(350, 220);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
+            public string Name { get; set; } = "";
+            public int Count { get; set; }
+        }
 
-            // Lógica de categorização
-            categorizedBlocks = new Dictionary<string, List<string>>();
-            categorizedBlocks.Add("Fibra", new List<string>());
-            categorizedBlocks.Add("Elétrica", new List<string>());
-            categorizedBlocks.Add("Poste", new List<string>());
-            categorizedBlocks.Add("Outros", new List<string>());
+        private readonly List<BlockEntry> allBlocks;
+        private readonly SearchBox search;
+        private readonly ThemedListBox categoryList;
+        private readonly ThemedListBox blockList;
+        private readonly Label emptyLabel;
+        private readonly ThemedButton btnOk;
 
-            // Define known blocks (lowercased for matching)
-            var fibraSet = new HashSet<string> { "cto", "amarração", "amarracao" };
-            var eletricaSet = new HashSet<string> { "aterramento", "chave ch", "chave fu", "para-raio", "trafo", "trafo com chave fu" };
-            var posteSet = new HashSet<string> { "poste" };
+        public string? SelectedBlock { get; private set; }
 
-            foreach (var name in blockNames)
+        /// <param name="blocks">Blocos da pasta Blocos e/ou do desenho. A categoria vem da subpasta.</param>
+        public BlockSelectionForm(List<BlockEntry> blocks, string title = "Fiber Plugin - Inserir Bloco")
+        {
+            allBlocks = blocks;
+
+            Theme.ApplyForm(this);
+            this.Text = title;
+            this.ClientSize = new Size(720, 560);
+
+            int fromLibrary = blocks.Count(b => b.FilePath != null);
+            int dash = title.IndexOf(" - ", StringComparison.Ordinal);
+            var header = new HeaderPanel
             {
-                string lowerName = name.ToLower();
-                if (fibraSet.Contains(lowerName))
-                {
-                    categorizedBlocks["Fibra"].Add(name);
-                }
-                else if (eletricaSet.Contains(lowerName))
-                {
-                    categorizedBlocks["Elétrica"].Add(name);
-                }
-                else if (posteSet.Contains(lowerName))
-                {
-                    categorizedBlocks["Poste"].Add(name);
-                }
-                else
-                {
-                    categorizedBlocks["Outros"].Add(name);
-                }
-            }
-
-            // UI Elements
-            Label lblCat = new Label();
-            lblCat.Text = "1. Categoria:";
-            lblCat.Location = new Point(15, 15);
-            lblCat.AutoSize = true;
-            this.Controls.Add(lblCat);
-
-            cmbCategories = new ComboBox();
-            cmbCategories.Location = new Point(15, 35);
-            cmbCategories.Size = new Size(300, 25);
-            cmbCategories.DropDownStyle = ComboBoxStyle.DropDownList;
-            
-            // Adiciona apenas as categorias que não estão vazias
-            foreach (var kvp in categorizedBlocks)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    cmbCategories.Items.Add(kvp.Key);
-                }
-            }
-
-            this.Controls.Add(cmbCategories);
-
-            Label lblBlock = new Label();
-            lblBlock.Text = "2. Bloco a Inserir:";
-            lblBlock.Location = new Point(15, 75);
-            lblBlock.AutoSize = true;
-            this.Controls.Add(lblBlock);
-
-            cmbBlocks = new ComboBox();
-            cmbBlocks.Location = new Point(15, 95);
-            cmbBlocks.Size = new Size(300, 25);
-            cmbBlocks.DropDownStyle = ComboBoxStyle.DropDownList;
-            this.Controls.Add(cmbBlocks);
-
-            // Atualiza blocos ao mudar categoria
-            cmbCategories.SelectedIndexChanged += (s, e) =>
-            {
-                string selCat = cmbCategories.SelectedItem?.ToString();
-                if (string.IsNullOrEmpty(selCat)) return;
-
-                cmbBlocks.Items.Clear();
-                foreach (string bName in categorizedBlocks[selCat])
-                {
-                    cmbBlocks.Items.Add(bName);
-                }
-                if (cmbBlocks.Items.Count > 0)
-                    cmbBlocks.SelectedIndex = 0;
+                Glyph = Theme.Icons.Blocks,
+                Title = dash >= 0 ? title.Substring(dash + 3) : title,
+                Subtitle = $"{blocks.Count} bloco(s)  ·  {fromLibrary} da pasta Blocos  ·  {blocks.Count - fromLibrary} só no desenho"
             };
 
-            // Dispara a primeira atualização para preencher o cmbBlocks se houver itens
-            if (cmbCategories.Items.Count > 0)
-            {
-                cmbCategories.SelectedIndex = 0;
-            }
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(22, 16, 22, 10), BackColor = Theme.Background };
+            search = new SearchBox("Buscar bloco...") { Dock = DockStyle.Fill };
+            toolbar.Controls.Add(search);
 
-            btnOk = new Button();
-            btnOk.Text = "INSERIR";
-            btnOk.Location = new Point(235, 135);
-            btnOk.Size = new Size(80, 30);
-            btnOk.DialogResult = DialogResult.OK;
-            btnOk.Click += (s, e) => { 
-                SelectedBlock = cmbBlocks.SelectedItem?.ToString(); 
-                if (!string.IsNullOrEmpty(SelectedBlock))
+            var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 2, 20, 12), BackColor = Theme.Background };
+
+            // Coluna de categorias (padrão primeiro, depois as subpastas extras criadas pelo usuário)
+            categoryList = new ThemedListBox
+            {
+                Dock = DockStyle.Left,
+                Width = 200,
+                LogicalItemHeight = 42,
+                BackColor = Theme.Header,
+                Describe = o =>
                 {
-                    this.DialogResult = DialogResult.OK;
-                    this.Close();
+                    var c = (CategoryItem)o;
+                    return (c.Name, null, c.Count.ToString(CultureInfo.CurrentCulture));
                 }
             };
-            this.Controls.Add(btnOk);
+            categoryList.Items.Add(new CategoryItem { Name = AllCategories, Count = blocks.Count });
+            var categoryOrder = BlockRepository.StandardCategories
+                .Concat(blocks.Select(b => b.Category).Distinct().OrderBy(c => c))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (string category in categoryOrder)
+            {
+                int count = blocks.Count(b => b.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+                if (count > 0) categoryList.Items.Add(new CategoryItem { Name = category, Count = count });
+            }
+
+            var spacer = new Panel { Dock = DockStyle.Left, Width = 14, BackColor = Theme.Background };
+
+            blockList = new ThemedListBox
+            {
+                Dock = DockStyle.Fill,
+                LogicalItemHeight = 52,
+                Describe = o =>
+                {
+                    var b = (BlockEntry)o;
+                    string origin = b.FilePath != null ? $"Pasta Blocos \\ {b.Category}" : "Já está no desenho";
+                    return (b.Name, origin, b.FilePath != null ? "Biblioteca" : "Desenho");
+                }
+            };
+            emptyLabel = new Label
+            {
+                Text = "Nenhum bloco encontrado",
+                ForeColor = Theme.Muted,
+                AutoSize = false,
+                Dock = DockStyle.Top,
+                Height = 60,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Visible = false
+            };
+
+            var right = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background };
+            right.Controls.Add(blockList);
+            right.Controls.Add(emptyLabel);
+
+            body.Controls.Add(right);
+            body.Controls.Add(spacer);
+            body.Controls.Add(categoryList);
+
+            var footer = new FooterPanel { Hint = "Blocos da biblioteca são importados sozinhos" };
+            btnOk = new ThemedButton("Inserir", true);
+            var btnCancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
+            footer.AddButton(btnOk);
+            footer.AddButton(btnCancel);
+
+            this.Controls.Add(body);
+            this.Controls.Add(toolbar);
+            this.Controls.Add(header);
+            this.Controls.Add(footer);
 
             this.AcceptButton = btnOk;
+            this.CancelButton = btnCancel;
+
+            btnOk.Click += (s, e) => Accept();
+            blockList.DoubleClick += (s, e) => Accept();
+            categoryList.SelectedIndexChanged += (s, e) => ApplyFilter();
+            search.Input.TextChanged += (s, e) => ApplyFilter();
+            search.Input.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode is Keys.Down or Keys.Up && blockList.Items.Count > 0)
+                {
+                    int next = blockList.SelectedIndex + (e.KeyCode == Keys.Down ? 1 : -1);
+                    blockList.SelectedIndex = Math.Max(0, Math.Min(blockList.Items.Count - 1, next));
+                    e.SuppressKeyPress = true;
+                }
+            };
+
+            categoryList.SelectedIndex = 0;
+            this.Shown += (s, e) => search.Input.Focus();
+        }
+
+        private void ApplyFilter()
+        {
+            string category = (categoryList.SelectedItem as CategoryItem)?.Name ?? AllCategories;
+            string query = search.Input.Text.Trim();
+            CompareInfo compare = CultureInfo.CurrentCulture.CompareInfo;
+            const CompareOptions options = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
+
+            var matches = allBlocks
+                .Where(b => category == AllCategories || b.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+                .Where(b => query.Length == 0 || compare.IndexOf(b.Name, query, options) >= 0)
+                .OrderBy(b => b.Name, StringComparer.CurrentCultureIgnoreCase);
+
+            blockList.BeginUpdate();
+            blockList.Items.Clear();
+            foreach (BlockEntry b in matches) blockList.Items.Add(b);
+            blockList.EndUpdate();
+
+            if (blockList.Items.Count > 0) blockList.SelectedIndex = 0;
+            emptyLabel.Visible = blockList.Items.Count == 0;
+            btnOk.Enabled = blockList.Items.Count > 0;
+        }
+
+        private void Accept()
+        {
+            if (blockList.SelectedItem is not BlockEntry entry) return;
+            SelectedBlock = entry.Name;
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
     }
 }

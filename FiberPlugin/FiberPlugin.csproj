@@ -1,22 +1,47 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- AutoCAD 2025/2026 usa o .NET 8.0 debaixo dos panos -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- net48 = AutoCAD 2022, 2023 e 2024 (R24.x) | net8.0-windows = AutoCAD 2025 e 2026 (R25.x) -->
+    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Necessário para interagir com interfaces do AutoCAD, caso precisemos de janelas no futuro -->
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    
+    <PlatformTarget>x64</PlatformTarget>
+
     <!-- Evita que o AutoCAD bloqueie a DLL quando você estiver testando e compilando -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <!-- Identificação da DLL (aparece em Propriedades > Detalhes e na mensagem de carregamento) -->
+    <Version>1.0.2</Version>
+    <Product>Fiber Plugin</Product>
+    <Company>Fiber Plugin</Company>
+    <Authors>Fiber Plugin</Authors>
+    <Description>Ferramentas para projetos de redes de fibra óptica (FTTH) no AutoCAD</Description>
+    <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Referência as bibliotecas base do AutoCAD -->
-    <!-- Caso o AutoCAD 2026 utilize uma versão específica (ex: 26.0), basta ajustar a Version -->
-    <PackageReference Include="AutoCAD.NET" Version="24.3.0" ExcludeAssets="runtime" />
+    <!-- System.Net.Http não existe no .NET Framework 4.8 sem referência extra e não é usado -->
+    <Using Remove="System.Net.Http" />
+  </ItemGroup>
+
+  <!-- AutoCAD 2022-2024. A API R24.1 (2022) também carrega no 2023 e 2024. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="AutoCAD.NET" Version="24.1.51000" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- AutoCAD 2025-2026. A 25.1.0 é a última versão do pacote para .NET 8; a 25.1.1 já exige .NET 10. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Planilhas e biblioteca de blocos: não vão para bin (no desenvolvimento o plugin lê direto
+         destas pastas). O script Instalacao\build.ps1 as coloca dentro do pacote .bundle. -->
+    <None Update="Dados\**" CopyToOutputDirectory="Never" />
+    <None Update="Blocos\**" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,17 @@
+# Build
+bin/
+obj/
+.vs/
+*.user
+
+# Arquivos temporarios do AutoCAD
+*.bak
+*.dwl
+*.dwl2
+*.sv$
+
+# Saída do instalador
+Instalacao/dist/
+Instalacao/Installer/bin/
+Instalacao/Installer/obj/
+*.cer

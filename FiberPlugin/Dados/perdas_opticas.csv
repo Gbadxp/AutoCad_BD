@@ -1,0 +1,15 @@
+Parametro;Valor
+atenuacao_db_km;0,35
+perda_emenda_db;0,1
+perda_conector_db;0,5
+margem_seguranca_db;3
+classe_B+_min_db;13
+classe_B+_max_db;28
+classe_C+_min_db;17
+classe_C+_max_db;32
+splitter_1x2_db;3,7
+splitter_1x4_db;7,3
+splitter_1x8_db;10,5
+splitter_1x16_db;13,7
+splitter_1x32_db;17,1
+splitter_1x64_db;21

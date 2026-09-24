@@ -1,0 +1,45 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    Instala o FiberPlugin.bundle em C:\Program Files\Autodesk\ApplicationPlugins, pasta que o
+    AutoCAD carrega automaticamente e considera confiável (sem aviso de segurança).
+    Os dados do usuário (Documentos\Fiber Plugin) não fazem parte do .msi e nunca são apagados.
+  -->
+  <Package
+      Name="Fiber Plugin para AutoCAD"
+      Manufacturer="Fiber Plugin"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="B4DA7AF3-6EB0-47DD-A9B5-231D6C09AEED"
+      Scope="perMachine"
+      Language="1046"
+      Codepage="1252">
+
+    <MajorUpgrade DowngradeErrorMessage="Uma versão mais nova do Fiber Plugin já está instalada." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPCOMMENTS" Value="Ferramentas para projetos de redes de fibra óptica (FTTH) no AutoCAD 2022-2026" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="AutodeskFolder" Name="Autodesk">
+        <Directory Id="ApplicationPluginsFolder" Name="ApplicationPlugins">
+          <Directory Id="INSTALLFOLDER" Name="FiberPlugin.bundle" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Todo o conteúdo do FiberPlugin.bundle montado pelo build.ps1 -->
+    <ComponentGroup Id="BundleFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.BundleDir)\**" />
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="Fiber Plugin">
+      <ComponentGroupRef Id="BundleFiles" />
+    </Feature>
+
+    <!-- Assistente simples: boas-vindas + observações + progresso -->
+    <WixVariable Id="WixUILicenseRtf" Value="Observacoes.rtf" />
+    <ui:WixUI Id="WixUI_Minimal" />
+
+  </Package>
+</Wix>

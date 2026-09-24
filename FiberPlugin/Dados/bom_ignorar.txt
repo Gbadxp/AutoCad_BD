@@ -1,0 +1,7 @@
+# Blocos que NAO entram na Lista de Materiais (FIBRA_EXPORTAR_CSV).
+# Um nome de bloco por linha. Linhas iniciadas com # sao comentarios.
+# A seta de esforco ja e ignorada automaticamente.
+# Exemplos:
+# CARIMBO
+# NORTE
+# LEGENDA

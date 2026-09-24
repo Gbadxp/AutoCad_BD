@@ -3,6 +3,8 @@ using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
+using FiberPlugin.Core;
+using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace FiberPlugin.Commands
 {
@@ -11,11 +13,11 @@ namespace FiberPlugin.Commands
         [CommandMethod("FIBRA_CALCULAR_BOBINAS")]
         public void CalculateBobbins()
         {
-            Document doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
+            Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            Dictionary<string, double> cableLengths = new Dictionary<string, double>();
+            var cableLengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             int totalCableCount = 0;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -27,28 +29,20 @@ namespace FiberPlugin.Commands
                 {
                     DBObject obj = tr.GetObject(objId, OpenMode.ForRead);
 
-                    if (obj is Polyline poly && poly.Layer.StartsWith("FIBRA_CABO_", StringComparison.OrdinalIgnoreCase))
-                    {
-                        string cableName = poly.Layer.Substring(6).Replace("_", " ");
-                        
-                        if (cableLengths.ContainsKey(cableName))
-                        {
-                            cableLengths[cableName] += poly.Length;
-                        }
-                        else
-                        {
-                            cableLengths[cableName] = poly.Length;
-                        }
-                        
-                        totalCableCount++;
-                    }
+                    if (obj is not Polyline poly) continue;
+
+                    string? cableName = XDataTags.GetCableName(poly);
+                    if (cableName == null) continue;
+
+                    cableLengths[cableName] = cableLengths.TryGetValue(cableName, out double len) ? len + poly.Length : poly.Length;
+                    totalCableCount++;
                 }
                 tr.Commit();
             }
 
             if (totalCableCount == 0 || cableLengths.Count == 0)
             {
-                ed.WriteMessage("\n[AVISO]: Nenhum cabo encontrado nas layers FIBRA_CABO_*.");
+                ed.WriteMessage("\n[AVISO]: Nenhum cabo de fibra encontrado no desenho.");
                 return;
             }
 

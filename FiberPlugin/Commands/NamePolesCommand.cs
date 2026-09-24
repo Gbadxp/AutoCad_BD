@@ -3,6 +3,8 @@ using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
+using FiberPlugin.Core;
+using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace FiberPlugin.Commands
 {
@@ -11,7 +13,7 @@ namespace FiberPlugin.Commands
         [CommandMethod("FIBRA_NOMEAR_POSTE")]
         public void NamePoles()
         {
-            Document doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
+            Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
@@ -77,14 +79,12 @@ namespace FiberPlugin.Commands
 
                     foreach (ObjectId attId in br.AttributeCollection)
                     {
-                        AttributeReference attRef = (AttributeReference)tr.GetObject(attId, OpenMode.ForWrite);
+                        AttributeReference attRef = (AttributeReference)tr.GetObject(attId, OpenMode.ForRead);
                         
                         // Procura por Tags comuns usadas para nomear postes
-                        if (attRef.Tag.Equals("NOME", StringComparison.OrdinalIgnoreCase) || 
-                            attRef.Tag.Equals("INFO", StringComparison.OrdinalIgnoreCase) ||
-                            attRef.Tag.Equals("TIPO", StringComparison.OrdinalIgnoreCase) ||
-                            attRef.Tag.Equals("DESCRICAO", StringComparison.OrdinalIgnoreCase))
+                        if (CadHelpers.IsTag(attRef.Tag, CadHelpers.NameTags))
                         {
+                            attRef.UpgradeOpen();
                             attRef.TextString = fullName;
                             foundAttribute = true;
                         }

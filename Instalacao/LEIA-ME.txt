@@ -1,0 +1,19 @@
+FIBER PLUGIN PARA AUTOCAD
+=========================
+
+Compatível com AutoCAD 2022, 2023, 2024, 2025 e 2026 (e verticais, como Map 3D e Civil 3D).
+
+COMO USAR
+- Aba "Fibra" na faixa de opções, ou digite FIBRA para abrir o menu principal.
+- Se a aba sumir depois de trocar o espaço de trabalho, digite FIBRA_RIBBON.
+- FIBRA_SOBRE mostra a versão instalada e as pastas em uso.
+
+SEUS DADOS
+Ficam em Documentos\Fiber Plugin (criada na primeira vez que o AutoCAD abre com o plugin):
+  Dados\cabos.csv           cabos cadastrados (edite no Excel)
+  Dados\perdas_opticas.csv  perdas do budget óptico
+  Dados\bom_ignorar.txt     blocos fora da lista de materiais
+  Blocos\                   biblioteca de blocos (.dwg), uma subpasta por categoria
+O comando FIBRA_ABRIR_PASTA abre essa pasta.
+Para voltar ao conteúdo padrão, apague a pasta e reabra o AutoCAD.
+Desinstalar ou atualizar o plugin NÃO apaga seus dados.

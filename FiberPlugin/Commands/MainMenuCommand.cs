@@ -14,7 +14,7 @@ namespace FiberPlugin.Commands
             Document doc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
             Editor ed = doc.Editor;
             
-            string cmdToExecute = null;
+            string? cmdToExecute = null;
 
             using (var form = new FiberPlugin.UI.MainMenuForm())
             {

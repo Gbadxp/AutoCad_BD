@@ -1,0 +1,34 @@
+BIBLIOTECA DE BLOCOS DO FIBER PLUGIN
+====================================
+
+Cada arquivo .dwg desta pasta é um bloco. O NOME DO ARQUIVO é o nome do bloco.
+A subpasta é a categoria mostrada na janela de inserção:
+
+  Blocos\Fibra\CTO.dwg              -> categoria "Fibra", bloco "CTO"
+  Blocos\Postes\POSTE.dwg           -> categoria "Postes", bloco "POSTE"
+  Blocos\Fibra\SETA DE ESFORÇO.dwg  -> usado pelos cálculos de esforço
+
+Você pode criar outras subpastas (ex.: Blocos\Sinalizacao) e elas viram categorias novas.
+
+Quando um comando precisa de um bloco que não está no desenho, o plugin importa
+daqui automaticamente, então não é preciso começar pelo template.
+Se o bloco já existir no desenho, a versão do desenho é mantida.
+
+COMO MONTAR A BIBLIOTECA
+------------------------
+Jeito rápido: abra o TEMPLATE_BD_V1.dwg e rode o comando FIBRA_EXPORTAR_BLOCOS.
+Todos os blocos do template são salvos aqui, já separados por categoria.
+Depois é só apagar os que não quiser usar ou mudar de pasta.
+
+Um bloco por vez: use o comando WBLOCK do AutoCAD e salve nesta pasta com o
+nome desejado.
+
+REGRAS DOS ATRIBUTOS
+--------------------
+Postes: precisam ter "POSTE" no nome e um atributo NUMERO (ou NÚMERO / ID).
+        O atributo NOME (ou TIPO / INFO / DESCRICAO) guarda o tipo do poste,
+        ex.: "DT 11/200". O número após a barra é o esforço nominal em daN (norma),
+        que o plugin converte para kgf (200 daN = 204 kgf),
+        usado para validar o esforço calculado.
+Seta de esforço: atributos ESFORCO_KFG (valor) e ANGULO (ângulo).
+Qualquer bloco: COORDENADA_X / COORDENADA_Y são preenchidos na inserção.
