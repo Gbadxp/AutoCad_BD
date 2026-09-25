@@ -22,11 +22,12 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            // 1. Bloco do poste: do desenho ou da pasta Blocos. Se houver mais de um, o usuário escolhe.
-            string? blockName = ChoosePoleBlock(db);
+            // 1. Bloco do poste, da biblioteca (BLOCOS.dwg). Se houver mais de um, o usuário escolhe.
+            string? blockName = ChoosePoleBlock();
             if (blockName == null)
             {
-                ed.WriteMessage("\n[ERRO]: Nenhum bloco com 'POSTE' no nome foi encontrado no desenho nem na pasta Blocos!");
+                ed.WriteMessage("\n[ERRO]: Nenhum bloco com 'POSTE' no nome foi encontrado na biblioteca (BLOCOS.dwg).");
+                if (BlockRepository.LastError != null) ed.WriteMessage($"\n[ERRO]: {BlockRepository.LastError}");
                 return;
             }
 
@@ -76,11 +77,8 @@ namespace FiberPlugin.Commands
 
                     CadHelpers.InsertBlock(tr, currentSpace, blockId, insertionPoint, 0, null, tag =>
                     {
-                        string t = tag.ToUpperInvariant();
                         if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return $"N° {number}";
-                        if (t == "COORDENADA_Y" || t == "COORDENADA Y") return $"{insertionPoint.Y.ToString("F2", CultureInfo.InvariantCulture)} m S";
-                        if (t == "COORDENADA_X" || t == "COORDENADA X") return $"{insertionPoint.X.ToString("F2", CultureInfo.InvariantCulture)} m E";
-                        return null;
+                        return CadHelpers.CoordinateAttribute(tag, insertionPoint);
                     });
 
                     tr.Commit();
@@ -94,9 +92,9 @@ namespace FiberPlugin.Commands
             ed.WriteMessage($"\n[AVISO]: Inserção de postes finalizada. Próximo poste será o N° {poleCounter}");
         }
 
-        private static string? ChoosePoleBlock(Database db)
+        private static string? ChoosePoleBlock()
         {
-            List<BlockEntry> candidates = BlockRepository.ListAll(db)
+            List<BlockEntry> candidates = BlockRepository.List()
                 .Where(b => Poles.IsPoleBlockName(b.Name))
                 .ToList();
 

@@ -107,23 +107,33 @@ namespace FiberPlugin.Core
             var runs = new List<CableRun>();
             foreach (ObjectId id in space)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not Polyline poly) continue;
-
-                string? name = XDataTags.GetCableName(poly);
-                if (name == null) continue;
-
-                CableModel? model = CableProvider.Find(catalog, name);
-                if (model == null)
-                {
-                    unknownCables?.Add(name);
-                    continue;
-                }
-
-                var run = new CableRun { Name = model.ShortName, WeightKgKm = model.WeightKgKm };
-                for (int v = 0; v < poly.NumberOfVertices; v++) run.Vertices.Add(poly.GetPoint3dAt(v));
-                runs.Add(run);
+                CableRun? run = ToCableRun(tr.GetObject(id, OpenMode.ForRead), catalog, unknownCables);
+                if (run != null) runs.Add(run);
             }
             return runs;
+        }
+
+        /// <summary>
+        /// Converte a entidade em CableRun se ela for um cabo do plugin com peso cadastrado.
+        /// Cabos fora da planilha vão para <paramref name="unknownCables"/>.
+        /// </summary>
+        public static CableRun? ToCableRun(DBObject obj, List<CableModel> catalog, ISet<string>? unknownCables = null)
+        {
+            if (obj is not Polyline poly) return null;
+
+            string? name = XDataTags.GetCableName(poly);
+            if (name == null) return null;
+
+            CableModel? model = CableProvider.Find(catalog, name);
+            if (model == null)
+            {
+                unknownCables?.Add(name);
+                return null;
+            }
+
+            var run = new CableRun { Name = model.ShortName, WeightKgKm = model.WeightKgKm };
+            for (int v = 0; v < poly.NumberOfVertices; v++) run.Vertices.Add(poly.GetPoint3dAt(v));
+            return run;
         }
     }
 }

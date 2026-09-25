@@ -18,6 +18,7 @@ namespace FiberPlugin.Core
         private readonly Database _db;
         private readonly BlockTableRecord _space;
         private readonly ObjectId _arrowBlockId;
+        private readonly double _scale; // Fator da escala do desenho (1,0 em 1:1000)
         private readonly List<(ObjectId Id, Point3d Pole)> _existing = new List<(ObjectId, Point3d)>();
 
         /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para usar texto).</param>
@@ -27,6 +28,7 @@ namespace FiberPlugin.Core
             _db = db;
             _space = space;
             _arrowBlockId = arrowBlockId;
+            _scale = DrawingScale.Factor(db);
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, 4); // 4 = Ciano, como no modelo de projeto
 
@@ -77,7 +79,7 @@ namespace FiberPlugin.Core
                         return angleText;
                     }
                     return null;
-                }));
+                }, _scale));
             }
             else
             {
@@ -98,16 +100,19 @@ namespace FiberPlugin.Core
         private IEnumerable<Entity> DrawArrow(Point3d pole, double angle, bool hasEffort, string effortText, string angleText)
         {
             var dir = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
-            Point3d tail = pole + dir * FiberSettings.EffortArrowGap;
-            Point3d tip = tail + dir * FiberSettings.EffortArrowLength;
-            Point3d headBase = tip - dir * FiberSettings.EffortArrowHeadLength;
+            double length = FiberSettings.EffortArrowLength * _scale;
+            double headLength = FiberSettings.EffortArrowHeadLength * _scale;
+
+            Point3d tail = pole + dir * (FiberSettings.EffortArrowGap * _scale);
+            Point3d tip = tail + dir * length;
+            Point3d headBase = tip - dir * headLength;
 
             // Sem esforço (alinhamento reto) não há sentido para indicar: só os textos
             if (hasEffort)
             {
                 var arrow = new Polyline();
                 arrow.AddVertexAt(0, new Point2d(tail.X, tail.Y), 0, 0, 0);
-                arrow.AddVertexAt(1, new Point2d(headBase.X, headBase.Y), 0, FiberSettings.EffortArrowHeadWidth, 0);
+                arrow.AddVertexAt(1, new Point2d(headBase.X, headBase.Y), 0, FiberSettings.EffortArrowHeadWidth * _scale, 0);
                 arrow.AddVertexAt(2, new Point2d(tip.X, tip.Y), 0, 0, 0);
                 arrow.Layer = FiberSettings.EffortLayer;
                 _space.AppendEntity(arrow);
@@ -116,9 +121,9 @@ namespace FiberPlugin.Core
             }
 
             // Textos centralizados na haste, acima e abaixo dela
-            Point3d mid = tail + dir * ((FiberSettings.EffortArrowLength - FiberSettings.EffortArrowHeadLength) / 2.0);
+            Point3d mid = tail + dir * ((length - headLength) / 2.0);
             double textAngle = CadHelpers.ReadableAngle(angle);
-            var up = new Vector3d(-Math.Sin(textAngle), Math.Cos(textAngle), 0) * FiberSettings.LabelGap;
+            var up = new Vector3d(-Math.Sin(textAngle), Math.Cos(textAngle), 0) * (FiberSettings.LabelGap * _scale);
 
             yield return CadHelpers.AddText(_tr, _space, mid + up, effortText, textAngle, AttachmentPoint.BottomCenter, FiberSettings.EffortLayer);
             yield return CadHelpers.AddText(_tr, _space, mid - up, angleText, textAngle, AttachmentPoint.TopCenter, FiberSettings.EffortLayer);

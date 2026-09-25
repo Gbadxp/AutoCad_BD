@@ -1,34 +1,34 @@
 BIBLIOTECA DE BLOCOS DO FIBER PLUGIN
 ====================================
 
-Cada arquivo .dwg desta pasta é um bloco. O NOME DO ARQUIVO é o nome do bloco.
-A subpasta é a categoria mostrada na janela de inserção:
+Todos os blocos do plugin ficam dentro do arquivo BLOCOS.dwg, nesta pasta.
+O plugin oferece SOMENTE os blocos definidos nele: para acrescentar, alterar ou
+remover um bloco do plugin, basta editar o BLOCOS.dwg e salvar.
 
-  Blocos\Fibra\CTO.dwg              -> categoria "Fibra", bloco "CTO"
-  Blocos\Postes\POSTE.dwg           -> categoria "Postes", bloco "POSTE"
-  Blocos\Fibra\SETA DE ESFORÇO.dwg  -> usado pelos cálculos de esforço
-
-Você pode criar outras subpastas (ex.: Blocos\Sinalizacao) e elas viram categorias novas.
-
-Quando um comando precisa de um bloco que não está no desenho, o plugin importa
-daqui automaticamente, então não é preciso começar pelo template.
+Quando um comando precisa de um bloco que ainda não está no desenho, o plugin copia
+a definição do BLOCOS.dwg automaticamente, sem precisar de template.
 Se o bloco já existir no desenho, a versão do desenho é mantida.
 
-COMO MONTAR A BIBLIOTECA
-------------------------
-Jeito rápido: abra o TEMPLATE_BD_V1.dwg e rode o comando FIBRA_EXPORTAR_BLOCOS.
-Todos os blocos do template são salvos aqui, já separados por categoria.
-Depois é só apagar os que não quiser usar ou mudar de pasta.
+COMO ACRESCENTAR BLOCOS
+-----------------------
+- Abra o BLOCOS.dwg, crie ou cole o bloco (comando BLOCO) e salve; ou
+- Com um projeto aberto, rode FIBRA_EXPORTAR_BLOCOS: os blocos daquele desenho são
+  copiados para dentro do BLOCOS.dwg (a versão anterior fica salva como BLOCOS.bak).
 
-Um bloco por vez: use o comando WBLOCK do AutoCAD e salve nesta pasta com o
-nome desejado.
+CATEGORIAS
+----------
+A categoria mostrada na janela de inserção vem do nome do bloco:
+  Postes   -> nomes com "POSTE"
+  Fibra    -> CTO, CEO, RESERVA, EMENDA, SPLITTER, DIO...
+  Eletrica -> TRAFO, CHAVE, ATERRAMENTO, PARA-RAIO...
+  Outros   -> o restante
 
 REGRAS DOS ATRIBUTOS
 --------------------
 Postes: precisam ter "POSTE" no nome e um atributo NUMERO (ou NÚMERO / ID).
         O atributo NOME (ou TIPO / INFO / DESCRICAO) guarda o tipo do poste,
         ex.: "DT 11/200". O número após a barra é o esforço nominal em daN (norma),
-        que o plugin converte para kgf (200 daN = 204 kgf),
-        usado para validar o esforço calculado.
-Seta de esforço: atributos ESFORCO_KFG (valor) e ANGULO (ângulo).
+        que o plugin converte para kgf (200 daN = 204 kgf) para validar o esforço.
+Seta de esforço: se existir um bloco "SETA DE ESFORÇO", ele é usado, com os atributos
+        ESFORCO_KFG (valor) e ANGULO. Sem ele, o plugin desenha a seta sozinho.
 Qualquer bloco: COORDENADA_X / COORDENADA_Y são preenchidos na inserção.

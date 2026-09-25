@@ -24,7 +24,7 @@ namespace FiberPlugin.UI
 
             Theme.ApplyForm(this);
             this.Text = "Fiber Plugin - Selecionar Cabo";
-            this.ClientSize = new Size(540, 560);
+            this.ClientSize = new Size(500, 480);
 
             var header = new HeaderPanel
             {
@@ -33,15 +33,15 @@ namespace FiberPlugin.UI
                 Subtitle = $"{cables.Count} cabo(s) cadastrados em Dados\\cabos.csv"
             };
 
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(22, 16, 22, 10), BackColor = Theme.Background };
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(16, 10, 16, 8), BackColor = Theme.Background };
             search = new SearchBox("Buscar por nome, tipo ou peso...") { Dock = DockStyle.Fill };
             toolbar.Controls.Add(search);
 
-            var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 2, 20, 12), BackColor = Theme.Background };
+            var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 0, 16, 12), BackColor = Theme.Background };
             list = new ThemedListBox
             {
                 Dock = DockStyle.Fill,
-                LogicalItemHeight = 54,
+                LogicalItemHeight = 44,
                 Describe = o =>
                 {
                     var c = (CableModel)o;
@@ -78,16 +78,7 @@ namespace FiberPlugin.UI
             btnOk.Click += (s, e) => Accept();
             list.DoubleClick += (s, e) => Accept();
             search.Input.TextChanged += (s, e) => ApplyFilter();
-            search.Input.KeyDown += (s, e) =>
-            {
-                // Setas navegam na lista sem sair da busca
-                if (e.KeyCode is Keys.Down or Keys.Up && list.Items.Count > 0)
-                {
-                    int next = list.SelectedIndex + (e.KeyCode == Keys.Down ? 1 : -1);
-                    list.SelectedIndex = Math.Max(0, Math.Min(list.Items.Count - 1, next));
-                    e.SuppressKeyPress = true;
-                }
-            };
+            search.DriveList(list);
 
             ApplyFilter();
             this.Shown += (s, e) => search.Input.Focus();
@@ -95,10 +86,8 @@ namespace FiberPlugin.UI
 
         private void ApplyFilter()
         {
-            string query = search.Input.Text.Trim();
-            CompareInfo compare = CultureInfo.CurrentCulture.CompareInfo;
-            const CompareOptions options = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
-            bool Matches(string text) => query.Length == 0 || compare.IndexOf(text, query, options) >= 0;
+            string query = search.Query;
+            bool Matches(string text) => SearchBox.Matches(text, query);
 
             object? previous = list.SelectedItem;
 

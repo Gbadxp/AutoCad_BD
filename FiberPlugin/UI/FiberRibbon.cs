@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.Windows;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
@@ -16,8 +18,6 @@ namespace FiberPlugin.UI
     {
         private const string TabId = "FIBER_PLUGIN_TAB";
 
-        // Ciano um pouco mais escuro que o das janelas, legível no tema claro e no escuro do AutoCAD
-        private static readonly WpfMedia.Color IconColor = WpfMedia.Color.FromRgb(0x16, 0x9F, 0xB3);
 
         private static bool _workspaceHooked;
 
@@ -38,7 +38,9 @@ namespace FiberPlugin.UI
                 _workspaceHooked = true;
                 AcApp.SystemVariableChanged += (s, e) =>
                 {
-                    if (e.Name.Equals("WSCURRENT", StringComparison.OrdinalIgnoreCase)) CreateTab();
+                    // WSCURRENT: troca de espaço de trabalho; COLORTHEME: troca de tema (claro/escuro)
+                    if (e.Name.Equals("WSCURRENT", StringComparison.OrdinalIgnoreCase) ||
+                        e.Name.Equals("COLORTHEME", StringComparison.OrdinalIgnoreCase)) CreateTab();
                 };
             }
         }
@@ -58,45 +60,48 @@ namespace FiberPlugin.UI
             RibbonTab? existing = ribbon.FindTab(TabId);
             if (existing != null) ribbon.Tabs.Remove(existing);
 
+            Theme.Refresh(); // Ícones na cor de destaque do tema atual do AutoCAD
+
             var tab = new RibbonTab { Title = "Fibra", Id = TabId };
             ribbon.Tabs.Add(tab);
 
-            tab.Panels.Add(Panel("Cabos",
-                Large("Lançar\nCabo", Theme.Icons.Edit, "FIBRA_LANCAR_CABO", "Desenha o cabo clicando ponto a ponto, com nome e metragem em cada vão."),
-                Large("Roteamento\nAutomático", Theme.Icons.Route, "FIBRA_ROTEAMENTO_AUTO", "Gera a rota mais curta entre os blocos selecionados.")));
+            foreach (var (section, tools) in ToolCatalog.Sections)
+            {
+                var items = new List<RibbonItem>();
 
-            tab.Panels.Add(Panel("Postes e Blocos",
-                Large("Inserir\nPostes", Theme.Icons.Pin, "FIBRA_INSERIR_POSTE", "Insere postes com numeração sequencial automática."),
-                Large("Inserir\nBlocos", Theme.Icons.Blocks, "FIBRA_INSERIR_BLOCO", "Insere CTO, CEO e outros blocos do desenho ou da biblioteca."),
-                Small("Nomear Postes", Theme.Icons.Tag, "FIBRA_NOMEAR_POSTE", "Grava o tipo do poste, ex.: DT 11/200 (o número após a barra é o esforço nominal)."),
-                new RibbonRowBreak(),
-                Small("Numerar Pontos", Theme.Icons.List, "FIBRA_NUMERAR_PONTOS", "Marca P01, P02... com as coordenadas X/Y.")));
+                // O último painel ganha também o botão do menu principal
+                if (section == ToolCatalog.Sections[ToolCatalog.Sections.Length - 1].Section)
+                {
+                    items.Add(Button("Menu\nPrincipal", Theme.Icons.Fiber, ToolCatalog.MenuCommand,
+                        "Abre o menu com todas as ferramentas.", large: true));
+                }
 
-            tab.Panels.Add(Panel("Esforços",
-                Large("Esforço\nno Poste", Theme.Icons.Bolt, "FIBRA_ESFORCO_TOTAL", "Esforço resultante de todos os cabos no poste clicado, comparado com o nominal."),
-                Large("Esforço no\nPercurso", Theme.Icons.Path, "FIBRA_ESFORCO_PERCURSO", "Coloca a seta de esforço em todos os postes de um cabo."),
-                Large("Relatório de\nEsforços", Theme.Icons.Document, "FIBRA_RELATORIO_ESFORCOS", "Exporta CSV com esforço, nominal, utilização e situação (OK/EXCEDIDO).")));
+                // Botões grandes primeiro; os pequenos ficam empilhados (um por linha)
+                foreach (Tool tool in tools.Where(t => t.LargeOnRibbon))
+                {
+                    items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: true));
+                }
 
-            tab.Panels.Add(Panel("Materiais e Rede",
-                Large("Lista de\nMateriais", Theme.Icons.Export, "FIBRA_EXPORTAR_CSV", "Exporta blocos, metragem de cabos e coordenadas para CSV."),
-                Large("Calcular\nBobinas", Theme.Icons.Calculator, "FIBRA_CALCULAR_BOBINAS", "Quantidade de bobinas por tipo de cabo, com margem de segurança."),
-                Large("Budget\nÓptico", Theme.Icons.Signal, "FIBRA_BUDGET_OPTICO", "Perdas do enlace GPON comparadas com a classe B+/C+.")));
+                bool firstSmall = true;
+                foreach (Tool tool in tools.Where(t => !t.LargeOnRibbon))
+                {
+                    if (!firstSmall) items.Add(new RibbonRowBreak());
+                    items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: false));
+                    firstSmall = false;
+                }
 
-            tab.Panels.Add(Panel("Fiber Plugin",
-                Large("Menu\nPrincipal", Theme.Icons.Fiber, "FIBRA", "Abre o menu com todas as ferramentas."),
-                Small("Exportar Blocos", Theme.Icons.Library, "FIBRA_EXPORTAR_BLOCOS", "Salva os blocos do desenho aberto na biblioteca (pasta Blocos)."),
-                new RibbonRowBreak(),
-                Small("Pasta de Dados", Theme.Icons.Search, "FIBRA_ABRIR_PASTA", "Abre a pasta com a planilha de cabos e a biblioteca de blocos.")));
+                tab.Panels.Add(Panel(section, items));
+            }
         }
 
-        private static RibbonPanel Panel(string title, params RibbonItem[] items)
+        private static RibbonPanel Panel(string title, IEnumerable<RibbonItem> items)
         {
             var source = new RibbonPanelSource { Title = title };
             foreach (RibbonItem item in items) source.Items.Add(item);
             return new RibbonPanel { Source = source };
         }
 
-        private static RibbonButton Large(string text, string glyph, string command, string tooltip)
+        private static RibbonButton Button(string text, string glyph, string command, string tooltip, bool large)
         {
             return new RibbonButton
             {
@@ -104,28 +109,10 @@ namespace FiberPlugin.UI
                 Text = text,
                 ShowText = true,
                 ShowImage = true,
-                Size = RibbonItemSize.Large,
-                Orientation = Wpf.Controls.Orientation.Vertical,
+                Size = large ? RibbonItemSize.Large : RibbonItemSize.Standard,
+                Orientation = large ? Wpf.Controls.Orientation.Vertical : Wpf.Controls.Orientation.Horizontal,
                 LargeImage = GlyphImage(glyph, 32),
                 Image = GlyphImage(glyph, 16),
-                ToolTip = tooltip,
-                CommandParameter = command,
-                CommandHandler = RibbonCommandHandler.Instance
-            };
-        }
-
-        private static RibbonButton Small(string text, string glyph, string command, string tooltip)
-        {
-            return new RibbonButton
-            {
-                Id = "FIBER_" + command,
-                Text = text,
-                ShowText = true,
-                ShowImage = true,
-                Size = RibbonItemSize.Standard,
-                Orientation = Wpf.Controls.Orientation.Horizontal,
-                Image = GlyphImage(glyph, 16),
-                LargeImage = GlyphImage(glyph, 32),
                 ToolTip = tooltip,
                 CommandParameter = command,
                 CommandHandler = RibbonCommandHandler.Instance
@@ -139,7 +126,8 @@ namespace FiberPlugin.UI
             string text = family != null ? glyph : "•";
             var typeface = new WpfMedia.Typeface(new WpfMedia.FontFamily(family ?? "Segoe UI"),
                 Wpf.FontStyles.Normal, Wpf.FontWeights.Normal, Wpf.FontStretches.Normal);
-            var brush = new WpfMedia.SolidColorBrush(IconColor);
+            System.Drawing.Color c = Theme.IconColor;
+            var brush = new WpfMedia.SolidColorBrush(WpfMedia.Color.FromRgb(c.R, c.G, c.B));
             brush.Freeze();
 
             var formatted = new WpfMedia.FormattedText(text, CultureInfo.InvariantCulture, Wpf.FlowDirection.LeftToRight,

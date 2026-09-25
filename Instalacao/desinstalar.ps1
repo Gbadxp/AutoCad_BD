@@ -8,24 +8,16 @@
     Se instalou pelo .msi, desinstale por Configurações > Aplicativos.
 #>
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '_comum.ps1')
 
-$target = Join-Path $env:ProgramFiles 'Autodesk\ApplicationPlugins\FiberPlugin.bundle'
+if (Restart-ComoAdministrador $PSCommandPath) { return }
 
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    return
-}
-
-if (-not (Test-Path $target)) {
+if (-not (Test-Path $PastaPlugin)) {
     Write-Host 'O Fiber Plugin não está instalado nesta pasta.'
 }
 else {
-    if (Get-Process acad -ErrorAction SilentlyContinue) {
-        Write-Warning 'O AutoCAD está aberto. Feche-o antes de desinstalar.'
-        Read-Host 'Pressione Enter depois de fechar o AutoCAD'
-    }
-    Remove-Item $target -Recurse -Force
+    Wait-AutoCADFechado 'desinstalar'
+    Remove-Item $PastaPlugin -Recurse -Force
     Write-Host 'Fiber Plugin removido.' -ForegroundColor Green
     Write-Host "Seus dados continuam em: $([Environment]::GetFolderPath('MyDocuments'))\Fiber Plugin"
 }

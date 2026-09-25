@@ -43,6 +43,8 @@ namespace FiberPlugin.Core
         private static void LabelSpans(Transaction tr, BlockTableRecord space, IList<Point3d> vertices,
             IList<double> spanLengths, string cableName, string layer)
         {
+            double gap = DrawingScale.LabelGap(space.Database);
+
             for (int i = 0; i < vertices.Count - 1; i++)
             {
                 Point3d p1 = vertices[i];
@@ -51,7 +53,7 @@ namespace FiberPlugin.Core
 
                 var mid = new Point3d((p1.X + p2.X) / 2.0, (p1.Y + p2.Y) / 2.0, 0);
                 double angle = CadHelpers.ReadableAngle(Math.Atan2(p2.Y - p1.Y, p2.X - p1.X));
-                var up = new Vector3d(-Math.Sin(angle), Math.Cos(angle), 0) * FiberSettings.LabelGap;
+                var up = new Vector3d(-Math.Sin(angle), Math.Cos(angle), 0) * gap;
 
                 if (i % 2 == 0)
                 {

@@ -22,16 +22,17 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            // 1. Blocos da pasta Blocos + blocos já existentes no desenho.
+            // 1. Blocos da biblioteca (BLOCOS.dwg).
             //    Postes têm comando próprio e a seta de esforço é colocada pelos cálculos.
-            List<BlockEntry> blocks = BlockRepository.ListAll(db)
+            List<BlockEntry> blocks = BlockRepository.List()
                 .Where(b => !Poles.IsPoleBlockName(b.Name))
                 .Where(b => !b.Name.Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (blocks.Count == 0)
             {
-                ed.WriteMessage("\n[ERRO]: Nenhum bloco encontrado no desenho atual nem na pasta Blocos!");
+                ed.WriteMessage($"\n[ERRO]: Nenhum bloco na biblioteca ({BlockRepository.LibraryFile ?? "pasta Blocos não encontrada"}).");
+                if (BlockRepository.LastError != null) ed.WriteMessage($"\n[ERRO]: {BlockRepository.LastError}");
                 return;
             }
 
@@ -75,11 +76,8 @@ namespace FiberPlugin.Commands
                     // Automatiza os textos dos atributos conhecidos
                     CadHelpers.InsertBlock(tr, currentSpace, blockId, insertionPoint, 0, null, tag =>
                     {
-                        string t = tag.ToUpperInvariant();
-                        if (t == "COORDENADA_Y" || t == "COORDENADA Y") return $"{insertionPoint.Y.ToString("F2", CultureInfo.InvariantCulture)} m S";
-                        if (t == "COORDENADA_X" || t == "COORDENADA X") return $"{insertionPoint.X.ToString("F2", CultureInfo.InvariantCulture)} m E";
-                        if (t == "TIPO") return "1x16"; // Capacidade default genérica
-                        return null;
+                        if (tag.Equals("TIPO", StringComparison.OrdinalIgnoreCase)) return "1x16"; // Capacidade default genérica
+                        return CadHelpers.CoordinateAttribute(tag, insertionPoint);
                     });
 
                     tr.Commit();

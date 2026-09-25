@@ -61,7 +61,11 @@ foreach ($folder in 'Dados', 'Blocos') {
     Get-ChildItem $source -Recurse -Directory | ForEach-Object {
         New-Item -ItemType Directory -Force (Join-Path $target $_.FullName.Substring($source.Length + 1)) | Out-Null
     }
-    Get-ChildItem $source -Recurse -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
+    # Ignora arquivos temporários e backups que o AutoCAD cria ao salvar (.bak, .dwl, ~...)
+    $temporarios = '.bak', '.dwl', '.dwl2', '.tmp', '.sv$'
+    Get-ChildItem $source -Recurse -File |
+        Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -notlike '~*' -and $temporarios -notcontains $_.Extension } |
+        ForEach-Object {
         Copy-Item $_.FullName (Join-Path $target $_.FullName.Substring($source.Length + 1))
     }
 }

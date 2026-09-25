@@ -17,30 +17,14 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            var cableLengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            int totalCableCount = 0;
-
+            Dictionary<string, double> cableLengths;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                BlockTable bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                BlockTableRecord modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
-
-                foreach (ObjectId objId in modelSpace)
-                {
-                    DBObject obj = tr.GetObject(objId, OpenMode.ForRead);
-
-                    if (obj is not Polyline poly) continue;
-
-                    string? cableName = XDataTags.GetCableName(poly);
-                    if (cableName == null) continue;
-
-                    cableLengths[cableName] = cableLengths.TryGetValue(cableName, out double len) ? len + poly.Length : poly.Length;
-                    totalCableCount++;
-                }
+                cableLengths = CadHelpers.CableLengths(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
                 tr.Commit();
             }
 
-            if (totalCableCount == 0 || cableLengths.Count == 0)
+            if (cableLengths.Count == 0)
             {
                 ed.WriteMessage("\n[AVISO]: Nenhum cabo de fibra encontrado no desenho.");
                 return;

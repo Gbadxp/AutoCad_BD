@@ -63,8 +63,7 @@ namespace FiberPlugin.Commands
                 // A metragem escrita é o vão real entre postes
                 var spans = Enumerable.Range(0, ordered.Count - 1).Select(i => ordered[i].DistanceTo(ordered[i + 1])).ToList();
 
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                var modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 CableDrawing.Draw(tr, db, modelSpace, vertices, spans, cable);
 

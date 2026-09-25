@@ -34,8 +34,14 @@ namespace FiberPlugin.Commands
             // Coleta os dados varrendo o ModelSpace
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                var modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
+
+                // Metragem por tipo de cabo, com a descrição completa do catálogo quando cadastrado
+                foreach (var kvp in CadHelpers.CableLengths(tr, modelSpace))
+                {
+                    CableModel? model = CableProvider.Find(catalog, kvp.Key);
+                    cableLengths[model != null ? $"Cabo {model.FullName} ({model.ShortName})" : $"Cabo {kvp.Key}"] = kvp.Value;
+                }
 
                 foreach (ObjectId objId in modelSpace)
                 {
@@ -52,19 +58,7 @@ namespace FiberPlugin.Commands
 
                         blockCounts[blockName] = blockCounts.TryGetValue(blockName, out int count) ? count + 1 : 1;
                     }
-                    // 2. Soma da metragem de Cabos, separados por tipo
-                    else if (obj is Polyline poly)
-                    {
-                        string? cableName = XDataTags.GetCableName(poly);
-                        if (cableName == null) continue;
-
-                        // Descrição completa do catálogo quando o cabo está cadastrado
-                        CableModel? model = CableProvider.Find(catalog, cableName);
-                        string item = model != null ? $"Cabo {model.FullName} ({model.ShortName})" : $"Cabo {cableName}";
-
-                        cableLengths[item] = cableLengths.TryGetValue(item, out double len) ? len + poly.Length : poly.Length;
-                    }
-                    // 3. Coordenadas de Pontos
+                    // 2. Coordenadas de Pontos
                     else if (obj is MText mText && mText.Layer.Equals(FiberSettings.CoordinatesLayer, StringComparison.OrdinalIgnoreCase))
                     {
                         string ptName = mText.Contents.Split(new[] { "\\P" }, StringSplitOptions.None)[0];
@@ -78,57 +72,35 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
 
-            using (var sfd = new System.Windows.Forms.SaveFileDialog())
+            CadHelpers.SaveCsv(ed, "Salvar Lista de Materiais", "BOM_Projeto_Fibra.csv", sw =>
             {
-                sfd.Filter = "Comma Separated Values (*.csv)|*.csv|All files (*.*)|*.*";
-                sfd.Title = "Salvar Lista de Materiais";
-                sfd.FileName = "BOM_Projeto_Fibra.csv";
+                // Cabeçalho da Lista de Materiais
+                sw.WriteLine("--- LISTA DE MATERIAIS ---");
+                sw.WriteLine("Item;Quantidade;Unidade");
 
-                if (sfd.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                foreach (var kvp in blockCounts.OrderBy(x => x.Key))
                 {
-                    ed.WriteMessage("\n[AVISO]: Exportação cancelada pelo usuário.");
-                    return;
+                    sw.WriteLine($"{kvp.Key};{kvp.Value};UN");
                 }
 
-                try
+                foreach (var kvp in cableLengths.OrderBy(x => x.Key))
                 {
-                    using (var sw = new StreamWriter(sfd.FileName, false, System.Text.Encoding.UTF8))
+                    if (kvp.Value > 0) sw.WriteLine($"{kvp.Key};{kvp.Value:F2};Metros");
+                }
+
+                // Lista de Coordenadas
+                if (pointsList.Count > 0)
+                {
+                    sw.WriteLine();
+                    sw.WriteLine("--- LISTA DE COORDENADAS ---");
+                    sw.WriteLine("Ponto;X;Y");
+
+                    foreach (var pt in pointsList.OrderBy(p => p.Name))
                     {
-                        // Cabeçalho da Lista de Materiais
-                        sw.WriteLine("--- LISTA DE MATERIAIS ---");
-                        sw.WriteLine("Item;Quantidade;Unidade");
-
-                        foreach (var kvp in blockCounts.OrderBy(x => x.Key))
-                        {
-                            sw.WriteLine($"{kvp.Key};{kvp.Value};UN");
-                        }
-
-                        foreach (var kvp in cableLengths.OrderBy(x => x.Key))
-                        {
-                            if (kvp.Value > 0) sw.WriteLine($"{kvp.Key};{kvp.Value:F2};Metros");
-                        }
-
-                        // Lista de Coordenadas
-                        if (pointsList.Count > 0)
-                        {
-                            sw.WriteLine();
-                            sw.WriteLine("--- LISTA DE COORDENADAS ---");
-                            sw.WriteLine("Ponto;X;Y");
-
-                            foreach (var pt in pointsList.OrderBy(p => p.Name))
-                            {
-                                sw.WriteLine($"{pt.Name};{pt.X:F2};{pt.Y:F2}");
-                            }
-                        }
+                        sw.WriteLine($"{pt.Name};{pt.X:F2};{pt.Y:F2}");
                     }
-
-                    ed.WriteMessage($"\n[SUCESSO]: Lista de Materiais (BOM) exportada para: {sfd.FileName}");
                 }
-                catch (System.Exception ex)
-                {
-                    ed.WriteMessage($"\n[ERRO]: Não foi possível salvar o arquivo. Detalhes: {ex.Message}");
-                }
-            }
+            });
         }
 
         private static HashSet<string> LoadIgnoredBlocks()

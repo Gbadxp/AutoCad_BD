@@ -47,24 +47,15 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                var modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 // Cabos selecionados (com peso conhecido)
                 var selectedRuns = new List<CableRun>();
                 var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (SelectedObject so in psr.Value)
                 {
-                    if (tr.GetObject(so.ObjectId, OpenMode.ForRead) is not Polyline poly) continue;
-                    string? name = XDataTags.GetCableName(poly);
-                    if (name == null) continue;
-
-                    CableModel? model = CableProvider.Find(catalog, name);
-                    if (model == null) { unknown.Add(name); continue; }
-
-                    var run = new CableRun { Name = model.ShortName, WeightKgKm = model.WeightKgKm };
-                    for (int v = 0; v < poly.NumberOfVertices; v++) run.Vertices.Add(poly.GetPoint3dAt(v));
-                    selectedRuns.Add(run);
+                    CableRun? run = EffortCalculator.ToCableRun(tr.GetObject(so.ObjectId, OpenMode.ForRead), catalog, unknown);
+                    if (run != null) selectedRuns.Add(run);
                 }
 
                 foreach (string name in unknown)
@@ -111,14 +102,11 @@ namespace FiberPlugin.Commands
                     markers.Place(point, result);
 
                     string label = pole != null ? $"Poste {pole.Number}" : $"Ponto ({point.X:F1}; {point.Y:F1})";
-                    string status = "";
-                    if (pole?.NominalKgf != null)
-                    {
-                        string s = Poles.Status(result.Kgf, pole.NominalKgf);
-                        if (s == "EXCEDIDO") exceeded++;
-                        status = $" | {pole.Name}: {s}";
-                    }
-                    ed.WriteMessage($"\n{label}: {result.Kgf:F2} kgf ({result.CableCount} cabo(s)){status}");
+                    if (Poles.IsExceeded(pole, result.Kgf)) exceeded++;
+                    string? status = Poles.StatusText(pole, result.Kgf);
+
+                    ed.WriteMessage($"\n{label}: {result.Kgf:F2} kgf ({result.CableCount} cabo(s))" +
+                                    (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();

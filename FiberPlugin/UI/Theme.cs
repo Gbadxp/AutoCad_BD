@@ -9,28 +9,149 @@ using System.Windows.Forms;
 namespace FiberPlugin.UI
 {
     /// <summary>
-    /// Paleta e fontes das janelas do plugin. Tema escuro para combinar com a interface do AutoCAD.
+    /// Cores de um tema. Os valores vêm dos arquivos de tema do próprio AutoCAD
+    /// (AutoCAD 2022\Themes\DarkTheme.xbel e LightTheme.xbel), com o nome original de cada cor.
+    /// </summary>
+    internal sealed class Palette
+    {
+        public bool IsDark { get; set; }
+        public Color Background { get; set; }     // Fundo das janelas (MBFrameBackground)
+        public Color Header { get; set; }         // Faixa de título e rodapé (HeaderBorderTop)
+        public Color Surface { get; set; }        // Listas, campos e cartões (MBViewBackground / WidgetContainer1)
+        public Color SurfaceHover { get; set; }   // Passar o mouse (HoverContainer1)
+        public Color Pressed { get; set; }        // Clique (ClickContainer1)
+        public Color Border { get; set; }         // Borda normal (SearchBoxNormalBorder)
+        public Color BorderHover { get; set; }    // Borda ao passar o mouse (WidgetOutline1)
+        public Color Separator { get; set; }      // Linhas divisórias (MBViewSeparator)
+        public Color Text { get; set; }           // Texto (FontNormal1)
+        public Color TextStrong { get; set; }     // Títulos (FontBold1)
+        public Color Muted { get; set; }          // Texto secundário (Triangle2 / FontColorDisabled)
+        public Color Accent { get; set; }         // Foco (SearchBoxFocusedBorder)
+        public Color Selection { get; set; }      // Item selecionado (MBViewItemSelectionBackground)
+        public Color SelectionBorder { get; set; } // Contorno da seleção (MBViewItemSelectionOutline)
+        public Color Primary { get; set; }        // Botão principal (ControlActive1, azul Autodesk)
+        public Color PrimaryHover { get; set; }
+        public Color OnPrimary { get; set; }
+        public Color Icon { get; set; }           // Ícones
+        public Color Input { get; set; }          // Campo de texto (SearchBoxNormalBackground)
+        public Color InputFocused { get; set; }   // Campo de texto com foco (SearchBoxFocusedBackground)
+
+        public static readonly Palette Dark = new Palette
+        {
+            IsDark = true,
+            Background = Hex("#3B4453"),
+            Header = Hex("#2E3440"),
+            Surface = Hex("#454F61"),
+            SurfaceHover = Hex("#535D6F"),        // #D1DEEE a 10% sobre #454F61
+            Pressed = Hex("#616B7C"),             // #D1DEEE a 20% sobre #454F61
+            Border = Hex("#2E3440"),
+            BorderHover = Hex("#8B97A8"),         // #D1DEEE a 50% sobre #454F61
+            Separator = Hex("#222933"),
+            Text = Hex("#D9D9D9"),
+            TextStrong = Hex("#F5F5F5"),
+            Muted = Hex("#8691A1"),
+            Accent = Hex("#38ABDF"),
+            Selection = Hex("#416A86"),
+            SelectionBorder = Hex("#38ABDF"),
+            Primary = Hex("#0696D7"),
+            PrimaryHover = Hex("#1BA6E6"),
+            OnPrimary = Hex("#FFFFFF"),
+            Icon = Hex("#38ABDF"),
+            Input = Hex("#3B4453"),
+            InputFocused = Hex("#4E5A6E")
+        };
+
+        public static readonly Palette Light = new Palette
+        {
+            IsDark = false,
+            Background = Hex("#E1E1E1"),
+            Header = Hex("#D2D2D2"),
+            Surface = Hex("#FEFEFE"),
+            SurfaceHover = Hex("#D1EBFA"),
+            Pressed = Hex("#C3DCF4"),
+            Border = Hex("#ABABAB"),
+            BorderHover = Hex("#656565"),
+            Separator = Hex("#C8C8C8"),
+            Text = Hex("#191919"),
+            TextStrong = Hex("#262626"),
+            Muted = Hex("#737373"),
+            Accent = Hex("#0160BF"),
+            Selection = Hex("#B3CBEC"),
+            SelectionBorder = Hex("#5A82B4"),
+            Primary = Hex("#0696D7"),
+            PrimaryHover = Hex("#0584BE"),
+            OnPrimary = Hex("#FFFFFF"),
+            Icon = Hex("#0160BF"),
+            Input = Hex("#FEFEFE"),
+            InputFocused = Hex("#F2F2F2")
+        };
+
+        private static Color Hex(string hex) => ColorTranslator.FromHtml(hex);
+    }
+
+    /// <summary>
+    /// Paleta e fontes das janelas do plugin, iguais às da interface do AutoCAD.
+    /// Segue o tema escolhido no AutoCAD (variável COLORTHEME: 0 = escuro, 1 = claro), relido a cada janela.
     /// </summary>
     internal static class Theme
     {
-        public static readonly Color Background = Color.FromArgb(0x1B, 0x1F, 0x24);
-        public static readonly Color Header = Color.FromArgb(0x14, 0x17, 0x1B);
-        public static readonly Color Surface = Color.FromArgb(0x24, 0x29, 0x30);
-        public static readonly Color SurfaceHover = Color.FromArgb(0x2D, 0x33, 0x3C);
-        public static readonly Color Border = Color.FromArgb(0x38, 0x3F, 0x49);
-        public static readonly Color Text = Color.FromArgb(0xE8, 0xEB, 0xEF);
-        public static readonly Color Muted = Color.FromArgb(0x95, 0x9F, 0xAB);
-        public static readonly Color Accent = Color.FromArgb(0x1F, 0xB6, 0xCC);       // Ciano "fibra"
-        public static readonly Color AccentHover = Color.FromArgb(0x4A, 0xCB, 0xDD);
-        public static readonly Color AccentDeep = Color.FromArgb(0x25, 0x63, 0xEB);   // Fim do degradê do ícone
-        public static readonly Color AccentSoft = Color.FromArgb(0x16, 0x3D, 0x45);   // Fundo de item selecionado
-        public static readonly Color OnAccent = Color.FromArgb(0x07, 0x19, 0x1D);
+        public static Palette Current { get; private set; } = Palette.Dark;
 
-        public static readonly Font Body = new Font("Segoe UI", 9.75f);
-        public static readonly Font BodyBold = new Font("Segoe UI Semibold", 9.75f);
-        public static readonly Font Small = new Font("Segoe UI", 8.5f);
+        public static Color Background => Current.Background;
+        public static Color Header => Current.Header;
+        public static Color Surface => Current.Surface;
+        public static Color SurfaceHover => Current.SurfaceHover;
+        public static Color Pressed => Current.Pressed;
+        public static Color Border => Current.Border;
+        public static Color BorderHover => Current.BorderHover;
+        public static Color Separator => Current.Separator;
+        public static Color Text => Current.Text;
+        public static Color TextStrong => Current.TextStrong;
+        public static Color Muted => Current.Muted;
+        public static Color Accent => Current.Accent;
+        public static Color Selection => Current.Selection;
+        public static Color SelectionBorder => Current.SelectionBorder;
+        public static Color Primary => Current.Primary;
+        public static Color PrimaryHover => Current.PrimaryHover;
+        public static Color OnPrimary => Current.OnPrimary;
+        public static Color IconColor => Current.Icon;
+        public static Color Input => Current.Input;
+        public static Color InputFocused => Current.InputFocused;
+
+        // Mesma fonte e tamanhos das caixas de diálogo do AutoCAD
+        public static readonly Font Body = new Font("Segoe UI", 9f);
+        public static readonly Font BodyBold = new Font("Segoe UI Semibold", 9f);
+        public static readonly Font Small = new Font("Segoe UI", 8.25f);
         public static readonly Font Section = new Font("Segoe UI Semibold", 8.25f);
-        public static readonly Font Title = new Font("Segoe UI Semibold", 14f);
+        public static readonly Font Title = new Font("Segoe UI Semibold", 12f);
+
+        // Cantos: o AutoCAD usa cantos quase retos
+        public const int Radius = 2;
+
+        /// <summary>
+        /// Relê o tema do AutoCAD (COLORTHEME). Fora do AutoCAD (testes das janelas), usa a variável de
+        /// ambiente FIBER_PLUGIN_TEMA=claro, ou o tema escuro.
+        /// </summary>
+        public static void Refresh()
+        {
+            int theme;
+            try
+            {
+                theme = ReadAutoCadTheme();
+            }
+            catch
+            {
+                // Fora do AutoCAD a DLL da API nem carrega: o erro acontece ao chamar o método
+                theme = Environment.GetEnvironmentVariable("FIBER_PLUGIN_TEMA") == "claro" ? 1 : 0;
+            }
+            Current = theme == 1 ? Palette.Light : Palette.Dark;
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static int ReadAutoCadTheme()
+        {
+            return Convert.ToInt32(Autodesk.AutoCAD.ApplicationServices.Application.GetSystemVariable("COLORTHEME"));
+        }
 
         // Ícones: Segoe Fluent Icons (Windows 11) ou Segoe MDL2 Assets (Windows 10)
         private static readonly string? IconFamily = FindIconFamily();
@@ -55,10 +176,15 @@ namespace FiberPlugin.UI
             public const string Signal = "\uE8BE";
             public const string Library = "\uE8F1";
             public const string Search = "\uE721";
+            public const string Folder = "\uE8B7";
+            public const string Ruler = "\uECC6";
+            public const string Sheets = "\uE80A";
+            public const string Page = "\uE7C3";
         }
 
         public static void ApplyForm(Form form)
         {
+            Refresh();
             form.AutoScaleDimensions = new SizeF(96F, 96F);
             form.AutoScaleMode = AutoScaleMode.Dpi;
             form.BackColor = Background;
@@ -69,12 +195,13 @@ namespace FiberPlugin.UI
             form.MinimizeBox = false;
             form.ShowInTaskbar = false;
             form.StartPosition = FormStartPosition.CenterScreen;
-            form.HandleCreated += (s, e) => UseDarkTitleBar(form.Handle);
+            if (Current.IsDark) form.HandleCreated += (s, e) => UseDarkTitleBar(form.Handle);
         }
 
-        /// <summary>Barras de rolagem escuras (Windows 10 1809+).</summary>
+        /// <summary>Barras de rolagem escuras no tema escuro (Windows 10 1809+).</summary>
         public static void UseDarkScrollbars(Control control)
         {
+            if (!Current.IsDark) return;
             control.HandleCreated += (s, e) =>
             {
                 try { SetWindowTheme(control.Handle, "DarkMode_Explorer", null); } catch { /* Windows antigo: mantém o padrão */ }

@@ -27,8 +27,7 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                var modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
 
                 // 1. Coleta todos os postes e todos os cabos
                 List<PoleInfo> poles = Poles.Collect(tr, modelSpace);
@@ -55,58 +54,39 @@ namespace FiberPlugin.Commands
             }
 
             // 3. Exporta tudo para CSV
-            using (var sfd = new System.Windows.Forms.SaveFileDialog())
+            bool saved = CadHelpers.SaveCsv(ed, "Salvar Relatório de Esforços dos Postes", "Relatorio_Esforcos_Postes.csv", sw =>
             {
-                sfd.Filter = "Comma Separated Values (*.csv)|*.csv|All files (*.*)|*.*";
-                sfd.Title = "Salvar Relatório de Esforços dos Postes";
-                sfd.FileName = "Relatorio_Esforcos_Postes.csv";
+                sw.WriteLine("Número do Poste;Nome do Poste;Qtd de Cabos;Cabos e Pesos;Esforço Resultante (kgf);" +
+                             "Ângulo Resultante (Graus);Esforço Nominal (kgf);Utilização (%);Situação");
 
-                if (sfd.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                // Ordena os postes por número (numericamente quando possível)
+                var sorted = rows
+                    .OrderBy(r => Poles.ParseNumber(r.Pole.Number) ?? int.MaxValue)
+                    .ThenBy(r => r.Pole.Number);
+
+                foreach (var (pole, effort) in sorted)
                 {
-                    ed.WriteMessage("\n[AVISO]: Exportação cancelada pelo usuário.");
-                    return;
+                    double? nominal = pole.NominalKgf;
+                    string nominalStr = nominal != null ? $"{nominal:F0}" : "";
+                    string usage = nominal > 0 ? $"{effort.Kgf / nominal.Value * 100:F0}" : "";
+                    string cables = effort.Cables.Count > 0 ? string.Join(" + ", effort.Cables) : "0";
+
+                    sw.WriteLine(string.Join(";",
+                        Csv(pole.Number), Csv(pole.Name), effort.CableCount, Csv(cables),
+                        $"{effort.Kgf:F2}", $"{effort.AngleDeg:F1}", nominalStr, usage,
+                        Poles.Status(effort.Kgf, nominal)));
                 }
+            });
+            if (!saved) return;
 
-                try
-                {
-                    using (var sw = new StreamWriter(sfd.FileName, false, System.Text.Encoding.UTF8))
-                    {
-                        sw.WriteLine("Número do Poste;Nome do Poste;Qtd de Cabos;Cabos e Pesos;Esforço Resultante (kgf);" +
-                                     "Ângulo Resultante (Graus);Esforço Nominal (kgf);Utilização (%);Situação");
+            int exceeded = rows.Count(r => Poles.IsExceeded(r.Pole, r.Effort.Kgf));
+            int noNominal = rows.Count(r => r.Pole.NominalKgf == null);
 
-                        // Ordena os postes por número (numericamente quando possível)
-                        var sorted = rows
-                            .OrderBy(r => Poles.ParseNumber(r.Pole.Number) ?? int.MaxValue)
-                            .ThenBy(r => r.Pole.Number);
-
-                        foreach (var (pole, effort) in sorted)
-                        {
-                            double? nominal = pole.NominalKgf;
-                            string nominalStr = nominal != null ? $"{nominal:F0}" : "";
-                            string usage = nominal > 0 ? $"{effort.Kgf / nominal.Value * 100:F0}" : "";
-                            string cables = effort.Cables.Count > 0 ? string.Join(" + ", effort.Cables) : "0";
-
-                            sw.WriteLine(string.Join(";",
-                                Csv(pole.Number), Csv(pole.Name), effort.CableCount, Csv(cables),
-                                $"{effort.Kgf:F2}", $"{effort.AngleDeg:F1}", nominalStr, usage,
-                                Poles.Status(effort.Kgf, nominal)));
-                        }
-                    }
-
-                    int exceeded = rows.Count(r => Poles.Status(r.Effort.Kgf, r.Pole.NominalKgf) == "EXCEDIDO");
-                    int noNominal = rows.Count(r => r.Pole.NominalKgf == null);
-
-                    ed.WriteMessage($"\n[SUCESSO]: Relatório de {rows.Count} postes exportado para: {sfd.FileName}");
-                    if (exceeded > 0)
-                        ed.WriteMessage($"\n[ATENÇÃO]: {exceeded} poste(s) com esforço ACIMA do nominal. Veja a coluna 'Situação'.");
-                    if (noNominal > 0)
-                        ed.WriteMessage($"\n[AVISO]: {noNominal} poste(s) sem esforço nominal no nome (use FIBRA_NOMEAR_POSTE, ex.: DT 11/200).");
-                }
-                catch (System.Exception ex)
-                {
-                    ed.WriteMessage($"\n[ERRO]: Não foi possível salvar o arquivo. Detalhes: {ex.Message}");
-                }
-            }
+            ed.WriteMessage($"\n[INFO]: Relatório com {rows.Count} postes.");
+            if (exceeded > 0)
+                ed.WriteMessage($"\n[ATENÇÃO]: {exceeded} poste(s) com esforço ACIMA do nominal. Veja a coluna 'Situação'.");
+            if (noNominal > 0)
+                ed.WriteMessage($"\n[AVISO]: {noNominal} poste(s) sem esforço nominal no nome (use FIBRA_NOMEAR_POSTE, ex.: DT 11/200).");
         }
 
         // Remove caracteres que poderiam quebrar o CSV

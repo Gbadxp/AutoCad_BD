@@ -16,6 +16,9 @@ namespace FiberPlugin.Core
         // Bloco usado para indicar o esforço no poste (buscado no desenho e depois na pasta Blocos)
         public const string EffortBlockName = "SETA DE ESFORÇO";
 
+        // Tamanhos das anotações NA ESCALA DE REFERÊNCIA 1:1000 (2,0 = 2 mm no papel).
+        // Em outra escala (comando FIBRA_ESCALA) eles são multiplicados por DrawingScale.Factor.
+
         // Textos
         public const double TextHeight = 2.0;
         public const double LabelGap = TextHeight * 0.25;   // Distância entre o texto do vão e a linha do cabo

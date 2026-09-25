@@ -60,14 +60,10 @@ namespace FiberPlugin.Commands
                     markers.Place(points[i], result, angleOverride: perpendicular);
 
                     string tipoPoste = i == 0 || i == points.Count - 1 ? "(Fim de Rota / Ancoragem)" : "(Passagem / Ângulo)";
-                    string situacao = "";
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleMatchTolerance);
-                    if (pole?.NominalKgf != null)
-                    {
-                        situacao = $" | {pole.Name}: {Poles.Status(result.Kgf, pole.NominalKgf)}";
-                    }
+                    string? status = Poles.StatusText(pole, result.Kgf);
 
-                    ed.WriteMessage($"\nP{i + 1}: {result.Kgf:F2} kgf {tipoPoste}{situacao}");
+                    ed.WriteMessage($"\nP{i + 1}: {result.Kgf:F2} kgf {tipoPoste}" + (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();

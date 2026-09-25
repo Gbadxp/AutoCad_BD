@@ -1,18 +1,23 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Localiza as pastas "Dados" (planilhas) e "Blocos" (biblioteca de blocos .dwg).
+    /// Localiza as pastas "Dados" (planilhas) e "Blocos" (biblioteca BLOCOS.dwg).
     ///
-    /// Instalado (pacote .bundle em ApplicationPlugins): usa Documentos\Fiber Plugin\Dados e \Blocos,
-    /// que o usuário pode editar à vontade. Na primeira execução essas pastas são criadas com o
-    /// conteúdo padrão que vem no pacote.
+    /// Desenvolvimento (NETLOAD): procura ao lado da DLL e nas pastas acima dela, então rodando a partir
+    /// de bin\Debug\... as pastas do código-fonte (FiberPlugin\Dados e FiberPlugin\Blocos) são usadas direto.
     ///
-    /// Desenvolvimento: procura ao lado da DLL e nas pastas acima dela, então rodando a partir de
-    /// bin\Debug\... as pastas do código-fonte (FiberPlugin\Dados e FiberPlugin\Blocos) são usadas direto.
+    /// Instalado (pacote .bundle em ApplicationPlugins):
+    ///  - Dados: Documentos\Fiber Plugin\Dados, editável pelo usuário. Arquivos que faltarem lá são
+    ///    copiados do pacote (nunca sobrescreve o que o usuário editou).
+    ///  - Blocos: a biblioteca BLOCOS.dwg que vem DENTRO do pacote, atualizada a cada instalação.
+    ///    Documentos\Fiber Plugin\Blocos é opcional, para blocos pessoais; em nomes repetidos, o bloco
+    ///    pessoal tem prioridade.
     /// </summary>
     public static class PluginPaths
     {
@@ -33,8 +38,42 @@ namespace FiberPlugin.Core
         public static string UserRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), UserFolderName);
 
-        public static string? DataDir => Resolve(DataFolderName);
-        public static string? BlocksDir => Resolve(BlocksFolderName);
+        public static string? DataDir
+        {
+            get
+            {
+                if (!IsInstalled) return FindUpwards(DataFolderName);
+                EnsureUserFolders();
+                string dir = Path.Combine(UserRoot, DataFolderName);
+                return Directory.Exists(dir) ? dir : FindUpwards(DataFolderName);
+            }
+        }
+
+        /// <summary>
+        /// Pasta onde o usuário grava blocos (e onde o FIBRA_EXPORTAR_BLOCOS salva o BLOCOS.dwg).
+        /// Instalado: Documentos\Fiber Plugin\Blocos. Desenvolvimento: a pasta Blocos do código-fonte.
+        /// </summary>
+        public static string? BlocksDir
+        {
+            get
+            {
+                if (!IsInstalled) return FindUpwards(BlocksFolderName);
+                EnsureUserFolders();
+                return Path.Combine(UserRoot, BlocksFolderName);
+            }
+        }
+
+        /// <summary>Pastas com bibliotecas de blocos, da maior para a menor prioridade.</summary>
+        public static IEnumerable<string> BlockLibraryDirs
+        {
+            get
+            {
+                var dirs = new List<string>();
+                if (BlocksDir is string user && Directory.Exists(user)) dirs.Add(user);
+                if (IsInstalled && FindUpwards(BlocksFolderName) is string package) dirs.Add(package); // Contents\Blocos do pacote
+                return dirs.Distinct(StringComparer.OrdinalIgnoreCase);
+            }
+        }
 
         /// <summary>Caminho de um arquivo dentro da pasta Dados (null se a pasta não existir).</summary>
         public static string? DataFile(string fileName)
@@ -44,45 +83,28 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Cria Documentos\Fiber Plugin\Dados e \Blocos com o conteúdo padrão do pacote. Cada pasta só é
-        /// copiada quando ainda não existe, então nada que o usuário editou ou apagou é sobrescrito.
-        /// Para voltar ao padrão, basta apagar a pasta e reabrir o AutoCAD.
+        /// Prepara Documentos\Fiber Plugin: copia do pacote os arquivos de Dados que ainda não existem lá
+        /// (nunca sobrescreve) e cria a pasta Blocos para blocos pessoais.
         /// </summary>
         public static void EnsureUserFolders()
         {
             if (_userFoldersChecked || !IsInstalled) return;
             _userFoldersChecked = true;
 
-            foreach (string folder in new[] { DataFolderName, BlocksFolderName })
+            try
             {
-                string target = Path.Combine(UserRoot, folder);
-                if (Directory.Exists(target)) continue;
+                string data = Path.Combine(UserRoot, DataFolderName);
+                Directory.CreateDirectory(data);
+                string? packageData = FindUpwards(DataFolderName);
+                if (packageData != null) CopyMissingFiles(packageData, data);
 
-                try
-                {
-                    Directory.CreateDirectory(target);
-                    string? source = FindUpwards(folder); // Contents\Dados e Contents\Blocos dentro do .bundle
-                    if (source != null) CopyDirectory(source, target);
-
-                    // O instalador .msi não leva pastas vazias: garante as categorias padrão
-                    if (folder == BlocksFolderName)
-                    {
-                        foreach (string category in BlockRepository.StandardCategories)
-                            Directory.CreateDirectory(Path.Combine(target, category));
-                    }
-                }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                string blocks = Path.Combine(UserRoot, BlocksFolderName);
+                Directory.CreateDirectory(blocks);
+                RemoveLegacyCategoryFolders(blocks);
+                WriteUserBlocksReadme(blocks);
             }
-        }
-
-        private static string? Resolve(string folderName)
-        {
-            if (!IsInstalled) return FindUpwards(folderName);
-
-            EnsureUserFolders();
-            string dir = Path.Combine(UserRoot, folderName);
-            return Directory.Exists(dir) ? dir : FindUpwards(folderName);
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         private static string? FindUpwards(string folderName)
@@ -97,7 +119,7 @@ namespace FiberPlugin.Core
             return null;
         }
 
-        private static void CopyDirectory(string source, string target)
+        private static void CopyMissingFiles(string source, string target)
         {
             foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
             {
@@ -106,12 +128,32 @@ namespace FiberPlugin.Core
                 Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? target);
                 if (!File.Exists(destination)) File.Copy(file, destination);
             }
+        }
 
-            // Subpastas vazias (categorias ainda sem blocos)
-            foreach (string dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        /// <summary>
+        /// Versões até a 1.1 criavam Blocos\Fibra, \Eletrica, \Postes e \Outros. Remove essas subpastas
+        /// quando estão vazias (nunca apaga pasta com arquivos do usuário).
+        /// </summary>
+        /// <summary>Explica para que serve a pasta de blocos pessoais (substitui o LEIA-ME das versões antigas).</summary>
+        private static void WriteUserBlocksReadme(string blocksDir)
+        {
+            string path = Path.Combine(blocksDir, "LEIA-ME.txt");
+            if (File.Exists(path) && File.ReadAllText(path).IndexOf("subpasta", StringComparison.OrdinalIgnoreCase) < 0) return;
+
+            File.WriteAllText(path,
+                "BLOCOS PESSOAIS DO FIBER PLUGIN" + Environment.NewLine + Environment.NewLine +
+                "Os blocos padrão vêm no BLOCOS.dwg instalado junto com o plugin e são atualizados a cada versão." + Environment.NewLine +
+                "Esta pasta é opcional: um BLOCOS.dwg (ou outros .dwg) colocado aqui acrescenta blocos seus." + Environment.NewLine +
+                "Se um bloco daqui tiver o mesmo nome de um bloco padrão, o daqui é usado." + Environment.NewLine +
+                "O comando FIBRA_EXPORTAR_BLOCOS grava nesta pasta os blocos do desenho aberto." + Environment.NewLine);
+        }
+
+        private static void RemoveLegacyCategoryFolders(string blocksDir)
+        {
+            foreach (string name in new[] { "Fibra", "Eletrica", "Postes", "Outros" })
             {
-                string relative = dir.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                Directory.CreateDirectory(Path.Combine(target, relative));
+                string dir = Path.Combine(blocksDir, name);
+                if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
             }
         }
     }

@@ -19,44 +19,11 @@ namespace FiberPlugin.UI
 
         public string? SelectedCommandName { get; private set; }
 
-        // Ferramentas do menu, agrupadas por seção (o "Esforço 1 Cabo" fica fora de propósito)
-        private static readonly (string Section, (string Glyph, string Title, string Description, string Command)[] Items)[] Tools =
-        {
-            ("Cabos", new[]
-            {
-                (Theme.Icons.Edit, "Lançar Rota Manual", "Desenhe o cabo clicando nos postes", "FIBRA_LANCAR_CABO"),
-                (Theme.Icons.Route, "Roteamento Automático", "Rota mais curta entre os blocos", "FIBRA_ROTEAMENTO_AUTO")
-            }),
-            ("Postes e blocos", new[]
-            {
-                (Theme.Icons.Pin, "Inserir Postes", "Numeração sequencial automática", "FIBRA_INSERIR_POSTE"),
-                (Theme.Icons.Blocks, "Inserir Blocos", "CTO, CEO e blocos da biblioteca", "FIBRA_INSERIR_BLOCO"),
-                (Theme.Icons.Tag, "Nomear Postes", "Tipo e esforço nominal, ex.: DT 11/200", "FIBRA_NOMEAR_POSTE"),
-                (Theme.Icons.List, "Numerar Pontos", "P01, P02... com coordenadas X/Y", "FIBRA_NUMERAR_PONTOS")
-            }),
-            ("Esforços", new[]
-            {
-                (Theme.Icons.Bolt, "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "FIBRA_ESFORCO_TOTAL"),
-                (Theme.Icons.Path, "Esforço no Percurso", "Setas em todos os postes de um cabo", "FIBRA_ESFORCO_PERCURSO"),
-                (Theme.Icons.Document, "Relatório de Esforços", "CSV com a situação OK / EXCEDIDO", "FIBRA_RELATORIO_ESFORCOS")
-            }),
-            ("Materiais e rede", new[]
-            {
-                (Theme.Icons.Export, "Lista de Materiais", "Blocos, metragem e coordenadas (.csv)", "FIBRA_EXPORTAR_CSV"),
-                (Theme.Icons.Calculator, "Calcular Bobinas", "Quantidade de bobinas por tipo de cabo", "FIBRA_CALCULAR_BOBINAS"),
-                (Theme.Icons.Signal, "Budget Óptico", "Perdas do enlace GPON (B+ / C+)", "FIBRA_BUDGET_OPTICO")
-            }),
-            ("Biblioteca", new[]
-            {
-                (Theme.Icons.Library, "Exportar Blocos", "Salva os blocos do desenho na pasta", "FIBRA_EXPORTAR_BLOCOS")
-            })
-        };
-
         public MainMenuForm()
         {
             Theme.ApplyForm(this);
             this.Text = "Fiber Plugin";
-            this.ClientSize = new Size(860, 700);
+            this.ClientSize = new Size(800, 600);
             this.KeyPreview = true;
 
             var header = new HeaderPanel
@@ -67,7 +34,7 @@ namespace FiberPlugin.UI
             };
 
             // Busca
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(22, 16, 22, 10), BackColor = Theme.Background };
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(16, 10, 16, 8), BackColor = Theme.Background };
             search = new SearchBox("Buscar ferramenta...") { Dock = DockStyle.Fill };
             toolbar.Controls.Add(search);
 
@@ -78,12 +45,12 @@ namespace FiberPlugin.UI
                 AutoScroll = true,
                 WrapContents = true,
                 FlowDirection = FlowDirection.LeftToRight,
-                Padding = new Padding(16, 0, 16, 16),
+                Padding = new Padding(12, 0, 12, 12),
                 BackColor = Theme.Background
             };
             Theme.UseDarkScrollbars(flow);
 
-            foreach (var (sectionName, items) in Tools)
+            foreach (var (sectionName, tools) in ToolCatalog.Sections)
             {
                 var label = new Label
                 {
@@ -91,18 +58,18 @@ namespace FiberPlugin.UI
                     Font = Theme.Section,
                     ForeColor = Theme.Muted,
                     AutoSize = false,
-                    Height = 30,
-                    Width = 780,
+                    Height = 26,
+                    Width = 740,
                     TextAlign = ContentAlignment.BottomLeft,
-                    Margin = new Padding(8, 10, 6, 2)
+                    Margin = new Padding(4, 8, 4, 2)
                 };
                 flow.Controls.Add(label);
                 flow.SetFlowBreak(label, true);
 
                 var cards = new List<CommandCard>();
-                foreach (var (glyph, title, description, command) in items)
+                foreach (Tool tool in tools)
                 {
-                    var card = new CommandCard(glyph, title, description, command);
+                    var card = new CommandCard(tool.Glyph, tool.Title, tool.Description, tool.Command);
                     card.Click += (s, e) => Run(card.CommandName);
                     flow.Controls.Add(card);
                     cards.Add(card);
@@ -161,11 +128,8 @@ namespace FiberPlugin.UI
 
         private void ApplyFilter()
         {
-            string query = search.Input.Text.Trim();
-            CompareInfo compare = CultureInfo.CurrentCulture.CompareInfo;
-            const CompareOptions options = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
-
-            bool Matches(string text) => query.Length == 0 || compare.IndexOf(text, query, options) >= 0;
+            string query = search.Query;
+            bool Matches(string text) => SearchBox.Matches(text, query);
 
             flow.SuspendLayout();
             foreach (var (header, cards) in sections)
@@ -192,7 +156,7 @@ namespace FiberPlugin.UI
             try
             {
                 int available = flow.ClientSize.Width - flow.Padding.Horizontal;
-                int margin = Theme.Scale(this, 6);
+                int margin = Theme.Scale(this, 4);
                 int cardWidth = (available - 4 * margin) / 2 - 1;
 
                 flow.SuspendLayout();
@@ -212,12 +176,24 @@ namespace FiberPlugin.UI
         /// <summary>Resumo das pastas Dados e Blocos para o rodapé.</summary>
         private static string LibraryStatus()
         {
-            int blocks = BlockRepository.List().Count;
             string blocksText = PluginPaths.BlocksDir == null
                 ? "pasta Blocos não encontrada"
-                : $"{blocks} bloco(s) na biblioteca";
+                : $"{CountBlocks()} bloco(s) em {BlockRepository.LibraryFileName}";
 
             return $"{CountCables()} cabo(s) cadastrados  ·  {blocksText}  ·  Esc fecha";
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static string CountBlocks()
+        {
+            try
+            {
+                return BlockRepository.List().Count.ToString();
+            }
+            catch
+            {
+                return "?";
+            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

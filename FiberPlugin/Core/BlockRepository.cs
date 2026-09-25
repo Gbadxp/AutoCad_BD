@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
-using Autodesk.AutoCAD.Geometry;
 
 namespace FiberPlugin.Core
 {
@@ -11,194 +10,172 @@ namespace FiberPlugin.Core
     {
         public string Name { get; set; } = "";
         public string Category { get; set; } = BlockRepository.DefaultCategory;
-        public string? FilePath { get; set; }   // null = bloco que só existe no desenho
+        public string FilePath { get; set; } = "";   // Arquivo da biblioteca que contém a definição do bloco
     }
 
     /// <summary>
-    /// Biblioteca de blocos da pasta "Blocos": cada arquivo .dwg é um bloco, com o nome do arquivo.
-    /// A subpasta define a categoria (Blocos\Fibra\CTO.dwg → categoria "Fibra").
-    /// Quando um bloco é usado e não existe no desenho, ele é importado automaticamente, dispensando o template.
+    /// Biblioteca de blocos: o arquivo Blocos\BLOCOS.dwg, com as definições de todos os blocos do projeto
+    /// (outros .dwg soltos na pasta Blocos também são lidos, com prioridade para o BLOCOS.dwg).
+    /// O plugin só oferece os blocos definidos na biblioteca. Quando um deles é usado e ainda não existe
+    /// no desenho, a definição é copiada automaticamente, sem precisar de template.
+    /// A categoria mostrada na janela de inserção vem do nome do bloco (POSTE, CTO, TRAFO...).
     /// </summary>
     public static class BlockRepository
     {
         public const string DefaultCategory = "Outros";
+        public const string LibraryFileName = "BLOCOS.dwg";
         public static readonly string[] StandardCategories = { "Fibra", "Eletrica", "Postes", DefaultCategory };
 
-        /// <summary>Todos os blocos da pasta Blocos (vazio se a pasta não existir).</summary>
+        // Nomes dos blocos por arquivo, relidos só quando o arquivo muda
+        private static readonly Dictionary<string, (DateTime Stamp, List<string> Names)> Cache =
+            new Dictionary<string, (DateTime, List<string>)>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Último problema ao ler a biblioteca (arquivo corrompido, sem permissão...), para mostrar ao usuário.</summary>
+        public static string? LastError { get; private set; }
+
+        /// <summary>Caminho do BLOCOS.dwg (null se a pasta Blocos não existir).</summary>
+        public static string? LibraryFile
+        {
+            get
+            {
+                string? dir = PluginPaths.BlocksDir;
+                return dir == null ? null : Path.Combine(dir, LibraryFileName);
+            }
+        }
+
+        /// <summary>Todos os blocos da biblioteca, em ordem alfabética.</summary>
         public static List<BlockEntry> List()
         {
-            string? root = PluginPaths.BlocksDir;
+            LastError = null;
             var entries = new List<BlockEntry>();
-            if (root == null) return entries;
 
-            foreach (string file in Directory.EnumerateFiles(root, "*.dwg", SearchOption.AllDirectories))
+            // Pastas em ordem de prioridade (blocos pessoais antes dos do pacote) e, em cada pasta,
+            // o BLOCOS.dwg antes dos demais .dwg. Em nomes repetidos vale o primeiro encontrado.
+            IEnumerable<string> files = PluginPaths.BlockLibraryDirs.SelectMany(dir =>
+                Directory.EnumerateFiles(dir, "*.dwg", SearchOption.TopDirectoryOnly)
+                    .Where(f => !Path.GetFileName(f).StartsWith("~"))
+                    .OrderBy(f => !Path.GetFileName(f).Equals(LibraryFileName, StringComparison.OrdinalIgnoreCase))
+                    .ThenBy(f => f, StringComparer.OrdinalIgnoreCase));
+
+            foreach (string file in files)
             {
-                // Caminho relativo à pasta Blocos (Path.GetRelativePath não existe no .NET Framework)
-                string relativePath = file.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                string relativeDir = Path.GetDirectoryName(relativePath) ?? "";
-                string category = relativeDir.Length == 0
-                    ? DefaultCategory
-                    : relativeDir.Split(Path.DirectorySeparatorChar)[0];
-
-                string name = Path.GetFileNameWithoutExtension(file);
-                if (entries.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
-
-                entries.Add(new BlockEntry { Name = name, Category = category, FilePath = file });
-            }
-            return entries;
-        }
-
-        /// <summary>Blocos do desenho que podem ser inseridos pelo usuário (sem layouts, anônimos, xrefs...).</summary>
-        public static List<string> DrawingBlockNames(Database db)
-        {
-            var names = new List<string>();
-            using (Transaction tr = db.TransactionManager.StartTransaction())
-            {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                foreach (ObjectId id in bt)
+                foreach (string name in BlockNamesIn(file))
                 {
-                    var btr = (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    if (IsUserBlock(btr)) names.Add(btr.Name);
+                    if (entries.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
+                    entries.Add(new BlockEntry { Name = name, Category = GuessCategory(name), FilePath = file });
                 }
-                tr.Commit();
             }
-            return names;
-        }
 
-        /// <summary>Junta biblioteca + desenho. Blocos só do desenho recebem categoria por palavra-chave.</summary>
-        public static List<BlockEntry> ListAll(Database db)
-        {
-            List<BlockEntry> entries = List();
-            foreach (string name in DrawingBlockNames(db))
-            {
-                if (entries.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
-                entries.Add(new BlockEntry { Name = name, Category = GuessCategory(name) });
-            }
             return entries.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
 
         /// <summary>
-        /// Garante que o bloco existe no desenho, importando da biblioteca se necessário.
+        /// Garante que o bloco existe no desenho, copiando a definição da biblioteca se necessário.
         /// Se o bloco já existe no desenho, a versão do desenho é mantida.
         /// Deve ser chamado fora de transações abertas. Retorna ObjectId.Null se não encontrado.
         /// </summary>
         public static ObjectId EnsureInDrawing(Database db, string blockName)
         {
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
                 var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                if (bt.Has(blockName))
-                {
-                    ObjectId id = bt[blockName];
-                    tr.Commit();
-                    return id;
-                }
-                tr.Commit();
+                if (bt.Has(blockName)) return bt[blockName];
             }
 
             BlockEntry? entry = List().FirstOrDefault(e => e.Name.Equals(blockName, StringComparison.OrdinalIgnoreCase));
-            if (entry?.FilePath == null) return ObjectId.Null;
+            if (entry == null) return ObjectId.Null;
 
-            return Import(db, entry.Name, entry.FilePath);
-        }
-
-        private static ObjectId Import(Database db, string blockName, string filePath)
-        {
-            using (var source = new Database(false, true))
+            using (Database source = OpenLibrary(entry.FilePath))
             {
-                source.ReadDwgFile(filePath, FileShare.Read, true, "");
-                source.CloseInput(true);
-
-                // 1º caso: o arquivo contém a definição com o mesmo nome (gerado pelo FIBRA_EXPORTAR_BLOCOS).
-                // Clonar a definição preserva blocos dinâmicos e atributos.
-                ObjectId sourceId = ObjectId.Null;
-                using (Transaction tr = source.TransactionManager.StartTransaction())
+                ObjectId sourceId;
+                using (Transaction tr = source.TransactionManager.StartOpenCloseTransaction())
                 {
                     var bt = (BlockTable)tr.GetObject(source.BlockTableId, OpenMode.ForRead);
-                    if (bt.Has(blockName)) sourceId = bt[blockName];
-                    tr.Commit();
+                    if (!bt.Has(entry.Name)) return ObjectId.Null;
+                    sourceId = bt[entry.Name];
                 }
 
-                if (!sourceId.IsNull)
-                {
-                    var ids = new ObjectIdCollection { sourceId };
-                    var mapping = new IdMapping();
-                    source.WblockCloneObjects(ids, db.BlockTableId, mapping, DuplicateRecordCloning.Ignore, false);
-                    return mapping[sourceId].Value;
-                }
-
-                // 2º caso: arquivo feito com WBLOCK comum → o conteúdo do Model Space vira o bloco
-                return db.Insert(blockName, source, true);
+                // Clonar a definição preserva blocos dinâmicos, atributos e blocos aninhados
+                var ids = new ObjectIdCollection { sourceId };
+                var mapping = new IdMapping();
+                source.WblockCloneObjects(ids, db.BlockTableId, mapping, DuplicateRecordCloning.Ignore, false);
+                return mapping[sourceId].Value;
             }
         }
 
         /// <summary>
-        /// Exporta os blocos do desenho para a pasta Blocos (um .dwg por bloco, em subpasta por categoria).
-        /// Retorna (exportados, pulados porque já existiam).
+        /// Copia os blocos do desenho aberto para dentro do BLOCOS.dwg. Antes de gravar, o arquivo
+        /// anterior é guardado como BLOCOS.bak. Retorna (adicionados, substituídos, mantidos, erro).
         /// </summary>
-        public static (int Exported, int Skipped, List<string> Errors) ExportFromDrawing(Database db, string targetRoot, bool overwrite)
+        public static (int Added, int Replaced, int Kept, string? Error) ExportToLibrary(Database db, bool overwrite)
         {
-            int exported = 0, skipped = 0;
-            var errors = new List<string>();
-            var blocks = new List<(ObjectId Id, string Name)>();
-            Directory.CreateDirectory(targetRoot);
-
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            string? path = LibraryFile;
+            if (path == null)
             {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                foreach (ObjectId id in bt)
-                {
-                    var btr = (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead);
-                    if (IsUserBlock(btr)) blocks.Add((id, btr.Name));
-                }
-                tr.Commit();
+                string dir = Path.Combine(PluginPaths.AssemblyDir, PluginPaths.BlocksFolderName);
+                Directory.CreateDirectory(dir);
+                path = Path.Combine(dir, LibraryFileName);
             }
 
-            foreach (var (id, name) in blocks)
+            int added = 0, replaced = 0, kept = 0;
+            var toCopy = new ObjectIdCollection();
+
+            try
             {
-                string fileName = CadHelpers.SanitizeName(name) + ".dwg";
-                string dir = Path.Combine(targetRoot, GuessCategory(name));
-                string path = Path.Combine(dir, fileName);
-
-                // Já existe na biblioteca (em qualquer categoria)?
-                bool exists = Directory.EnumerateFiles(targetRoot, fileName, SearchOption.AllDirectories).Any();
-                if (exists && !overwrite)
+                using (Database library = File.Exists(path) ? OpenLibrary(path) : new Database(true, true))
                 {
-                    skipped++;
-                    continue;
-                }
-
-                try
-                {
-                    Directory.CreateDirectory(dir);
-                    using (var target = new Database(true, true))
+                    var libraryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (Transaction tr = library.TransactionManager.StartOpenCloseTransaction())
                     {
-                        var ids = new ObjectIdCollection { id };
-                        var mapping = new IdMapping();
-                        db.WblockCloneObjects(ids, target.BlockTableId, mapping, DuplicateRecordCloning.Replace, false);
-
-                        // Uma referência na origem, para o bloco aparecer quando o arquivo for aberto
-                        using (Transaction ttr = target.TransactionManager.StartTransaction())
+                        var bt = (BlockTable)tr.GetObject(library.BlockTableId, OpenMode.ForRead);
+                        foreach (ObjectId id in bt)
                         {
-                            var tbt = (BlockTable)ttr.GetObject(target.BlockTableId, OpenMode.ForRead);
-                            var ms = (BlockTableRecord)ttr.GetObject(tbt[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
-                            var br = new BlockReference(Point3d.Origin, mapping[id].Value);
-                            ms.AppendEntity(br);
-                            ttr.AddNewlyCreatedDBObject(br, true);
-                            ttr.Commit();
+                            libraryNames.Add(((BlockTableRecord)tr.GetObject(id, OpenMode.ForRead)).Name);
                         }
-
-                        target.SaveAs(path, DwgVersion.Current);
                     }
-                    exported++;
-                }
-                catch (System.Exception ex)
-                {
-                    errors.Add($"{name}: {ex.Message}");
+
+                    using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+                    {
+                        var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+                        foreach (ObjectId id in bt)
+                        {
+                            var btr = (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead);
+                            if (!IsUserBlock(btr)) continue;
+
+                            bool exists = libraryNames.Contains(btr.Name);
+                            if (exists && !overwrite) { kept++; continue; }
+
+                            toCopy.Add(id);
+                            if (exists) replaced++; else added++;
+                        }
+                    }
+
+                    if (toCopy.Count == 0) return (0, 0, kept, null);
+
+                    var mapping = new IdMapping();
+                    db.WblockCloneObjects(toCopy, library.BlockTableId, mapping,
+                        overwrite ? DuplicateRecordCloning.Replace : DuplicateRecordCloning.Ignore, false);
+
+                    // Grava num arquivo temporário e só depois troca, para nunca corromper a biblioteca
+                    string temp = Path.Combine(Path.GetDirectoryName(path) ?? ".", "~BLOCOS_tmp.dwg");
+                    library.SaveAs(temp, DwgVersion.Current);
+
+                    if (File.Exists(path)) File.Copy(path, Path.ChangeExtension(path, ".bak"), true);
+                    File.Copy(temp, path, true);
+                    File.Delete(temp);
                 }
             }
+            catch (IOException ex)
+            {
+                return (0, 0, kept, $"Não foi possível gravar {LibraryFileName} ({ex.Message}). Se ele estiver aberto no AutoCAD, feche-o e tente de novo.");
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception ex)
+            {
+                return (0, 0, kept, $"Erro ao copiar os blocos para {LibraryFileName}: {ex.Message}");
+            }
 
-            return (exported, skipped, errors);
+            Cache.Remove(path);
+            return (added, replaced, kept, null);
         }
 
         public static string GuessCategory(string blockName)
@@ -213,6 +190,52 @@ namespace FiberPlugin.Core
             if (eletrica.Any(n.Contains)) return "Eletrica";
 
             return DefaultCategory;
+        }
+
+        private static List<string> BlockNamesIn(string file)
+        {
+            try
+            {
+                DateTime stamp = File.GetLastWriteTimeUtc(file);
+                if (Cache.TryGetValue(file, out var cached) && cached.Stamp == stamp) return cached.Names;
+
+                var names = new List<string>();
+                using (Database source = OpenLibrary(file))
+                using (Transaction tr = source.TransactionManager.StartOpenCloseTransaction())
+                {
+                    var bt = (BlockTable)tr.GetObject(source.BlockTableId, OpenMode.ForRead);
+                    foreach (ObjectId id in bt)
+                    {
+                        var btr = (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead);
+                        if (IsUserBlock(btr)) names.Add(btr.Name);
+                    }
+                }
+
+                Cache[file] = (stamp, names);
+                return names;
+            }
+            catch (System.Exception ex)
+            {
+                LastError = $"Não foi possível ler {Path.GetFileName(file)}: {ex.Message}";
+                return new List<string>();
+            }
+        }
+
+        /// <summary>Abre um .dwg da biblioteca só para leitura (funciona mesmo com ele aberto no AutoCAD).</summary>
+        private static Database OpenLibrary(string path)
+        {
+            var db = new Database(false, true);
+            try
+            {
+                db.ReadDwgFile(path, FileShare.ReadWrite, true, "");
+                db.CloseInput(true);
+                return db;
+            }
+            catch
+            {
+                db.Dispose();
+                throw;
+            }
         }
 
         private static bool IsUserBlock(BlockTableRecord btr)

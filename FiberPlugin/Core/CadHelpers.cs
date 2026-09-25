@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -91,14 +93,14 @@ namespace FiberPlugin.Core
         /// devolve o texto a gravar (ou null para manter o valor padrão do bloco).
         /// </summary>
         public static BlockReference InsertBlock(Transaction tr, BlockTableRecord space, ObjectId blockId,
-            Point3d position, double rotation, string? layer, Func<string, string?>? attributeValue = null)
+            Point3d position, double rotation, string? layer, Func<string, string?>? attributeValue = null, double scale = 1.0)
         {
             var blockDef = (BlockTableRecord)tr.GetObject(blockId, OpenMode.ForRead);
 
             var blockRef = new BlockReference(position, blockId)
             {
                 Rotation = rotation,
-                ScaleFactors = new Scale3d(1.0)
+                ScaleFactors = new Scale3d(scale)
             };
             if (layer != null) blockRef.Layer = layer;
 
@@ -132,7 +134,7 @@ namespace FiberPlugin.Core
             {
                 Location = location,
                 Contents = contents,
-                TextHeight = FiberSettings.TextHeight,
+                TextHeight = DrawingScale.TextHeight(space.Database),
                 Rotation = rotation,
                 Attachment = attachment,
                 Layer = layer
@@ -142,10 +144,80 @@ namespace FiberPlugin.Core
             return txt;
         }
 
+        public static BlockTableRecord OpenModelSpace(Transaction tr, Database db, OpenMode mode)
+        {
+            var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+            return (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], mode);
+        }
+
+        /// <summary>
+        /// Valor dos atributos de coordenada preenchidos na inserção (COORDENADA_X / COORDENADA_Y).
+        /// Null para qualquer outra tag.
+        /// </summary>
+        public static string? CoordinateAttribute(string tag, Point3d point)
+        {
+            string t = tag.ToUpperInvariant();
+            if (t == "COORDENADA_X" || t == "COORDENADA X") return point.X.ToString("F2", CultureInfo.InvariantCulture) + " m E";
+            if (t == "COORDENADA_Y" || t == "COORDENADA Y") return point.Y.ToString("F2", CultureInfo.InvariantCulture) + " m S";
+            return null;
+        }
+
+        /// <summary>Metragem total de cada tipo de cabo desenhado (chave = nome curto do cabo).</summary>
+        public static Dictionary<string, double> CableLengths(Transaction tr, BlockTableRecord space)
+        {
+            var lengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Polyline poly) continue;
+
+                string? cableName = XDataTags.GetCableName(poly);
+                if (cableName == null) continue;
+
+                lengths[cableName] = lengths.TryGetValue(cableName, out double len) ? len + poly.Length : poly.Length;
+            }
+            return lengths;
+        }
+
+        /// <summary>
+        /// Pergunta onde salvar e grava o CSV (UTF-8, abre direto no Excel). Mostra no Editor o
+        /// resultado; retorna false se o usuário cancelar ou der erro.
+        /// </summary>
+        public static bool SaveCsv(Editor ed, string title, string defaultFileName, Action<StreamWriter> write)
+        {
+            using (var sfd = new System.Windows.Forms.SaveFileDialog())
+            {
+                sfd.Filter = "Comma Separated Values (*.csv)|*.csv|All files (*.*)|*.*";
+                sfd.Title = title;
+                sfd.FileName = defaultFileName;
+
+                if (sfd.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                {
+                    ed.WriteMessage("\n[AVISO]: Exportação cancelada pelo usuário.");
+                    return false;
+                }
+
+                try
+                {
+                    using (var sw = new StreamWriter(sfd.FileName, false, System.Text.Encoding.UTF8))
+                    {
+                        write(sw);
+                    }
+                    ed.WriteMessage($"\n[SUCESSO]: Arquivo salvo em: {sfd.FileName}");
+                    return true;
+                }
+                catch (System.Exception ex)
+                {
+                    ed.WriteMessage($"\n[ERRO]: Não foi possível salvar o arquivo. Detalhes: {ex.Message}");
+                    return false;
+                }
+            }
+        }
+
         /// <summary>Mostra a janela de escolha de cabo. Retorna null se o usuário cancelar.</summary>
         public static CableModel? SelectCable(Editor ed, string buttonText = "OK")
         {
             List<CableModel> cables = CableProvider.GetCables(ed);
+            if (cables.Count == 0) return null; // GetCables já explicou o motivo no Editor
 
             using (var form = new UI.CableSelectionForm(cables, buttonText))
             {

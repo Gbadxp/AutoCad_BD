@@ -36,8 +36,7 @@ namespace FiberPlugin.Commands
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                    var modelSpace = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
+                    BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                     // Se clicou perto de um bloco de poste, usa o centro exato dele
                     PoleInfo? pole = Poles.Nearest(Poles.Collect(tr, modelSpace), ppr.Value, FiberSettings.PoleMatchTolerance);
@@ -64,12 +63,8 @@ namespace FiberPlugin.Commands
 
                     ed.WriteMessage($"\n[SUCESSO]: Poste calculado! {result.CableCount} cabo(s) encontrados. Esforço Total: {result.Kgf:F2} kgf.");
 
-                    if (pole != null && pole.NominalKgf != null)
-                    {
-                        string status = Poles.Status(result.Kgf, pole.NominalKgf);
-                        ed.WriteMessage($"\n           Poste {pole.Number} ({pole.Name}): nominal {pole.NominalKgf:F0} kgf → {status}" +
-                                        $" ({result.Kgf / pole.NominalKgf.Value * 100:F0}% de utilização)");
-                    }
+                    string? status = Poles.StatusText(pole, result.Kgf);
+                    if (status != null) ed.WriteMessage($"\n           Poste {pole!.Number} | {status}");
                 }
                 ed.UpdateScreen();
             }

@@ -27,27 +27,18 @@ namespace FiberPlugin.Models
     {
         public const string FileName = "cabos.csv";
 
-        // Usada apenas se a planilha não existir ou estiver vazia
-        private static readonly CableModel[] Defaults =
-        {
-            new CableModel { FullName = "CFOA-SM-AS-80-S-06 FO", ShortName = "ASU-80 06F.O", WeightKgKm = 31 },
-            new CableModel { FullName = "CFOA-SM-AS-120-S-06 FO", ShortName = "ASU-120 06F.O", WeightKgKm = 34 },
-            new CableModel { FullName = "CFOA-SM-AS-200-S-06 FO", ShortName = "ASU-200 06F.O", WeightKgKm = 38 },
-            new CableModel { FullName = "CFOA-SM-AS-80-S-12 FO", ShortName = "ASU-80 12F.O", WeightKgKm = 31 },
-            new CableModel { FullName = "CFOA-SM-AS-120-S-12 FO", ShortName = "ASU-120 12F.O", WeightKgKm = 34 },
-            new CableModel { FullName = "CFOA-SM-AS-200-S-12 FO", ShortName = "ASU-200 12F.O", WeightKgKm = 38 },
-            new CableModel { FullName = "CFOA-SM-AS-80-S-24 FO", ShortName = "ASU-80 24F.O", WeightKgKm = 33 },
-            new CableModel { FullName = "CFOA-SM-AS-120-S-24 FO", ShortName = "ASU-120 24F.O", WeightKgKm = 46 },
-            new CableModel { FullName = "CFOA-SM-AS-200-S-24 FO", ShortName = "ASU-200 24F.O", WeightKgKm = 63 }
-        };
-
+        /// <summary>
+        /// Cabos da planilha. Lista vazia (com aviso no Editor) se a planilha não existir ou não tiver
+        /// nenhum cabo válido: a planilha é a única fonte dos cabos, não há lista paralela no código.
+        /// </summary>
         public static List<CableModel> GetCables(Editor? ed = null)
         {
             string? path = PluginPaths.DataFile(FileName);
             if (path == null || !File.Exists(path))
             {
-                ed?.WriteMessage($"\n[AVISO]: Planilha '{PluginPaths.DataFolderName}\\{FileName}' não encontrada. Usando a lista interna de cabos.");
-                return Defaults.ToList();
+                ed?.WriteMessage($"\n[ERRO]: Planilha de cabos não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}). " +
+                                 "Use FIBRA_ABRIR_PASTA para abrir a pasta de dados.");
+                return new List<CableModel>();
             }
 
             try
@@ -56,17 +47,13 @@ namespace FiberPlugin.Models
                 List<CableModel> cables = Parse(path, errors);
                 foreach (string error in errors) ed?.WriteMessage($"\n[AVISO] {FileName}: {error}");
 
-                if (cables.Count == 0)
-                {
-                    ed?.WriteMessage($"\n[AVISO]: Nenhum cabo válido em '{FileName}'. Usando a lista interna de cabos.");
-                    return Defaults.ToList();
-                }
+                if (cables.Count == 0) ed?.WriteMessage($"\n[ERRO]: Nenhum cabo válido em '{path}'.");
                 return cables;
             }
             catch (IOException ex)
             {
-                ed?.WriteMessage($"\n[AVISO]: Não foi possível ler '{FileName}' ({ex.Message}). Usando a lista interna de cabos.");
-                return Defaults.ToList();
+                ed?.WriteMessage($"\n[ERRO]: Não foi possível ler '{path}' ({ex.Message}).");
+                return new List<CableModel>();
             }
         }
 

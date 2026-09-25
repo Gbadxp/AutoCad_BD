@@ -41,9 +41,11 @@ namespace FiberPlugin.Commands
         {
             Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
             ed.WriteMessage($"\n{PluginInfo.Name} v{PluginInfo.Version}");
+            ed.WriteMessage($"\nEscala do desenho: 1:{DrawingScale.Get(AcApp.DocumentManager.MdiActiveDocument.Database)}");
             ed.WriteMessage($"\nDLL: {PluginPaths.AssemblyDir}");
             ed.WriteMessage($"\nDados: {PluginPaths.DataDir ?? "(não encontrada)"}");
-            ed.WriteMessage($"\nBlocos: {PluginPaths.BlocksDir ?? "(não encontrada)"}\n");
+            foreach (string dir in PluginPaths.BlockLibraryDirs) ed.WriteMessage($"\nBlocos: {dir}");
+            ed.WriteMessage($"\nBlocos na biblioteca: {BlockRepository.List().Count}\n");
         }
     }
 }

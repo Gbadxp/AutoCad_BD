@@ -8,6 +8,30 @@ using Autodesk.AutoCAD.Geometry;
 
 namespace FiberPlugin.Core
 {
+    /// <summary>Dados gravados no bloco pelo FIBRA_NOMEAR_POSTE.</summary>
+    public class PoleData
+    {
+        public const string DoubleT = "DT";
+        public const string Circular = "CC";
+
+        public int Number { get; set; }
+        public string Type { get; set; } = DoubleT;   // DT = Duplo T, CC = Circular
+        public double HeightM { get; set; }
+        public double EffortDaN { get; set; }         // Esforço nominal, em daN como na norma
+
+        /// <summary>"11/300" (altura em m / esforço em daN), o texto mostrado no desenho.</summary>
+        public string HeightEffort =>
+            HeightM.ToString("0.#", CultureInfo.InvariantCulture) + "/" + EffortDaN.ToString("0", CultureInfo.InvariantCulture);
+
+        /// <summary>"DT 11/300", usado na listagem de postes.</summary>
+        public string Designation => $"{Type} {HeightEffort}";
+
+        public string TypeName => Type == Circular ? "Circular" : "Duplo T";
+
+        /// <summary>Número formatado: P-01, P-02...</summary>
+        public static string NumberText(int number) => "P-" + number.ToString("D2", CultureInfo.InvariantCulture);
+    }
+
     public class PoleInfo
     {
         public ObjectId Id { get; set; }
@@ -15,22 +39,44 @@ namespace FiberPlugin.Core
         public string Number { get; set; } = "-";
         public string Name { get; set; } = "Poste";
 
+        /// <summary>Dados do FIBRA_NOMEAR_POSTE (null em postes antigos, identificados só por atributo).</summary>
+        public PoleData? Data { get; set; }
+
         /// <summary>
-        /// Esforço nominal em kgf. O nome traz o valor em daN, como na norma ("DT 11/200" = 200 daN = 204 kgf).
-        /// Null se não informado.
+        /// Esforço nominal em kgf. Vem dos dados do poste ou do nome ("DT 11/200"); em ambos o valor está
+        /// em daN, como na norma (200 daN = 204 kgf). Null se não informado.
         /// </summary>
-        public double? NominalKgf => Poles.ParseNominalDaN(Name) / FiberSettings.KgfToDaN;
+        public double? NominalKgf => (Data?.EffortDaN ?? Poles.ParseNominalDaN(Name)) / FiberSettings.KgfToDaN;
     }
 
     public static class Poles
     {
-        /// <summary>Postes = blocos com atributo NÚMERO/NUMERO/ID (mesma regra usada desde a primeira versão).</summary>
+        /// <summary>
+        /// Postes = blocos identificados pelo FIBRA_NOMEAR_POSTE (qualquer bloco) ou, nos desenhos antigos,
+        /// blocos com atributo NÚMERO/NUMERO/ID.
+        /// </summary>
         public static List<PoleInfo> Collect(Transaction tr, BlockTableRecord space)
         {
             var poles = new List<PoleInfo>();
             foreach (ObjectId id in space)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br || br.AttributeCollection.Count == 0) continue;
+                if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
+
+                PoleData? data = XDataTags.ReadPole(br);
+                if (data != null)
+                {
+                    poles.Add(new PoleInfo
+                    {
+                        Id = id,
+                        Position = br.Position,
+                        Number = PoleData.NumberText(data.Number),
+                        Name = data.Designation,
+                        Data = data
+                    });
+                    continue;
+                }
+
+                if (br.AttributeCollection.Count == 0) continue;
 
                 string? number = CadHelpers.GetAttributeValue(tr, br, CadHelpers.NumberTags);
                 if (number == null) continue;
@@ -82,6 +128,24 @@ namespace FiberPlugin.Core
         {
             if (nominalKgf == null || nominalKgf <= 0) return "SEM NOMINAL";
             return effortKgf > nominalKgf ? "EXCEDIDO" : "OK";
+        }
+
+        public static bool IsExceeded(PoleInfo? pole, double effortKgf)
+        {
+            return Status(effortKgf, pole?.NominalKgf) == "EXCEDIDO";
+        }
+
+        /// <summary>
+        /// Texto de situação usado na linha de comando, igual em todos os comandos de esforço:
+        /// "DT 11/200: nominal 204 kgf → OK (12% de utilização)". Null se o poste não tem nominal.
+        /// </summary>
+        public static string? StatusText(PoleInfo? pole, double effortKgf)
+        {
+            double? nominal = pole?.NominalKgf;
+            if (pole == null || nominal == null || nominal <= 0) return null;
+
+            return $"{pole.Name}: nominal {nominal:F0} kgf → {Status(effortKgf, nominal)} " +
+                   $"({effortKgf / nominal.Value * 100:F0}% de utilização)";
         }
 
         public static bool IsPoleBlockName(string blockName)

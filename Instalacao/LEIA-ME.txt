@@ -13,7 +13,8 @@ Ficam em Documentos\Fiber Plugin (criada na primeira vez que o AutoCAD abre com 
   Dados\cabos.csv           cabos cadastrados (edite no Excel)
   Dados\perdas_opticas.csv  perdas do budget óptico
   Dados\bom_ignorar.txt     blocos fora da lista de materiais
-  Blocos\                   biblioteca de blocos (.dwg), uma subpasta por categoria
+  Blocos\                   blocos pessoais (opcional). Os blocos padrão vêm no BLOCOS.dwg
+                            instalado com o plugin e são atualizados a cada versão.
 O comando FIBRA_ABRIR_PASTA abre essa pasta.
 Para voltar ao conteúdo padrão, apague a pasta e reabra o AutoCAD.
 Desinstalar ou atualizar o plugin NÃO apaga seus dados.

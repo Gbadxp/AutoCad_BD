@@ -12,8 +12,8 @@ namespace FiberPlugin.Commands
     public class ExportBlocksCommand
     {
         /// <summary>
-        /// Copia os blocos do desenho aberto (ex.: o TEMPLATE_BD_V1.dwg) para a pasta Blocos,
-        /// um .dwg por bloco. Basta rodar uma vez com o template aberto para montar a biblioteca.
+        /// Copia os blocos do desenho aberto para dentro da biblioteca (Blocos\BLOCOS.dwg).
+        /// Útil para aproveitar blocos criados num projeto sem precisar abrir o BLOCOS.dwg.
         /// </summary>
         [CommandMethod("FIBRA_EXPORTAR_BLOCOS")]
         public void ExportBlocks()
@@ -22,11 +22,11 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            string? root = PluginPaths.BlocksDir;
-            if (root == null)
+            string? library = BlockRepository.LibraryFile;
+            if (library != null && string.Equals(Path.GetFullPath(doc.Name), Path.GetFullPath(library), StringComparison.OrdinalIgnoreCase))
             {
-                root = Path.Combine(PluginPaths.AssemblyDir, PluginPaths.BlocksFolderName);
-                ed.WriteMessage($"\n[AVISO]: Pasta Blocos não encontrada. Ela será criada em: {root}");
+                ed.WriteMessage($"\n[INFO]: Este desenho já é a biblioteca ({BlockRepository.LibraryFileName}). Basta salvá-lo.");
+                return;
             }
 
             var pko = new PromptKeywordOptions("\nSe o bloco já existir na biblioteca [Manter/Sobrescrever] <Manter>: ", "Manter Sobrescrever")
@@ -37,12 +37,17 @@ namespace FiberPlugin.Commands
             if (pkr.Status == PromptStatus.Cancel) return;
             bool overwrite = pkr.Status == PromptStatus.OK && pkr.StringResult == "Sobrescrever";
 
-            var (exported, skipped, errors) = BlockRepository.ExportFromDrawing(db, root, overwrite);
+            var (added, replaced, kept, error) = BlockRepository.ExportToLibrary(db, overwrite);
+            if (error != null)
+            {
+                ed.WriteMessage($"\n[ERRO]: {error}");
+                return;
+            }
 
-            foreach (string error in errors) ed.WriteMessage($"\n[ERRO]: {error}");
-            ed.WriteMessage($"\n[SUCESSO]: {exported} bloco(s) exportado(s) para {root}");
-            if (skipped > 0) ed.WriteMessage($"\n[AVISO]: {skipped} bloco(s) já existiam e foram mantidos.");
-            ed.WriteMessage("\n[DICA]: Confira as categorias (subpastas) e apague da pasta os blocos que não quiser usar.");
+            ed.WriteMessage($"\n[SUCESSO]: {BlockRepository.LibraryFile}: {added} bloco(s) novo(s)" +
+                            (replaced > 0 ? $", {replaced} substituído(s)" : "") + ".");
+            if (kept > 0) ed.WriteMessage($"\n[INFO]: {kept} bloco(s) já existiam na biblioteca e foram mantidos.");
+            if (added + replaced > 0) ed.WriteMessage("\n[INFO]: A versão anterior da biblioteca foi guardada como BLOCOS.bak.");
         }
     }
 }
