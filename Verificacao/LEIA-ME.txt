@@ -7,7 +7,7 @@ Para que serve
 
 Como usar
   Clique duas vezes em Verificar.bat.
-  (ou no PowerShell: .erificar.ps1)
+  (ou no PowerShell: .\verificar.ps1)
 
 O que é verificado
   Para usar o plugin:
@@ -29,5 +29,5 @@ Como instala o que falta
   O Windows pode pedir permissão de administrador durante as instalações.
 
 Opções (PowerShell)
-  .erificar.ps1 -SomenteVerificar     Só mostra o resultado, sem instalar nada.
-  .erificar.ps1 -Desenvolvimento      Inclui .NET SDK e Git sem perguntar.
+  .\verificar.ps1 -SomenteVerificar     Só mostra o resultado, sem instalar nada.
+  .\verificar.ps1 -Desenvolvimento      Inclui .NET SDK e Git sem perguntar.
