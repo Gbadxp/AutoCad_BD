@@ -87,8 +87,7 @@ FiberPlugin/
 ├── UI/         janelas
 ├── Dados/      planilhas editáveis no Excel
 │   ├── cabos.csv            cabos cadastrados (NomeCompleto;NomeCurto;Peso_kg_km)
-│   ├── perdas_opticas.csv   perdas usadas no budget óptico
-│   └── bom_ignorar.txt      blocos que não entram na lista de materiais
+│   └── postes.csv           modelos de poste do Inserir Postes (Tipo;Altura_m;Esforco_daN)
 └── Blocos/     biblioteca de blocos
     ├── BLOCOS.dwg           todos os blocos do plugin (definições de bloco)
     └── LEIA-ME.txt
@@ -98,9 +97,11 @@ FiberPlugin/
 Aceita CSV salvo pelo Excel em português (separador `;`, vírgula decimal).
 
 **Blocos**: o plugin usa **somente** os blocos definidos no `BLOCOS.dwg`. Para acrescentar, alterar
-ou remover um bloco, edite esse arquivo e salve. Quando um comando precisa de um bloco que ainda não
-está no desenho, a definição é copiada do `BLOCOS.dwg` automaticamente, sem template. A categoria na
-janela de inserção vem do nome do bloco (POSTE → Postes, CTO/CEO → Fibra, TRAFO/CHAVE → Eletrica).
+ou remover um bloco, edite esse arquivo e salve. Ao inserir, a definição é copiada do `BLOCOS.dwg`
+automaticamente, sem template; se o desenho já tiver um bloco com o mesmo nome (ex.: de um template antigo),
+ele é substituído pela versão do `BLOCOS.dwg`. O
+grupo de cada bloco vem do nome e define o comando que o insere: POSTE → Inserir Postes, CTO → Inserir CTO,
+CEO → Inserir CEO, TRAFO/CHAVE/PARA-RAIO/ATERRAMENTO → Elétricos, AMARRAÇÃO → Amarração, o resto → Outros Blocos.
 `FIBRA_EXPORTAR_BLOCOS` copia os blocos do desenho aberto para dentro do `BLOCOS.dwg`.
 
 Instalado, o plugin usa `Documentos\Fiber Plugin\Dados` e o `BLOCOS.dwg` do pacote (mais os blocos
@@ -110,24 +111,24 @@ pessoais de `Documentos\Fiber Plugin\Blocos`, se houver). Em desenvolvimento, us
 
 | Comando | Função |
 |---|---|
-| `FIBRA` | Menu principal com todas as ferramentas. |
-| `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos; escreve nome e metragem vão a vão. |
+| `FIBRA` | Menu com todas as ferramentas (digite o comando; não há botão na aba). |
+| `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. |
 | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. |
-| `FIBRA_INSERIR_POSTE` | Insere postes numerados em sequência, continuando do maior número já existente no desenho. |
-| `FIBRA_INSERIR_BLOCO` | Insere CTO, CEO e outros blocos da biblioteca (`BLOCOS.dwg`). |
-| `FIBRA_NOMEAR_POSTE` | Identifica postes em **qualquer bloco**: número (P-01...), tipo DT/CC, altura e esforço. Ao lado do bloco aparece o texto com número, altura/esforço (ex.: `11/300`) e coordenada UTM. O tipo DT/CC não aparece no desenho, só na listagem. |
-| `FIBRA_LISTA_POSTES` | Listagem de postes (CSV): número, tipo (DT Duplo T / CC Circular), altura, esforço e coordenadas, com resumo da quantidade por tipo. |
-| `FIBRA_NUMERAR_PONTOS` | Marca pontos com numeração P01, P02... e coordenadas X/Y. |
+| `FIBRA_INSERIR_POSTE` | Insere postes escolhendo o modelo na lista (DT ou CC 11/300, 11/600, 11/1000, 12/1000, 11/1500, 12/1500 e DT 9/200), com o bloco DT ou CC do `BLOCOS.dwg`. Cada poste já sai numerado e com o texto de número, altura/esforço e coordenada UTM (zona, E e N). A zona UTM vem do botão Zona UTM. Os modelos ficam em `Dados/postes.csv`. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC, circular, não gira. |
+| `FIBRA_INSERIR_CTO` | Insere CTO (bloco `CTO`) numerada em sequência (CTO-01, CTO-02...), com texto de identificação (sem coordenadas), vinculada ao poste mais próximo. O símbolo é ajustado para 6 m no maior lado (na escala 1:1000) e centrado no clique, seja qual for a unidade em que o bloco foi desenhado. |
+| `FIBRA_INSERIR_CEO` | Igual ao da CTO, para CEO (blocos `CEO_1`, `CEO_2`: escolha o modelo; **M** troca durante a inserção). |
+| `FIBRA_INSERIR_ELETRICOS` | Itens elétricos: TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
+| `FIBRA_INSERIR_AMARRACAO` | Amarração: depois do ponto, o bloco gira acompanhando o mouse até o clique (ou digite o ângulo). Sem coordenadas. |
+| `FIBRA_INSERIR_BLOCO` | Outros blocos do `BLOCOS.dwg` que não pertencem a nenhum grupo. |
+| `FIBRA_RENUMERAR` | Corrige a numeração: clique nos blocos na ordem desejada. No primeiro de cada tipo você digita o número; os seguintes recebem o próximo automaticamente (P-05, P-06...). Funciona em postes, CTO, CEO e qualquer bloco com atributo NÚMERO/ID; atualiza atributo, texto ao lado (sem mudar de lugar) e dados do relatório. **N** define o próximo número; avisa se o número já existir em outro bloco. |
 | `FIBRA_CALCULAR_ESFORCO` | Esforço de um único cabo numa sequência de postes clicados (fora do menu). |
 | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos num poste, comparado com o nominal. |
-| `FIBRA_ESFORCO_PERCURSO` | Coloca a seta de esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo). |
-| `FIBRA_RELATORIO_ESFORCOS` | CSV com o esforço (kgf) de todos os postes, nominal, % de utilização e situação (OK/EXCEDIDO). |
-| `FIBRA_EXPORTAR_CSV` | Lista de materiais (blocos + metragem por cabo) e coordenadas. |
-| `FIBRA_CALCULAR_BOBINAS` | Quantidade de bobinas por tipo de cabo, com margem de segurança. |
-| `FIBRA_BUDGET_OPTICO` | Perda do enlace (fibra, emendas, conectores, splitters) comparada com a classe B+/C+. |
+| `FIBRA_ESFORCO_PERCURSO` | Coloca a seta de esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo). Cada ponto é vinculado ao poste mais próximo (até 10 m) e guarda a situação (fim de rede, passagem ou ângulo). |
+| `FIBRA_RELATORIO` | Relatório único em Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, esforço nominal, coordenadas e esforço calculado), **CTO e CEO** (ID, bloco, poste vinculado e coordenadas), **Esforços** (cada ponto ligado ao poste de onde sai o cálculo: situação, kgf, ângulo e resultado) e **Cabos** (metragem e lances por tipo). |
 | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas (A0 a A4) na escala escolhida, criando um layout com moldura e viewport para cada pedaço, pronto para PDF. |
+| `FIBRA_ZONA_UTM` | Zona UTM e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada para cada ponto. Oferece atualizar os textos dos postes. |
 | `FIBRA_ESCALA` | Define a escala do desenho (1:500, 1:1000, 1:2000...). Textos e setas de esforço passam a sair no tamanho certo, e as anotações existentes podem ser ajustadas. |
-| `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg`. |
+| `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg`. Sem botão: digite o comando. |
 | `FIBRA_ABRIR_PASTA` | Abre a pasta com a planilha de cabos e a biblioteca de blocos. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada e as pastas em uso. |
@@ -152,7 +153,7 @@ Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve
 
 ## Escala das anotações
 
-Os textos dos vãos, os textos dos pontos (P01...) e a seta de esforço têm tamanho definido para
+Os textos dos vãos, os textos de identificação dos postes e a seta de esforço têm tamanho definido para
 **1:1000** (texto de 2 mm no papel). Com `FIBRA_ESCALA` você informa a escala do projeto e tudo
 passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade. A escala fica
 gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
@@ -170,12 +171,8 @@ Os blocos (postes, CTO, CEO) não mudam de tamanho.
   considerado o vértice mais próximo do poste, num raio de 2,5 m.
 - **Não considera** vento, variação de temperatura, desnível entre postes nem a tração máxima de
   projeto do fabricante do cabo. Para um laudo formal, confirme com a norma da concessionária.
-- O esforço nominal vem do `FIBRA_NOMEAR_POSTE` (ou, em desenhos antigos, do nome do poste). Ele segue a norma em daN e é convertido para kgf:
+- O esforço nominal vem do modelo escolhido no `FIBRA_INSERIR_POSTE` (ou, em desenhos antigos, do nome do poste). Ele segue a norma em daN e é convertido para kgf:
   `DT 11/200` → 200 daN = 204 kgf.
-
-**Budget óptico**: valores típicos em `Dados/perdas_opticas.csv` (0,35 dB/km, emenda 0,1 dB,
-conector 0,5 dB, splitters PLC, classes GPON B+ 13–28 dB e C+ 17–32 dB, margem 3 dB). Ajuste
-para os valores do seu fornecedor.
 
 ## Identificação dos cabos
 Cada cabo desenhado guarda o tipo em XData (aplicação `FIBRA_PLUGIN`), então renomear a layer não

@@ -26,6 +26,41 @@ namespace FiberPlugin.Core
         /// <summary>Ângulo da resultante em radianos (0 a 2π). Zero quando o esforço é desprezível.</summary>
         public double AngleRad => Kgf > 0.1 ? Resultant.Angle : 0;
         public double AngleDeg => AngleRad * 180.0 / Math.PI;
+
+        /// <summary>Cabos que terminam no poste (ancoragem) e que passam por ele.</summary>
+        public int EndCount { get; set; }
+        public int PassCount { get; set; }
+
+        /// <summary>Maior deflexão (mudança de direção) entre os vãos de um cabo que passa pelo poste, em graus.</summary>
+        public double MaxDeflectionDeg { get; set; }
+
+        /// <summary>Deflexão a partir da qual o poste é considerado "de ângulo".</summary>
+        public const double AngleThresholdDeg = 5;
+
+        /// <summary>Situação do poste no percurso: "Fim de rede", "Ângulo (35°)" ou "Passagem".</summary>
+        public string Situation =>
+            EndCount > 0 ? "Fim de rede"
+            : MaxDeflectionDeg >= AngleThresholdDeg ? $"Ângulo ({MaxDeflectionDeg:F0}°)"
+            : "Passagem";
+
+        /// <summary>Registra a geometria do cabo no poste: ponta de rede ou passagem com deflexão.</summary>
+        internal void AddGeometry(Point3d at, Point3d? previous, Point3d? next)
+        {
+            if (previous == null || next == null)
+            {
+                EndCount++;
+                return;
+            }
+
+            PassCount++;
+            var a = new Vector2d(previous.Value.X - at.X, previous.Value.Y - at.Y);
+            var b = new Vector2d(next.Value.X - at.X, next.Value.Y - at.Y);
+            if (a.Length < 1e-9 || b.Length < 1e-9) return;
+
+            // Vãos alinhados formam 180°; a deflexão é o quanto falta para isso
+            double inner = a.GetAngleTo(b) * 180.0 / Math.PI;
+            MaxDeflectionDeg = Math.Max(MaxDeflectionDeg, 180.0 - inner);
+        }
     }
 
     /// <summary>
@@ -62,6 +97,9 @@ namespace FiberPlugin.Core
             if (index > 0) total += PullVector(path[index], path[index - 1], weightKgKm);
             if (index < path.Count - 1) total += PullVector(path[index], path[index + 1], weightKgKm);
             result.Resultant = total;
+            result.AddGeometry(path[index],
+                index > 0 ? path[index - 1] : (Point3d?)null,
+                index < path.Count - 1 ? path[index + 1] : (Point3d?)null);
             return result;
         }
 
@@ -91,6 +129,9 @@ namespace FiberPlugin.Core
 
                 result.CableCount++;
                 result.Cables.Add($"{run.Name} ({run.WeightKgKm} kg/km)");
+                result.AddGeometry(at,
+                    best > 0 ? run.Vertices[best - 1] : (Point3d?)null,
+                    best < run.Vertices.Count - 1 ? run.Vertices[best + 1] : (Point3d?)null);
             }
 
             result.Resultant = total;

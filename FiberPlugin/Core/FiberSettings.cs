@@ -11,7 +11,6 @@ namespace FiberPlugin.Core
         // Layers
         public const string CableLayerPrefix = "FIBRA_CABO_";
         public const string EffortLayer = "FIBRA_ESFORCOS";
-        public const string CoordinatesLayer = "FIBRA_COORDENADAS";
 
         // Bloco usado para indicar o esforço no poste (buscado no desenho e depois na pasta Blocos)
         public const string EffortBlockName = "SETA DE ESFORÇO";
@@ -29,12 +28,19 @@ namespace FiberPlugin.Core
         public const double EffortArrowHeadLength = 2.5;    // Comprimento da ponta
         public const double EffortArrowHeadWidth = 1.2;     // Largura da base da ponta
 
+        // Símbolos de CTO/CEO: tamanho do maior lado na escala 1:1000 (m). Os blocos são ajustados a esse
+        // tamanho na inserção, independente da unidade em que foram desenhados no BLOCOS.dwg.
+        public const double BoxSymbolSize = 6.0;
+
         // Roteamento automático: afastamento do cabo em relação ao centro do poste
         public const double AutoRouteOffset = 1.8;
 
         // Raio em volta do poste dentro do qual um vértice de cabo é considerado "preso" ao poste.
         // Precisa ser maior que AutoRouteOffset (o roteamento garante vértices a exatamente 1,8 m do poste).
         public const double PoleMatchTolerance = 2.5;
+
+        // Raio para vincular um ponto de esforço ao poste mais próximo (Esforço no Percurso e no Poste)
+        public const double PoleLinkRadius = 10.0;
 
         // Cálculo de tração: flecha de 1% do vão  →  T = p·L² / (8·f) = p·L / (8·0,01) = 12,5·p·L  [kgf]
         // Todo o plugin trabalha em kgf. KgfToDaN só converte o nominal do poste ("DT 11/200" está em daN).

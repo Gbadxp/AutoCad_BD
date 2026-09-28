@@ -38,25 +38,24 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_LANCAR_CABO", Theme.Icons.Edit, "Lançar Rota Manual", "Desenhe o cabo clicando nos postes", "Lançar\nCabo"),
                 new Tool("FIBRA_ROTEAMENTO_AUTO", Theme.Icons.Route, "Roteamento Automático", "Rota mais curta entre os blocos", "Roteamento\nAutomático")
             }),
-            ("Postes e Blocos", new[]
+            ("Inserir", new[]
             {
-                new Tool("FIBRA_INSERIR_POSTE", Theme.Icons.Pin, "Inserir Postes", "Numeração sequencial automática", "Inserir\nPostes"),
-                new Tool("FIBRA_INSERIR_BLOCO", Theme.Icons.Blocks, "Inserir Blocos", "CTO, CEO e blocos da biblioteca", "Inserir\nBlocos"),
-                new Tool("FIBRA_NOMEAR_POSTE", Theme.Icons.Tag, "Nomear Postes", "Numeração, 11/300 e coordenada UTM", "Nomear Postes", largeOnRibbon: false),
-                new Tool("FIBRA_LISTA_POSTES", Theme.Icons.Page, "Listagem de Postes", "Postes por tipo DT/CC, altura e esforço (.csv)", "Listagem de Postes", largeOnRibbon: false),
-                new Tool("FIBRA_NUMERAR_PONTOS", Theme.Icons.List, "Numerar Pontos", "P01, P02... com coordenadas X/Y", "Numerar Pontos", largeOnRibbon: false)
+                new Tool("FIBRA_INSERIR_POSTE", Theme.Icons.Pin, "Inserir Postes", "DT/CC já com número, 11/300 e UTM", "Postes", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_CTO", Theme.Icons.Blocks, "Inserir CTO", "CTO-01, CTO-02... com UTM e poste vinculado", "CTO", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_CEO", Theme.Icons.Blocks, "Inserir CEO", "CEO-01, CEO-02... com UTM e poste vinculado", "CEO", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_ELETRICOS", Theme.Icons.Bolt, "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_AMARRACAO", Theme.Icons.Pin, "Amarração", "Amarração com direção", "Amarração", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_BLOCO", Theme.Icons.Blocks, "Outros Blocos", "Blocos do BLOCOS.dwg fora dos grupos", "Outros Blocos", largeOnRibbon: false),
+                new Tool("FIBRA_RENUMERAR", Theme.Icons.Edit, "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false)
             }),
             ("Esforços", new[]
             {
                 new Tool("FIBRA_ESFORCO_TOTAL", Theme.Icons.Bolt, "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
-                new Tool("FIBRA_ESFORCO_PERCURSO", Theme.Icons.Path, "Esforço no Percurso", "Setas em todos os postes de um cabo", "Esforço no\nPercurso"),
-                new Tool("FIBRA_RELATORIO_ESFORCOS", Theme.Icons.Document, "Relatório de Esforços", "CSV com a situação OK / EXCEDIDO", "Relatório de\nEsforços")
+                new Tool("FIBRA_ESFORCO_PERCURSO", Theme.Icons.Path, "Esforço no Percurso", "Setas em todos os postes de um cabo", "Esforço no\nPercurso")
             }),
-            ("Materiais e Rede", new[]
+            ("Relatório", new[]
             {
-                new Tool("FIBRA_EXPORTAR_CSV", Theme.Icons.Export, "Lista de Materiais", "Blocos, metragem e coordenadas (.csv)", "Lista de\nMateriais"),
-                new Tool("FIBRA_CALCULAR_BOBINAS", Theme.Icons.Calculator, "Calcular Bobinas", "Quantidade de bobinas por tipo de cabo", "Calcular\nBobinas"),
-                new Tool("FIBRA_BUDGET_OPTICO", Theme.Icons.Signal, "Budget Óptico", "Perdas do enlace GPON (B+ / C+)", "Budget\nÓptico")
+                new Tool("FIBRA_RELATORIO", Theme.Icons.Document, "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório")
             }),
             ("Pranchas", new[]
             {
@@ -64,8 +63,8 @@ namespace FiberPlugin.UI
             }),
             ("Fiber Plugin", new[]
             {
+                new Tool("FIBRA_ZONA_UTM", Theme.Icons.Ruler, "Zona UTM", "Zona e hemisfério das coordenadas (ex.: 20 L)", "Zona UTM", largeOnRibbon: false),
                 new Tool("FIBRA_ESCALA", Theme.Icons.Ruler, "Escala do Desenho", "Tamanho dos textos: 1:500, 1:1000, 1:2000...", "Escala", largeOnRibbon: false),
-                new Tool("FIBRA_EXPORTAR_BLOCOS", Theme.Icons.Library, "Exportar Blocos", "Copia os blocos do desenho para o BLOCOS.dwg", "Exportar Blocos", largeOnRibbon: false),
                 new Tool("FIBRA_ABRIR_PASTA", Theme.Icons.Folder, "Pasta de Dados", "Planilha de cabos e biblioteca de blocos", "Pasta de Dados", largeOnRibbon: false)
             })
         };

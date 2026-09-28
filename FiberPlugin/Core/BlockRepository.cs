@@ -9,7 +9,7 @@ namespace FiberPlugin.Core
     public class BlockEntry
     {
         public string Name { get; set; } = "";
-        public string Category { get; set; } = BlockRepository.DefaultCategory;
+        public string Category { get; set; } = BlockCategories.Others;
         public string FilePath { get; set; } = "";   // Arquivo da biblioteca que contém a definição do bloco
     }
 
@@ -18,13 +18,11 @@ namespace FiberPlugin.Core
     /// (outros .dwg soltos na pasta Blocos também são lidos, com prioridade para o BLOCOS.dwg).
     /// O plugin só oferece os blocos definidos na biblioteca. Quando um deles é usado e ainda não existe
     /// no desenho, a definição é copiada automaticamente, sem precisar de template.
-    /// A categoria mostrada na janela de inserção vem do nome do bloco (POSTE, CTO, TRAFO...).
+    /// O grupo de cada bloco (e o comando que o insere) vem do nome: veja BlockCategories.
     /// </summary>
     public static class BlockRepository
     {
-        public const string DefaultCategory = "Outros";
         public const string LibraryFileName = "BLOCOS.dwg";
-        public static readonly string[] StandardCategories = { "Fibra", "Eletrica", "Postes", DefaultCategory };
 
         // Nomes dos blocos por arquivo, relidos só quando o arquivo muda
         private static readonly Dictionary<string, (DateTime Stamp, List<string> Names)> Cache =
@@ -62,7 +60,7 @@ namespace FiberPlugin.Core
                 foreach (string name in BlockNamesIn(file))
                 {
                     if (entries.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
-                    entries.Add(new BlockEntry { Name = name, Category = GuessCategory(name), FilePath = file });
+                    entries.Add(new BlockEntry { Name = name, Category = BlockCategories.Of(name), FilePath = file });
                 }
             }
 
@@ -70,20 +68,23 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Garante que o bloco existe no desenho, copiando a definição da biblioteca se necessário.
-        /// Se o bloco já existe no desenho, a versão do desenho é mantida.
+        /// Deixa no desenho a definição do bloco que está na biblioteca (BLOCOS.dwg). Se o desenho já tinha
+        /// um bloco com esse nome (ex.: vindo de um template antigo), ele é substituído pela versão da
+        /// biblioteca, e os blocos já inseridos passam a ter o desenho novo. Blocos que não estão na
+        /// biblioteca (ex.: SETA DE ESFORÇO criada no próprio desenho) continuam os do desenho.
         /// Deve ser chamado fora de transações abertas. Retorna ObjectId.Null se não encontrado.
         /// </summary>
         public static ObjectId EnsureInDrawing(Database db, string blockName)
         {
-            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
-            {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-                if (bt.Has(blockName)) return bt[blockName];
-            }
-
             BlockEntry? entry = List().FirstOrDefault(e => e.Name.Equals(blockName, StringComparison.OrdinalIgnoreCase));
-            if (entry == null) return ObjectId.Null;
+            if (entry == null)
+            {
+                using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+                {
+                    var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+                    return bt.Has(blockName) ? bt[blockName] : ObjectId.Null;
+                }
+            }
 
             using (Database source = OpenLibrary(entry.FilePath))
             {
@@ -98,7 +99,7 @@ namespace FiberPlugin.Core
                 // Clonar a definição preserva blocos dinâmicos, atributos e blocos aninhados
                 var ids = new ObjectIdCollection { sourceId };
                 var mapping = new IdMapping();
-                source.WblockCloneObjects(ids, db.BlockTableId, mapping, DuplicateRecordCloning.Ignore, false);
+                source.WblockCloneObjects(ids, db.BlockTableId, mapping, DuplicateRecordCloning.Replace, false);
                 return mapping[sourceId].Value;
             }
         }
@@ -176,20 +177,6 @@ namespace FiberPlugin.Core
 
             Cache.Remove(path);
             return (added, replaced, kept, null);
-        }
-
-        public static string GuessCategory(string blockName)
-        {
-            string n = blockName.ToLowerInvariant();
-            if (n.Contains("poste")) return "Postes";
-
-            string[] fibra = { "cto", "ceo", "amarra", "reserva", "emenda", "splitter", "fibra", "dio", "seta de esfor" };
-            if (fibra.Any(n.Contains)) return "Fibra";
-
-            string[] eletrica = { "aterramento", "chave", "para-raio", "pára-raio", "trafo", "transformador", "luminaria", "luminária" };
-            if (eletrica.Any(n.Contains)) return "Eletrica";
-
-            return DefaultCategory;
         }
 
         private static List<string> BlockNamesIn(string file)

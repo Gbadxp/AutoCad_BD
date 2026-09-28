@@ -75,7 +75,7 @@ namespace FiberPlugin.Commands
             string question = existing.Count > 0
                 ? $"\nSubstituir as {existing.Count} folha(s) \"{options.Prefix}-...\" que já existem? [Sim/Nao] <Sim>: "
                 : "\nCriar as folhas? [Sim/Nao] <Sim>: ";
-            if (!AskYes(ed, question))
+            if (!CadHelpers.AskYes(ed, question))
             {
                 ed.WriteMessage(existing.Count > 0 ? "\n[INFO]: Nada foi alterado. Use outro prefixo para manter as folhas atuais." : "\n[INFO]: Cancelado.");
                 return;
@@ -454,11 +454,5 @@ namespace FiberPlugin.Commands
             }
         }
 
-        private static bool AskYes(Editor ed, string message)
-        {
-            var pko = new PromptKeywordOptions(message, "Sim Nao") { AllowNone = true };
-            PromptResult res = ed.GetKeywords(pko);
-            return res.Status == PromptStatus.None || (res.Status == PromptStatus.OK && res.StringResult == "Sim");
-        }
     }
 }

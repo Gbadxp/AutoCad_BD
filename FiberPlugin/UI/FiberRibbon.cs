@@ -17,6 +17,7 @@ namespace FiberPlugin.UI
     internal static class FiberRibbon
     {
         private const string TabId = "FIBER_PLUGIN_TAB";
+        private const int RowsPerColumn = 3;
 
 
         private static bool _workspaceHooked;
@@ -69,25 +70,23 @@ namespace FiberPlugin.UI
             {
                 var items = new List<RibbonItem>();
 
-                // O último painel ganha também o botão do menu principal
-                if (section == ToolCatalog.Sections[ToolCatalog.Sections.Length - 1].Section)
-                {
-                    items.Add(Button("Menu\nPrincipal", Theme.Icons.Fiber, ToolCatalog.MenuCommand,
-                        "Abre o menu com todas as ferramentas.", large: true));
-                }
-
-                // Botões grandes primeiro; os pequenos ficam empilhados (um por linha)
+                // Botões grandes primeiro
                 foreach (Tool tool in tools.Where(t => t.LargeOnRibbon))
                 {
                     items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: true));
                 }
 
-                bool firstSmall = true;
-                foreach (Tool tool in tools.Where(t => !t.LargeOnRibbon))
+                // Botões pequenos em colunas de 3 linhas, como o painel Modificar do AutoCAD
+                List<Tool> smalls = tools.Where(t => !t.LargeOnRibbon).ToList();
+                for (int start = 0; start < smalls.Count; start += RowsPerColumn)
                 {
-                    if (!firstSmall) items.Add(new RibbonRowBreak());
-                    items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: false));
-                    firstSmall = false;
+                    var column = new RibbonRowPanel();
+                    foreach (Tool tool in smalls.Skip(start).Take(RowsPerColumn))
+                    {
+                        if (column.Items.Count > 0) column.Items.Add(new RibbonRowBreak());
+                        column.Items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: false));
+                    }
+                    items.Add(column);
                 }
 
                 tab.Panels.Add(Panel(section, items));
@@ -111,8 +110,9 @@ namespace FiberPlugin.UI
                 ShowImage = true,
                 Size = large ? RibbonItemSize.Large : RibbonItemSize.Standard,
                 Orientation = large ? Wpf.Controls.Orientation.Vertical : Wpf.Controls.Orientation.Horizontal,
-                LargeImage = GlyphImage(glyph, 32),
-                Image = GlyphImage(glyph, 16),
+                // Ícone colorido no estilo AutoCAD; sem desenho próprio, cai no ícone de fonte
+                LargeImage = RibbonIcons.Get(command, 32) ?? GlyphImage(glyph, 32),
+                Image = RibbonIcons.Get(command, 16) ?? GlyphImage(glyph, 16),
                 ToolTip = tooltip,
                 CommandParameter = command,
                 CommandHandler = RibbonCommandHandler.Instance

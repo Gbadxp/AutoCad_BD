@@ -17,6 +17,9 @@ namespace FiberPlugin.UI
         public string Title { get; set; } = "";
         public string Subtitle { get; set; } = "";
 
+        /// <summary>Comando cujo ícone colorido aparece no cabeçalho (senão usa o Glyph).</summary>
+        public string? IconCommand { get; set; }
+
         public HeaderPanel()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -34,7 +37,9 @@ namespace FiberPlugin.UI
             int S(int v) => Theme.Scale(this, v);
 
             var icon = new Rectangle(S(16), (Height - S(28)) / 2, S(28), S(28));
-            Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
+            System.Drawing.Bitmap? image = IconCommand != null ? RibbonIcons.GetBitmap(IconCommand, icon.Width) : null;
+            if (image != null) g.DrawImage(image, icon);
+            else Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
 
             int titleH = Theme.Title.Height;
             int subH = Theme.Small.Height;
@@ -462,9 +467,11 @@ namespace FiberPlugin.UI
             Theme.FillRounded(g, fill, r, radius);
             Theme.DrawRounded(g, border, r, radius);
 
-            // Ícone
+            // Ícone: o mesmo desenho colorido da faixa de opções
             var icon = new Rectangle(S(12), (Height - S(28)) / 2, S(28), S(28));
-            Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
+            System.Drawing.Bitmap? image = RibbonIcons.GetBitmap(CommandName, icon.Width);
+            if (image != null) g.DrawImage(image, icon);
+            else Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
 
             // Textos
             int left = icon.Right + S(10);

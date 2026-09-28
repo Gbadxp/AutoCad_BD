@@ -166,20 +166,13 @@ namespace FiberPlugin.UI
             public const string Route = "\uE81E";
             public const string Pin = "\uE707";
             public const string Blocks = "\uECA5";
-            public const string Tag = "\uE8EC";
-            public const string List = "\uE8FD";
             public const string Bolt = "\uE945";
             public const string Path = "\uE7AD";
             public const string Document = "\uE8A5";
-            public const string Export = "\uEDE1";
-            public const string Calculator = "\uE8EF";
-            public const string Signal = "\uE8BE";
-            public const string Library = "\uE8F1";
             public const string Search = "\uE721";
             public const string Folder = "\uE8B7";
             public const string Ruler = "\uECC6";
             public const string Sheets = "\uE80A";
-            public const string Page = "\uE7C3";
         }
 
         public static void ApplyForm(Form form)

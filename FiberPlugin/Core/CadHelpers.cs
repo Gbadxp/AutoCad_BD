@@ -151,65 +151,36 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Valor dos atributos de coordenada preenchidos na inserção (COORDENADA_X / COORDENADA_Y).
+        /// Valor dos atributos de coordenada preenchidos na inserção (COORDENADA_X / COORDENADA_Y / ZONA),
+        /// no formato "405110.92 m E", "9032585.41 m S" e "20 L".
         /// Null para qualquer outra tag.
         /// </summary>
-        public static string? CoordinateAttribute(string tag, Point3d point)
+        public static string? CoordinateAttribute(string tag, Point3d point, UtmSettings? utm)
         {
-            string t = tag.ToUpperInvariant();
-            if (t == "COORDENADA_X" || t == "COORDENADA X") return point.X.ToString("F2", CultureInfo.InvariantCulture) + " m E";
-            if (t == "COORDENADA_Y" || t == "COORDENADA Y") return point.Y.ToString("F2", CultureInfo.InvariantCulture) + " m S";
+            string t = tag.ToUpperInvariant().Replace(' ', '_');
+            if (t == "COORDENADA_X") return UtmZone.EastingText(point.X);
+            if (t == "COORDENADA_Y") return UtmZone.NorthingText(point.Y, utm?.South ?? true);
+            if (utm != null && (t == "ZONA" || t == "FUSO" || t == "ZONA_UTM")) return UtmZone.ZoneText(point, utm);
             return null;
         }
 
-        /// <summary>Metragem total de cada tipo de cabo desenhado (chave = nome curto do cabo).</summary>
-        public static Dictionary<string, double> CableLengths(Transaction tr, BlockTableRecord space)
+        /// <summary>Pergunta [Sim/Nao] com Sim como padrão (Enter = Sim).</summary>
+        public static bool AskYes(Editor ed, string message)
         {
-            var lengths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            foreach (ObjectId id in space)
-            {
-                if (tr.GetObject(id, OpenMode.ForRead) is not Polyline poly) continue;
-
-                string? cableName = XDataTags.GetCableName(poly);
-                if (cableName == null) continue;
-
-                lengths[cableName] = lengths.TryGetValue(cableName, out double len) ? len + poly.Length : poly.Length;
-            }
-            return lengths;
+            var pko = new PromptKeywordOptions(message, "Sim Nao") { AllowNone = true };
+            PromptResult res = ed.GetKeywords(pko);
+            return res.Status == PromptStatus.None || (res.Status == PromptStatus.OK && res.StringResult == "Sim");
         }
 
-        /// <summary>
-        /// Pergunta onde salvar e grava o CSV (UTF-8, abre direto no Excel). Mostra no Editor o
-        /// resultado; retorna false se o usuário cancelar ou der erro.
-        /// </summary>
-        public static bool SaveCsv(Editor ed, string title, string defaultFileName, Action<StreamWriter> write)
+        /// <summary>Pergunta onde salvar um arquivo. Null se o usuário cancelar.</summary>
+        public static string? AskSavePath(string title, string defaultFileName, string filter)
         {
             using (var sfd = new System.Windows.Forms.SaveFileDialog())
             {
-                sfd.Filter = "Comma Separated Values (*.csv)|*.csv|All files (*.*)|*.*";
+                sfd.Filter = filter;
                 sfd.Title = title;
                 sfd.FileName = defaultFileName;
-
-                if (sfd.ShowDialog() != System.Windows.Forms.DialogResult.OK)
-                {
-                    ed.WriteMessage("\n[AVISO]: Exportação cancelada pelo usuário.");
-                    return false;
-                }
-
-                try
-                {
-                    using (var sw = new StreamWriter(sfd.FileName, false, System.Text.Encoding.UTF8))
-                    {
-                        write(sw);
-                    }
-                    ed.WriteMessage($"\n[SUCESSO]: Arquivo salvo em: {sfd.FileName}");
-                    return true;
-                }
-                catch (System.Exception ex)
-                {
-                    ed.WriteMessage($"\n[ERRO]: Não foi possível salvar o arquivo. Detalhes: {ex.Message}");
-                    return false;
-                }
+                return sfd.ShowDialog() == System.Windows.Forms.DialogResult.OK ? sfd.FileName : null;
             }
         }
 
@@ -227,28 +198,58 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Pede uma sequência de pontos com linha elástica. Enter finaliza, Esc cancela (retorna null).
+        /// Pede uma sequência de pontos como o comando LINE: linha elástica a partir do último ponto e o
+        /// caminho já clicado aparecendo na tela (na cor <paramref name="previewColor"/>) a cada clique.
+        /// "Desfazer" remove o último ponto, Enter finaliza e Esc cancela (retorna null).
+        /// Os pontos retornados estão em coordenadas do mundo (WCS).
         /// </summary>
-        public static List<Point3d>? GetPointSequence(Editor ed, string firstPrompt, string nextPrompt)
+        public static List<Point3d>? GetPointSequence(Editor ed, string firstPrompt, string nextPrompt, short previewColor = 3)
         {
             PromptPointResult first = ed.GetPoint(new PromptPointOptions(firstPrompt));
             if (first.Status != PromptStatus.OK) return null;
 
-            var points = new List<Point3d> { first.Value };
+            Matrix3d ucs = ed.CurrentUserCoordinateSystem;
+            var picked = new List<Point3d> { first.Value };   // UCS: base da linha elástica
+            var points = new List<Point3d> { first.Value.TransformBy(ucs) };
 
-            while (true)
+            // "Selecione o próximo ponto (...):" → "Selecione o próximo ponto (...) [Desfazer]: "
+            string message = nextPrompt.TrimEnd().TrimEnd(':').TrimEnd() + " [Desfazer]: ";
+
+            using (var preview = new PathPreview(previewColor))
             {
-                var opts = new PromptPointOptions(nextPrompt)
+                while (true)
                 {
-                    UseBasePoint = true,
-                    BasePoint = points[points.Count - 1],
-                    AllowNone = true
-                };
+                    var opts = new PromptPointOptions(message, "Desfazer")
+                    {
+                        UseBasePoint = true,
+                        BasePoint = picked[picked.Count - 1],
+                        AllowNone = true
+                    };
 
-                PromptPointResult res = ed.GetPoint(opts);
-                if (res.Status == PromptStatus.Cancel) return null;
-                if (res.Status == PromptStatus.None) break;
-                if (res.Status == PromptStatus.OK) points.Add(res.Value);
+                    PromptPointResult res = ed.GetPoint(opts);
+                    if (res.Status == PromptStatus.Cancel) return null;
+                    if (res.Status == PromptStatus.None) break;
+
+                    if (res.Status == PromptStatus.Keyword)
+                    {
+                        if (picked.Count > 1)
+                        {
+                            picked.RemoveAt(picked.Count - 1);
+                            points.RemoveAt(points.Count - 1);
+                        }
+                        else
+                        {
+                            ed.WriteMessage("\nNada para desfazer.");
+                        }
+                    }
+                    else if (res.Status == PromptStatus.OK)
+                    {
+                        picked.Add(res.Value);
+                        points.Add(res.Value.TransformBy(ucs));
+                    }
+
+                    preview.Update(points);
+                }
             }
 
             return points;

@@ -8,7 +8,7 @@ using Autodesk.AutoCAD.Geometry;
 
 namespace FiberPlugin.Core
 {
-    /// <summary>Dados gravados no bloco pelo FIBRA_NOMEAR_POSTE.</summary>
+    /// <summary>Dados gravados no bloco pelo FIBRA_INSERIR_POSTE.</summary>
     public class PoleData
     {
         public const string DoubleT = "DT";
@@ -39,7 +39,7 @@ namespace FiberPlugin.Core
         public string Number { get; set; } = "-";
         public string Name { get; set; } = "Poste";
 
-        /// <summary>Dados do FIBRA_NOMEAR_POSTE (null em postes antigos, identificados só por atributo).</summary>
+        /// <summary>Dados do FIBRA_INSERIR_POSTE (null em postes antigos, identificados só por atributo).</summary>
         public PoleData? Data { get; set; }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace FiberPlugin.Core
     public static class Poles
     {
         /// <summary>
-        /// Postes = blocos identificados pelo FIBRA_NOMEAR_POSTE (qualquer bloco) ou, nos desenhos antigos,
+        /// Postes = blocos inseridos pelo FIBRA_INSERIR_POSTE ou, nos desenhos antigos,
         /// blocos com atributo NÚMERO/NUMERO/ID.
         /// </summary>
         public static List<PoleInfo> Collect(Transaction tr, BlockTableRecord space)
@@ -108,6 +108,35 @@ namespace FiberPlugin.Core
             return int.TryParse(digits, out int n) ? n : null;
         }
 
+        /// <summary>Números de poste já usados no desenho.</summary>
+        public static HashSet<int> UsedNumbers(Transaction tr, BlockTableRecord space)
+        {
+            return new HashSet<int>(Collect(tr, space).Select(p => ParseNumber(p.Number) ?? 0));
+        }
+
+        /// <summary>Primeiro número a partir de <paramref name="from"/> que ainda não foi usado.</summary>
+        public static int NextFree(HashSet<int> used, int from)
+        {
+            int n = Math.Max(1, from);
+            while (used.Contains(n)) n++;
+            return n;
+        }
+
+        /// <summary>Pergunta o número do próximo poste. Null se o usuário cancelar.</summary>
+        /// <param name="what">O que está sendo numerado, com o artigo: "do próximo poste", "da próxima CTO".</param>
+        public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste")
+        {
+            var pio = new Autodesk.AutoCAD.EditorInput.PromptIntegerOptions($"\nNúmero {what} <{suggested}>: ")
+            {
+                AllowNone = true,
+                AllowNegative = false,
+                AllowZero = false
+            };
+            var res = ed.GetInteger(pio);
+            if (res.Status == Autodesk.AutoCAD.EditorInput.PromptStatus.Cancel) return null;
+            return res.Status == Autodesk.AutoCAD.EditorInput.PromptStatus.OK ? res.Value : suggested;
+        }
+
         /// <summary>Próximo número livre, com base no maior número de poste já existente no desenho.</summary>
         public static int NextNumber(Transaction tr, BlockTableRecord space)
         {
@@ -146,11 +175,6 @@ namespace FiberPlugin.Core
 
             return $"{pole.Name}: nominal {nominal:F0} kgf → {Status(effortKgf, nominal)} " +
                    $"({effortKgf / nominal.Value * 100:F0}% de utilização)";
-        }
-
-        public static bool IsPoleBlockName(string blockName)
-        {
-            return blockName.IndexOf("POSTE", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 }

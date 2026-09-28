@@ -29,6 +29,7 @@ namespace FiberPlugin.UI
             var header = new HeaderPanel
             {
                 Glyph = Theme.Icons.Fiber,
+                IconCommand = ToolCatalog.MenuCommand,
                 Title = "Fiber Plugin",
                 Subtitle = "Ferramentas para projetos de redes FTTH no AutoCAD"
             };

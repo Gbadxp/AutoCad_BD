@@ -70,18 +70,27 @@ namespace FiberPlugin.Commands
                     return;
                 }
 
-                // Pontos do percurso: cada vértice vira o poste mais próximo (roteamento automático fica
-                // 1,8 m afastado) ou o próprio vértice, se não houver bloco de poste ali.
+                // Pontos do percurso: cada vértice é vinculado ao poste mais próximo (até PoleLinkRadius);
+                // o esforço é calculado e desenhado a partir desse poste. Sem poste por perto, fica no vértice.
                 List<PoleInfo> poles = Poles.Collect(tr, modelSpace);
-                var stops = new List<(Point3d Point, PoleInfo? Pole)>();
+                var stops = new List<(Point3d Point, PoleInfo? Pole, double Tolerance)>();
                 foreach (CableRun run in selectedRuns)
                 {
                     foreach (Point3d vertex in run.Vertices)
                     {
-                        PoleInfo? pole = Poles.Nearest(poles, vertex, FiberSettings.PoleMatchTolerance);
+                        PoleInfo? pole = Poles.Nearest(poles, vertex, FiberSettings.PoleLinkRadius);
                         Point3d point = pole?.Position ?? vertex;
-                        if (stops.Any(s => s.Point.DistanceTo(point) < 0.01)) continue;
-                        stops.Add((point, pole));
+
+                        // O raio de busca dos cabos precisa alcançar o vértice que levou até este poste
+                        double tolerance = Math.Max(FiberSettings.PoleMatchTolerance, vertex.DistanceTo(point) + 0.1);
+
+                        int existing = stops.FindIndex(s => s.Point.DistanceTo(point) < 0.01);
+                        if (existing >= 0)
+                        {
+                            if (tolerance > stops[existing].Tolerance) stops[existing] = (point, pole, tolerance);
+                            continue;
+                        }
+                        stops.Add((point, pole, tolerance));
                     }
                 }
 
@@ -94,18 +103,18 @@ namespace FiberPlugin.Commands
 
                 ed.WriteMessage($"\n--- ESFORÇOS NO PERCURSO ({(onlySelected ? "cabo selecionado" : "total no poste")}) ---");
 
-                foreach (var (point, pole) in stops)
+                foreach (var (point, pole, tolerance) in stops)
                 {
-                    EffortResult result = EffortCalculator.AtPole(runsForEffort, point, FiberSettings.PoleMatchTolerance);
+                    EffortResult result = EffortCalculator.AtPole(runsForEffort, point, tolerance);
                     if (result.CableCount == 0) continue;
 
-                    markers.Place(point, result);
+                    markers.Place(point, result, pole);
 
-                    string label = pole != null ? $"Poste {pole.Number}" : $"Ponto ({point.X:F1}; {point.Y:F1})";
+                    string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({point.X:F1}; {point.Y:F1})";
                     if (Poles.IsExceeded(pole, result.Kgf)) exceeded++;
                     string? status = Poles.StatusText(pole, result.Kgf);
 
-                    ed.WriteMessage($"\n{label}: {result.Kgf:F2} kgf ({result.CableCount} cabo(s))" +
+                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf, ANG. {result.AngleDeg:F0}°" +
                                     (status != null ? " | " + status : ""));
                 }
 

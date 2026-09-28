@@ -57,13 +57,12 @@ namespace FiberPlugin.Commands
                     Point3d prev = i < points.Count - 1 ? points[i] : points[i - 1];
                     double perpendicular = Math.Atan2(next.Y - prev.Y, next.X - prev.X) + Math.PI / 2.0;
 
-                    markers.Place(points[i], result, angleOverride: perpendicular);
+                    PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
+                    markers.Place(points[i], result, pole, perpendicular);
 
-                    string tipoPoste = i == 0 || i == points.Count - 1 ? "(Fim de Rota / Ancoragem)" : "(Passagem / Ângulo)";
-                    PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleMatchTolerance);
                     string? status = Poles.StatusText(pole, result.Kgf);
-
-                    ed.WriteMessage($"\nP{i + 1}: {result.Kgf:F2} kgf {tipoPoste}" + (status != null ? " | " + status : ""));
+                    string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
+                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf" + (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();

@@ -51,7 +51,7 @@ namespace FiberPlugin.Commands
                 Annotations existing = FindAnnotations(tr, modelSpace);
 
                 int adjusted = 0;
-                if (existing.Count > 0 && AskYes(ed, $"\nAjustar as {existing.Count} anotações já desenhadas para 1:{scale}? [Sim/Nao] <Sim>: "))
+                if (existing.Count > 0 && CadHelpers.AskYes(ed, $"\nAjustar as {existing.Count} anotações já desenhadas para 1:{scale}? [Sim/Nao] <Sim>: "))
                 {
                     adjusted = Rescale(tr, existing, (double)scale / current);
                 }
@@ -88,8 +88,8 @@ namespace FiberPlugin.Commands
                 {
                     if (txt.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
                         found.SpanLabels.Add(id);
-                    else if (txt.Layer.Equals(FiberSettings.CoordinatesLayer, StringComparison.OrdinalIgnoreCase) ||
-                             txt.Layer.Equals(PoleLabels.Layer, StringComparison.OrdinalIgnoreCase))
+                    else if (txt.Layer.Equals(PoleLabels.Layer, StringComparison.OrdinalIgnoreCase) ||
+                             txt.Layer.Equals(PoleLabels.BoxLayer, StringComparison.OrdinalIgnoreCase))
                         found.PointLabels.Add(id);
                 }
             }
@@ -118,7 +118,7 @@ namespace FiberPlugin.Commands
                 txt.TextHeight *= ratio;
             }
 
-            // Textos dos pontos (P01...) e dos postes: só a altura
+            // Textos de identificação dos postes: só a altura
             foreach (ObjectId id in annotations.PointLabels)
             {
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
@@ -128,11 +128,5 @@ namespace FiberPlugin.Commands
             return annotations.Count;
         }
 
-        private static bool AskYes(Editor ed, string message)
-        {
-            var pko = new PromptKeywordOptions(message, "Sim Nao") { AllowNone = true };
-            PromptResult res = ed.GetKeywords(pko);
-            return res.Status == PromptStatus.None || (res.Status == PromptStatus.OK && res.StringResult == "Sim");
-        }
     }
 }

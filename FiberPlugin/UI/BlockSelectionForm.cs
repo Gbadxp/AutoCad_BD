@@ -28,7 +28,8 @@ namespace FiberPlugin.UI
         public string? SelectedBlock { get; private set; }
 
         /// <param name="blocks">Blocos da biblioteca (BLOCOS.dwg). A categoria vem do nome do bloco.</param>
-        public BlockSelectionForm(List<BlockEntry> blocks, string title = "Fiber Plugin - Inserir Bloco")
+        /// <param name="iconCommand">Comando cujo ícone aparece no cabeçalho.</param>
+        public BlockSelectionForm(List<BlockEntry> blocks, string title = "Fiber Plugin - Inserir Bloco", string iconCommand = "FIBRA_INSERIR_BLOCO")
         {
             allBlocks = blocks;
 
@@ -40,6 +41,7 @@ namespace FiberPlugin.UI
             var header = new HeaderPanel
             {
                 Glyph = Theme.Icons.Blocks,
+                IconCommand = iconCommand,
                 Title = dash >= 0 ? title.Substring(dash + 3) : title,
                 Subtitle = $"{blocks.Count} bloco(s) na biblioteca {BlockRepository.LibraryFileName}"
             };
@@ -50,7 +52,7 @@ namespace FiberPlugin.UI
 
             var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 0, 16, 12), BackColor = Theme.Background };
 
-            // Coluna de categorias (Fibra, Eletrica, Postes, Outros)
+            // Coluna de categorias (só aparece quando os blocos são de mais de uma categoria)
             categoryList = new ThemedListBox
             {
                 Dock = DockStyle.Left,
@@ -63,7 +65,7 @@ namespace FiberPlugin.UI
                 }
             };
             categoryList.Items.Add(new CategoryItem { Name = AllCategories, Count = blocks.Count });
-            var categoryOrder = BlockRepository.StandardCategories
+            var categoryOrder = BlockCategories.Order
                 .Concat(blocks.Select(b => b.Category).Distinct().OrderBy(c => c))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             foreach (string category in categoryOrder)
@@ -98,6 +100,13 @@ namespace FiberPlugin.UI
             var right = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background };
             right.Controls.Add(blockList);
             right.Controls.Add(emptyLabel);
+
+            if (blocks.Select(b => b.Category).Distinct().Count() <= 1)
+            {
+                categoryList.Visible = false;
+                spacer.Visible = false;
+                this.ClientSize = new Size(480, 500);
+            }
 
             body.Controls.Add(right);
             body.Controls.Add(spacer);

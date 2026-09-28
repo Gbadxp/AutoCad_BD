@@ -6,6 +6,17 @@ using Autodesk.AutoCAD.Geometry;
 
 namespace FiberPlugin.Core
 {
+    /// <summary>Dados gravados em cada seta de esforço (lidos pelo relatório).</summary>
+    public class EffortMarkerData
+    {
+        public Point3d Point { get; set; }           // De onde sai a seta (centro do poste vinculado)
+        public double Kgf { get; set; }
+        public double AngleDeg { get; set; }
+        public string Situation { get; set; } = ""; // Fim de rede, Ângulo (x°), Passagem
+        public string PoleHandle { get; set; } = ""; // Handle do bloco do poste vinculado ("" = sem poste)
+        public int CableCount { get; set; }
+    }
+
     /// <summary>
     /// Coloca a seta (ou texto) de esforço num poste. Antes de colocar, apaga a marcação anterior do
     /// mesmo poste, então recalcular não duplica setas.
@@ -49,8 +60,10 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <param name="pole">Ponto de onde sai a seta (centro do poste vinculado, ou o ponto do cabo).</param>
+        /// <param name="linkedPole">Poste a que o cálculo pertence; fica gravado na seta para o relatório.</param>
         /// <param name="angleOverride">Direção usada quando o esforço é nulo (poste em alinhamento reto).</param>
-        public void Place(Point3d pole, EffortResult result, double? angleOverride = null)
+        public void Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null, double? angleOverride = null)
         {
             RemoveAt(pole);
 
@@ -86,9 +99,19 @@ namespace FiberPlugin.Core
                 created.AddRange(DrawArrow(pole, angle, hasEffort, effortText, angleText));
             }
 
+            var data = new EffortMarkerData
+            {
+                Point = pole,
+                Kgf = result.Kgf,
+                AngleDeg = NormalizeDegrees(angle),
+                Situation = result.Situation,
+                PoleHandle = linkedPole?.Id.Handle.ToString() ?? "",
+                CableCount = result.CableCount
+            };
+
             foreach (Entity ent in created)
             {
-                XDataTags.TagEffortMarker(_tr, _db, ent, pole);
+                XDataTags.TagEffortMarker(_tr, _db, ent, data);
                 _existing.Add((ent.ObjectId, pole));
             }
         }

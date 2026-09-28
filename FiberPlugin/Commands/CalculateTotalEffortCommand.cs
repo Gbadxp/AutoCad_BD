@@ -38,8 +38,8 @@ namespace FiberPlugin.Commands
                 {
                     BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
-                    // Se clicou perto de um bloco de poste, usa o centro exato dele
-                    PoleInfo? pole = Poles.Nearest(Poles.Collect(tr, modelSpace), ppr.Value, FiberSettings.PoleMatchTolerance);
+                    // Vincula ao poste mais próximo do clique e calcula a partir do centro dele
+                    PoleInfo? pole = Poles.Nearest(Poles.Collect(tr, modelSpace), ppr.Value, FiberSettings.PoleLinkRadius);
                     Point3d polePoint = pole?.Position ?? ppr.Value;
 
                     var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -58,10 +58,11 @@ namespace FiberPlugin.Commands
                         continue;
                     }
 
-                    new EffortMarkers(tr, db, modelSpace, arrowId).Place(polePoint, result);
+                    new EffortMarkers(tr, db, modelSpace, arrowId).Place(polePoint, result, pole);
                     tr.Commit();
 
-                    ed.WriteMessage($"\n[SUCESSO]: Poste calculado! {result.CableCount} cabo(s) encontrados. Esforço Total: {result.Kgf:F2} kgf.");
+                    ed.WriteMessage($"\n[SUCESSO]: {(pole != null ? "Poste " + pole.Number : "Ponto sem poste")} | {result.Situation} | " +
+                                    $"{result.Kgf:F2} kgf, ANG. {result.AngleDeg:F0}° ({result.CableCount} cabo(s)).");
 
                     string? status = Poles.StatusText(pole, result.Kgf);
                     if (status != null) ed.WriteMessage($"\n           Poste {pole!.Number} | {status}");

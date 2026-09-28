@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -14,7 +13,14 @@ namespace FiberPlugin.Commands
 {
     public class InsertPoleCommand
     {
-        // Comando exclusivo para inserir postes com numeração sequencial
+        // Último modelo usado, já selecionado na próxima vez (durante a sessão do AutoCAD)
+        private static PoleData? _lastModel;
+
+        /// <summary>
+        /// Insere postes do modelo escolhido na lista (Dados\postes.csv): bloco DT ou CC do BLOCOS.dwg,
+        /// já identificado: número em sequência, texto com número,
+        /// altura/esforço e coordenada UTM, e o tipo DT/CC gravado para a listagem de postes.
+        /// </summary>
         [CommandMethod("FIBRA_INSERIR_POSTE")]
         public void InsertPole()
         {
@@ -22,93 +28,135 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            // 1. Bloco do poste, da biblioteca (BLOCOS.dwg). Se houver mais de um, o usuário escolhe.
-            string? blockName = ChoosePoleBlock();
-            if (blockName == null)
+            List<PoleData> models = PoleModels.Load(ed);
+            if (models.Count == 0) return;
+
+            PoleData? model = ChooseModel(models);
+            if (model == null) return;
+
+            ObjectId blockId = LoadBlock(ed, db, model.Type);
+            if (blockId.IsNull) return;
+
+            // Zona UTM definida pelo botão Zona UTM (sem ela, o texto sai sem a linha "20 L")
+            UtmSettings? utm = UtmZone.Get(db);
+            if (utm == null)
             {
-                ed.WriteMessage("\n[ERRO]: Nenhum bloco com 'POSTE' no nome foi encontrado na biblioteca (BLOCOS.dwg).");
-                if (BlockRepository.LastError != null) ed.WriteMessage($"\n[ERRO]: {BlockRepository.LastError}");
-                return;
+                ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Use o botão Zona UTM para incluir a zona (ex.: 20 L) nos textos.");
             }
 
-            ObjectId blockId = BlockRepository.EnsureInDrawing(db, blockName);
-            if (blockId.IsNull)
-            {
-                ed.WriteMessage($"\n[ERRO]: Não foi possível carregar o bloco '{blockName}'.");
-                return;
-            }
-
-            // 2. Numeração: continua a partir do maior número de poste já existente neste desenho
-            int suggested;
+            HashSet<int> used;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForRead);
-                suggested = Poles.NextNumber(tr, space);
+                used = Poles.UsedNumbers(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
                 tr.Commit();
             }
 
-            var pio = new PromptIntegerOptions($"\nNúmero do primeiro poste <{suggested}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false
-            };
-            PromptIntegerResult pir = ed.GetInteger(pio);
-            if (pir.Status == PromptStatus.Cancel) return;
-            int poleCounter = pir.Status == PromptStatus.OK ? pir.Value : suggested;
+            int? start = Poles.AskNumber(ed, Poles.NextFree(used, 1));
+            if (start == null) return;
+            int number = start.Value;
+            int inserted = 0;
 
             while (true)
             {
-                var ppo = new PromptPointOptions($"\nSelecione o ponto de inserção para o Poste #{poleCounter} (ou aperte ENTER/ESC para sair): ")
+                number = Poles.NextFree(used, number);
+
+                var ppo = new PromptPointOptions(
+                    $"\nPoste {PoleData.NumberText(number)} ({model.Designation}): ponto de inserção [Modelo/Numero]: ",
+                    "Modelo Numero")
                 {
                     AllowNone = true
                 };
 
-                PromptPointResult pPtRes = ed.GetPoint(ppo);
-                if (pPtRes.Status == PromptStatus.Cancel || pPtRes.Status == PromptStatus.None) break;
-                if (pPtRes.Status != PromptStatus.OK) continue;
+                PromptPointResult res = ed.GetPoint(ppo);
+                if (res.Status == PromptStatus.Cancel || res.Status == PromptStatus.None) break;
 
-                Point3d insertionPoint = pPtRes.Value;
-                int number = poleCounter;
+                if (res.Status == PromptStatus.Keyword)
+                {
+                    if (res.StringResult == "Modelo")
+                    {
+                        PoleData? other = ChooseModel(models);
+                        if (other != null)
+                        {
+                            ObjectId otherBlock = LoadBlock(ed, db, other.Type);
+                            if (!otherBlock.IsNull)
+                            {
+                                model = other;
+                                blockId = otherBlock;
+                            }
+                        }
+                    }
+                    else if (res.StringResult == "Numero")
+                    {
+                        int? n = Poles.AskNumber(ed, number);
+                        if (n != null) number = n.Value;
+                    }
+                    continue;
+                }
+                if (res.Status != PromptStatus.OK) continue;
+
+                Point3d point = res.Value.TransformBy(ed.CurrentUserCoordinateSystem);
+                var data = new PoleData { Number = number, Type = model.Type, HeightM = model.HeightM, EffortDaN = model.EffortDaN };
+
+                // Poste DT (Duplo T) tem orientação: gira com o mouse. O CC é circular e não precisa.
+                double rotation = 0;
+                if (model.Type == PoleData.DoubleT)
+                {
+                    double? angle = BlockInsertHelpers.DragRotation(ed, blockId, point,
+                        "\nGire o poste com o mouse e clique (ou digite o ângulo) <0>: ");
+                    if (angle == null) break;
+                    rotation = angle.Value;
+                }
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    var currentSpace = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                    var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
 
-                    CadHelpers.InsertBlock(tr, currentSpace, blockId, insertionPoint, 0, null, tag =>
+                    BlockReference br = CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null, tag =>
                     {
-                        if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return $"N° {number}";
-                        return CadHelpers.CoordinateAttribute(tag, insertionPoint);
+                        if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return PoleData.NumberText(data.Number);
+                        if (CadHelpers.IsTag(tag, CadHelpers.NameTags)) return data.HeightEffort;
+                        return CadHelpers.CoordinateAttribute(tag, point, utm);
                     });
 
+                    XDataTags.TagPole(tr, db, br, data);
+                    PoleLabels.Place(tr, db, space, br, data);
                     tr.Commit();
                 }
 
-                poleCounter++;
-                ed.UpdateScreen();
-                ed.WriteMessage($"\n[AVISO]: Poste N° {number} inserido em X:{insertionPoint.X:F2}, Y:{insertionPoint.Y:F2}.");
+                used.Add(number);
+                inserted++;
+                ed.WriteMessage($"\n[OK]: {PoleData.NumberText(number)} | {data.Designation} | E {point.X:F2} N {point.Y:F2}");
             }
 
-            ed.WriteMessage($"\n[AVISO]: Inserção de postes finalizada. Próximo poste será o N° {poleCounter}");
+            if (inserted > 0) ed.WriteMessage($"\n[INFO]: {inserted} poste(s) inserido(s).");
         }
 
-        private static string? ChoosePoleBlock()
+        private static PoleData? ChooseModel(List<PoleData> models)
         {
-            List<BlockEntry> candidates = BlockRepository.List()
-                .Where(b => Poles.IsPoleBlockName(b.Name))
-                .ToList();
-
-            if (candidates.Count == 0) return null;
-            if (candidates.Count == 1) return candidates[0].Name;
-
-            // Todos na mesma categoria para aparecerem juntos na janela
-            foreach (BlockEntry c in candidates) c.Category = "Postes";
-
-            using (var form = new UI.BlockSelectionForm(candidates, "Fiber Plugin - Escolher Bloco de Poste"))
+            using (var form = new UI.PoleSelectionForm(models, _lastModel))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return null;
-                return form.SelectedBlock;
+                _lastModel = form.SelectedModel;
+                return form.SelectedModel;
             }
+        }
+
+        /// <summary>Bloco DT ou CC do BLOCOS.dwg, já copiado para o desenho. ObjectId.Null se não houver.</summary>
+        private static ObjectId LoadBlock(Editor ed, Database db, string type)
+        {
+            List<string> names = BlockCategories.Blocks(BlockCategories.Poles).Select(b => b.Name).ToList();
+            string? blockName = PoleModels.BlockFor(type, names);
+
+            if (blockName == null)
+            {
+                string typeName = type == PoleData.Circular ? "CC (Circular)" : "DT (Duplo T)";
+                ed.WriteMessage($"\n[ERRO]: Nenhum bloco de poste {typeName} no BLOCOS.dwg. " +
+                                $"Nomeie o bloco como \"{type}\" (ou \"POSTE {type}\").");
+                if (BlockRepository.LastError != null) ed.WriteMessage($"\n[ERRO]: {BlockRepository.LastError}");
+                return ObjectId.Null;
+            }
+
+            return BlockInsertHelpers.LoadBlock(ed, db, blockName);
         }
     }
 }
