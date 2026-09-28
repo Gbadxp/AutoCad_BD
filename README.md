@@ -11,6 +11,8 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 
 ## Instalação
 
+Para conferir se o computador tem tudo o que o plugin precisa (AutoCAD, .NET, plugin atualizado), clique duas vezes em [`Verificacao/Verificar.bat`](Verificacao/Verificar.bat): ele mostra o que falta e pergunta se quer instalar.
+
 ### Opção 1: instalador (recomendado)
 O instalador pronto da versão atual fica em [`Instalador/FiberPlugin-1.9.6.msi`](Instalador/FiberPlugin-1.9.6.msi): baixe, feche o AutoCAD e execute (não precisa compilar). Para gerar um novo:
 
