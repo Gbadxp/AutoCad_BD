@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Globalization;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Windows.Forms;
 using FiberPlugin.Core;
 using FiberPlugin.Models;
 
@@ -28,16 +22,11 @@ namespace FiberPlugin.UI
 
             var header = new HeaderPanel
             {
-                Glyph = Theme.Icons.Fiber,
-                IconCommand = ToolCatalog.MenuCommand,
                 Title = "Fiber Plugin",
                 Subtitle = "Ferramentas para projetos de redes FTTH no AutoCAD"
             };
 
-            // Busca
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(16, 10, 16, 8), BackColor = Theme.Background };
-            search = new SearchBox("Buscar ferramenta...") { Dock = DockStyle.Fill };
-            toolbar.Controls.Add(search);
+            search = new SearchBox("Buscar ferramenta...");
 
             // Cartões
             flow = new FlowLayoutPanel
@@ -70,7 +59,7 @@ namespace FiberPlugin.UI
                 var cards = new List<CommandCard>();
                 foreach (Tool tool in tools)
                 {
-                    var card = new CommandCard(tool.Glyph, tool.Title, tool.Description, tool.Command);
+                    var card = new CommandCard(tool.Title, tool.Description, tool.Command);
                     card.Click += (s, e) => Run(card.CommandName);
                     flow.Controls.Add(card);
                     cards.Add(card);
@@ -87,7 +76,7 @@ namespace FiberPlugin.UI
 
             // Ordem de encaixe: o último adicionado encaixa primeiro
             this.Controls.Add(flow);
-            this.Controls.Add(toolbar);
+            this.Controls.Add(search.InToolbar());
             this.Controls.Add(header);
             this.Controls.Add(footer);
 

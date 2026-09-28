@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -218,15 +215,15 @@ namespace FiberPlugin.Commands
                     d?.TypeName,
                     d?.HeightM,
                     d?.EffortDaN,
-                    pole.NominalKgf.HasValue ? Math.Round(pole.NominalKgf.Value, 2) : (double?)null,
+                    Round(pole.NominalKgf, 2),
                     utm != null ? UtmZone.ZoneText(pole.Position, utm) : null,
                     Math.Round(pole.Position.X, 2),
                     Math.Round(pole.Position.Y, 2),
                     d?.Designation ?? pole.Name,
-                    effort != null ? Math.Round(effort.Marker.Kgf, 2) : (double?)null,
-                    effort != null ? Math.Round(effort.Marker.AngleDeg, 1) : (double?)null,
+                    Round(effort?.Marker.Kgf, 2),
+                    Round(effort?.Marker.AngleDeg, 1),
                     effort?.Marker.Situation,
-                    effort?.Usage.HasValue == true ? Math.Round(effort.Usage!.Value, 0) : (double?)null,
+                    Round(effort?.Usage, 0),
                     effort?.Result);
             }
         }
@@ -267,9 +264,8 @@ namespace FiberPlugin.Commands
             {
                 EffortMarkerData m = e.Marker;
                 string origin = e.Pole?.Number ?? "Sem poste";
-                string description = e.Pole != null
-                    ? $"Cálculo a partir do poste {e.Pole.Number} ({m.Situation}): esforço de {m.Kgf:F2} kgf com ângulo de {m.AngleDeg:F0}°."
-                    : $"Ponto sem poste a até {FiberSettings.PoleLinkRadius:F0} m ({m.Situation}): esforço de {m.Kgf:F2} kgf com ângulo de {m.AngleDeg:F0}°.";
+                string from = e.Pole != null ? $"Cálculo a partir do poste {e.Pole.Number}" : $"Ponto sem poste a até {FiberSettings.PoleLinkRadius:F0} m";
+                string description = $"{from} ({m.Situation}): esforço de {m.Kgf:F2} kgf com ângulo de {m.AngleDeg:F0}°.";
 
                 sheet.Row(
                     n++,
@@ -279,8 +275,8 @@ namespace FiberPlugin.Commands
                     Math.Round(m.Kgf, 2),
                     Math.Round(m.AngleDeg, 1),
                     m.CableCount,
-                    e.NominalKgf.HasValue ? Math.Round(e.NominalKgf.Value, 2) : (double?)null,
-                    e.Usage.HasValue ? Math.Round(e.Usage.Value, 0) : (double?)null,
+                    Round(e.NominalKgf, 2),
+                    Round(e.Usage, 0),
                     e.Result,
                     Math.Round(m.Point.X, 2),
                     Math.Round(m.Point.Y, 2),
@@ -300,6 +296,8 @@ namespace FiberPlugin.Commands
             List<CableTotal> list = cables.ToList();
             sheet.Row("TOTAL", null, null, list.Sum(c => c.Runs), Math.Round(list.Sum(c => c.Length), 2));
         }
+
+        private static double? Round(double? value, int digits) => value.HasValue ? Math.Round(value.Value, digits) : (double?)null;
 
         private static string Key(Autodesk.AutoCAD.Geometry.Point3d p) =>
             Math.Round(p.X, 2).ToString(CultureInfo.InvariantCulture) + ";" + Math.Round(p.Y, 2).ToString(CultureInfo.InvariantCulture);

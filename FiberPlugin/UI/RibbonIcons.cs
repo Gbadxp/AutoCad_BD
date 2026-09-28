@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using M = System.Windows.Media;
 using MI = System.Windows.Media.Imaging;
@@ -74,6 +72,7 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
+            ["FIBRA_ATUALIZAR_BLOCOS"] = PaintUpdateBlocks,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
             ["FIBRA_RELATORIO"] = PaintReport,
@@ -85,10 +84,14 @@ namespace FiberPlugin.UI
 
         private static readonly Dictionary<string, object> Cache = new Dictionary<string, object>();
 
+        /// <summary>Desenho do comando; comandos sem desenho próprio usam o de blocos.</summary>
+        private static Painter PainterFor(string command) =>
+            Painters.TryGetValue(command, out Painter? painter) ? painter : PaintBlocks;
+
         /// <summary>Ícone para a faixa de opções (tamanho lógico 16 ou 32, desenhado em 2x para telas de alta resolução).</summary>
-        public static M.ImageSource? Get(string command, int size)
+        public static M.ImageSource Get(string command, int size)
         {
-            if (!Painters.TryGetValue(command, out Painter? painter)) return null;
+            Painter painter = PainterFor(command);
             string key = $"wpf|{command}|{size}|{Theme.Current.IsDark}";
             if (Cache.TryGetValue(key, out object? cached)) return (M.ImageSource)cached;
 
@@ -98,9 +101,10 @@ namespace FiberPlugin.UI
         }
 
         /// <summary>Mesmo ícone como Bitmap do Windows Forms, no tamanho exato em pixels (cartões do menu).</summary>
-        public static System.Drawing.Bitmap? GetBitmap(string command, int pixels)
+        public static System.Drawing.Bitmap GetBitmap(string command, int pixels)
         {
-            if (pixels <= 0 || !Painters.TryGetValue(command, out Painter? painter)) return null;
+            Painter painter = PainterFor(command);
+            pixels = Math.Max(1, pixels);
             string key = $"gdi|{command}|{pixels}|{Theme.Current.IsDark}";
             if (Cache.TryGetValue(key, out object? cached)) return (System.Drawing.Bitmap)cached;
 
@@ -264,6 +268,15 @@ namespace FiberPlugin.UI
                 15, ink.Blue, 1.0);
             dc.DrawText(text, new W.Point(12.5 - text.Width / 2, 11 - text.Height / 2));
 
+            dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.4), G("M27,19 A5.5,5.5 0 1 1 19.8,27"));
+            Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
+        }
+
+        private static void PaintUpdateBlocks(M.DrawingContext dc, Ink ink)
+        {
+            // Blocos com a seta circular verde de "recarregar"
+            dc.DrawRectangle(null, Ink.Pen(ink.Line, 1.6), new W.Rect(3, 3, 13, 13));
+            dc.DrawRectangle(ink.Blue, Ink.Pen(ink.Paper, 1.2), new W.Rect(8.5, 8.5, 13, 13));
             dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.4), G("M27,19 A5.5,5.5 0 1 1 19.8,27"));
             Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
         }

@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
@@ -77,6 +72,43 @@ namespace FiberPlugin.Core
             return ((BlockTableRecord)tr.GetObject(br.DynamicBlockTableRecord, OpenMode.ForRead)).Name;
         }
 
+        /// <summary>Adiciona a entidade nova ao espaço e à transação.</summary>
+        public static T Append<T>(Transaction tr, BlockTableRecord space, T ent) where T : Entity
+        {
+            space.AppendEntity(ent);
+            tr.AddNewlyCreatedDBObject(ent, true);
+            return ent;
+        }
+
+        /// <summary>Dados gravados no dicionário do desenho (escala, zona UTM...). Null se não houver.</summary>
+        public static TypedValue[]? ReadDrawingRecord(Database db, string key)
+        {
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
+                if (!nod.Contains(key)) return null;
+                using (ResultBuffer? data = ((Xrecord)tr.GetObject(nod.GetAt(key), OpenMode.ForRead)).Data)
+                {
+                    return data?.AsArray();
+                }
+            }
+        }
+
+        public static void WriteDrawingRecord(Transaction tr, Database db, string key, params TypedValue[] values)
+        {
+            var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
+            var data = new ResultBuffer(values);
+            if (nod.Contains(key))
+            {
+                ((Xrecord)tr.GetObject(nod.GetAt(key), OpenMode.ForWrite)).Data = data;
+                return;
+            }
+            nod.UpgradeOpen();
+            var xrec = new Xrecord { Data = data };
+            nod.SetAt(key, xrec);
+            tr.AddNewlyCreatedDBObject(xrec, true);
+        }
+
         /// <summary>Valor do primeiro atributo cuja tag está na lista (null se não houver).</summary>
         public static string? GetAttributeValue(Transaction tr, BlockReference br, string[] tags)
         {
@@ -104,8 +136,7 @@ namespace FiberPlugin.Core
             };
             if (layer != null) blockRef.Layer = layer;
 
-            space.AppendEntity(blockRef);
-            tr.AddNewlyCreatedDBObject(blockRef, true);
+            Append(tr, space, blockRef);
 
             if (blockDef.HasAttributeDefinitions)
             {
@@ -127,10 +158,23 @@ namespace FiberPlugin.Core
             return blockRef;
         }
 
+        /// <summary>Troca o valor dos atributos do bloco: attributeValue recebe a TAG e devolve o texto novo (null = manter).</summary>
+        public static void SetAttributes(Transaction tr, BlockReference br, Func<string, string?> attributeValue)
+        {
+            foreach (ObjectId attId in br.AttributeCollection)
+            {
+                var att = (AttributeReference)tr.GetObject(attId, OpenMode.ForRead);
+                string? value = attributeValue(att.Tag.Trim());
+                if (value == null) continue;
+                att.UpgradeOpen();
+                att.TextString = value;
+            }
+        }
+
         public static MText AddText(Transaction tr, BlockTableRecord space, Point3d location, string contents,
             double rotation, AttachmentPoint attachment, string layer)
         {
-            var txt = new MText
+            return Append(tr, space, new MText
             {
                 Location = location,
                 Contents = contents,
@@ -138,10 +182,7 @@ namespace FiberPlugin.Core
                 Rotation = rotation,
                 Attachment = attachment,
                 Layer = layer
-            };
-            space.AppendEntity(txt);
-            tr.AddNewlyCreatedDBObject(txt, true);
-            return txt;
+            });
         }
 
         public static BlockTableRecord OpenModelSpace(Transaction tr, Database db, OpenMode mode)
@@ -165,11 +206,30 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>Pergunta [Sim/Nao] com Sim como padrão (Enter = Sim).</summary>
-        public static bool AskYes(Editor ed, string message)
+        public static bool AskYes(Editor ed, string message) => AskKeyword(ed, message, "Sim Nao", "Sim") == "Sim";
+
+        /// <summary>Pergunta uma opção; Enter escolhe <paramref name="defaultKeyword"/>. Null se o usuário cancelar.</summary>
+        public static string? AskKeyword(Editor ed, string message, string keywords, string defaultKeyword)
         {
-            var pko = new PromptKeywordOptions(message, "Sim Nao") { AllowNone = true };
-            PromptResult res = ed.GetKeywords(pko);
-            return res.Status == PromptStatus.None || (res.Status == PromptStatus.OK && res.StringResult == "Sim");
+            PromptResult res = ed.GetKeywords(new PromptKeywordOptions(message, keywords) { AllowNone = true });
+            if (res.Status == PromptStatus.None) return defaultKeyword;
+            return res.Status == PromptStatus.OK ? res.StringResult : null;
+        }
+
+        /// <summary>Pede um inteiro; Enter aceita <paramref name="defaultValue"/> (se houver). Null se o usuário cancelar.</summary>
+        public static int? AskInt(Editor ed, string message, int? defaultValue, int min = 1, int max = int.MaxValue)
+        {
+            var pio = new PromptIntegerOptions(message)
+            {
+                AllowNone = defaultValue != null,
+                AllowNegative = min < 0,
+                AllowZero = min <= 0,
+                LowerLimit = min,
+                UpperLimit = max
+            };
+            PromptIntegerResult res = ed.GetInteger(pio);
+            if (res.Status == PromptStatus.OK) return res.Value;
+            return res.Status == PromptStatus.None ? defaultValue : null;
         }
 
         /// <summary>Pergunta onde salvar um arquivo. Null se o usuário cancelar.</summary>
@@ -190,10 +250,10 @@ namespace FiberPlugin.Core
             List<CableModel> cables = CableProvider.GetCables(ed);
             if (cables.Count == 0) return null; // GetCables já explicou o motivo no Editor
 
-            using (var form = new UI.CableSelectionForm(cables, buttonText))
+            using (var form = UI.Pickers.Cable(cables, buttonText))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return null;
-                return form.SelectedCable;
+                return form.Selected;
             }
         }
 

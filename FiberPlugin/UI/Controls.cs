@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
-using System.Windows.Forms;
 
 namespace FiberPlugin.UI
 {
@@ -13,12 +9,11 @@ namespace FiberPlugin.UI
     /// <summary>Faixa de título: ícone, título e subtítulo, com separador fino embaixo.</summary>
     internal class HeaderPanel : Panel
     {
-        public string Glyph { get; set; } = Theme.Icons.Fiber;
         public string Title { get; set; } = "";
         public string Subtitle { get; set; } = "";
 
-        /// <summary>Comando cujo ícone colorido aparece no cabeçalho (senão usa o Glyph).</summary>
-        public string? IconCommand { get; set; }
+        /// <summary>Comando cujo ícone colorido aparece no cabeçalho.</summary>
+        public string IconCommand { get; set; } = ToolCatalog.MenuCommand;
 
         public HeaderPanel()
         {
@@ -33,22 +28,7 @@ namespace FiberPlugin.UI
         {
             Graphics g = e.Graphics;
             g.Clear(BackColor);
-
-            int S(int v) => Theme.Scale(this, v);
-
-            var icon = new Rectangle(S(16), (Height - S(28)) / 2, S(28), S(28));
-            System.Drawing.Bitmap? image = IconCommand != null ? RibbonIcons.GetBitmap(IconCommand, icon.Width) : null;
-            if (image != null) g.DrawImage(image, icon);
-            else Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
-
-            int titleH = Theme.Title.Height;
-            int subH = Theme.Small.Height;
-            int top = (Height - titleH - subH) / 2;
-            int left = icon.Right + S(10);
-            const TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-
-            TextRenderer.DrawText(g, Title, Theme.Title, new Rectangle(left, top, Width - left - S(16), titleH), Theme.TextStrong, flags);
-            TextRenderer.DrawText(g, Subtitle, Theme.Small, new Rectangle(left, top + titleH, Width - left - S(16), subH), Theme.Muted, flags);
+            Theme.DrawIconAndText(g, this, Theme.Scale(this, 16), IconCommand, Title, Theme.Title, Subtitle);
 
             using (var pen = new Pen(Theme.Separator))
             {
@@ -227,6 +207,15 @@ namespace FiberPlugin.UI
             Click += (s, e) => Input.Focus();
         }
 
+        /// <summary>Faixa no topo da janela com este campo de busca ocupando a largura toda.</summary>
+        public Panel InToolbar()
+        {
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 46, Padding = new Padding(16, 10, 16, 8), BackColor = Theme.Background };
+            Dock = DockStyle.Fill;
+            toolbar.Controls.Add(this);
+            return toolbar;
+        }
+
         /// <summary>Busca sem diferenciar maiúsculas nem acentos ("esforco" encontra "Esforço").</summary>
         public static bool Matches(string text, string query)
         {
@@ -288,7 +277,7 @@ namespace FiberPlugin.UI
             Theme.FillRounded(g, Fill, r, radius);
             Theme.DrawRounded(g, Input.Focused ? Theme.Accent : _hover ? Theme.BorderHover : Theme.Border, r, radius);
 
-            Theme.DrawGlyph(g, Theme.Icons.Search, "", new Rectangle(Theme.Scale(this, 6), 0, Theme.Scale(this, 18), Height), Theme.Muted, 9f);
+            Theme.DrawSearchIcon(g, new Rectangle(Theme.Scale(this, 6), 0, Theme.Scale(this, 18), Height), Theme.Muted);
         }
     }
 
@@ -403,16 +392,14 @@ namespace FiberPlugin.UI
         private bool _hover;
         private bool _pressed;
 
-        public string Glyph { get; }
         public string Title { get; }
         public string Description { get; }
         public string CommandName { get; }
 
-        public CommandCard(string glyph, string title, string description, string commandName)
+        public CommandCard(string title, string description, string commandName)
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
-            Glyph = glyph;
             Title = title;
             Description = description;
             CommandName = commandName;
@@ -467,22 +454,7 @@ namespace FiberPlugin.UI
             Theme.FillRounded(g, fill, r, radius);
             Theme.DrawRounded(g, border, r, radius);
 
-            // Ícone: o mesmo desenho colorido da faixa de opções
-            var icon = new Rectangle(S(12), (Height - S(28)) / 2, S(28), S(28));
-            System.Drawing.Bitmap? image = RibbonIcons.GetBitmap(CommandName, icon.Width);
-            if (image != null) g.DrawImage(image, icon);
-            else Theme.DrawGlyph(g, Glyph, Title, icon, Theme.IconColor, 16f);
-
-            // Textos
-            int left = icon.Right + S(10);
-            int width = Width - left - S(10);
-            int h1 = Theme.BodyBold.Height;
-            int h2 = Theme.Small.Height;
-            int top = (Height - h1 - h2) / 2;
-            const TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-
-            TextRenderer.DrawText(g, Title, Theme.BodyBold, new Rectangle(left, top, width, h1), Theme.TextStrong, flags);
-            TextRenderer.DrawText(g, Description, Theme.Small, new Rectangle(left, top + h1, width, h2), Theme.Muted, flags);
+            Theme.DrawIconAndText(g, this, S(12), CommandName, Title, Theme.BodyBold, Description);
         }
     }
 }

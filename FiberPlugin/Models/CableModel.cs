@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Autodesk.AutoCAD.EditorInput;
 using FiberPlugin.Core;
 
@@ -55,6 +52,12 @@ namespace FiberPlugin.Models
                 ed?.WriteMessage($"\n[ERRO]: Não foi possível ler '{path}' ({ex.Message}).");
                 return new List<CableModel>();
             }
+        }
+
+        /// <summary>Avisa no Editor os cabos do desenho que não estão na planilha (e foram ignorados nos cálculos).</summary>
+        public static void ReportUnknown(Editor ed, IEnumerable<string> names)
+        {
+            foreach (string name in names) ed.WriteMessage($"\n[AVISO]: Cabo '{name}' não está na planilha de cabos e foi ignorado.");
         }
 
         public static CableModel? Find(IEnumerable<CableModel> cables, string? shortName)

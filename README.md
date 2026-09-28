@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 Para conferir se o computador tem tudo o que o plugin precisa (AutoCAD, .NET, plugin atualizado), clique duas vezes em [`Verificacao/Verificar.bat`](Verificacao/Verificar.bat): ele mostra o que falta e pergunta se quer instalar.
 
 ### Opção 1: instalador (recomendado)
-O instalador pronto da versão atual fica em [`Instalador/FiberPlugin-1.9.6.msi`](Instalador/FiberPlugin-1.9.6.msi): baixe, feche o AutoCAD e execute (não precisa compilar). Para gerar um novo:
+O instalador pronto da versão atual fica em [`Instalador/FiberPlugin-1.9.8.msi`](Instalador/FiberPlugin-1.9.8.msi): baixe, feche o AutoCAD e execute (não precisa compilar). Para gerar um novo:
 
 1. Gere o pacote (uma vez por versão):
    ```bash
@@ -50,8 +50,9 @@ FiberPlugin.bundle/
 - **As planilhas ficam em `Documentos\Fiber Plugin\Dados`**, editáveis sem permissão de
   administrador. Arquivos que faltarem são copiados do pacote na abertura do AutoCAD, sem sobrescrever
   os existentes. Atualizar ou desinstalar o plugin não apaga nada dessa pasta.
-- **Os blocos vêm no `BLOCOS.dwg` do pacote** e são atualizados a cada versão instalada: para mudar os
-  blocos da equipe, edite `FiberPlugin/Blocos/BLOCOS.dwg`, rode o `build.ps1` e instale o `.msi` novo.
+- **Os blocos vêm no `BLOCOS.dwg` do pacote** e são atualizados a cada versão instalada. Para usar blocos
+  novos **sem reinstalar**, clique em **Atualizar Blocos** (aba Fibra) e escolha o seu `BLOCOS.dwg`
+  (ex.: `FiberPlugin/Blocos/BLOCOS.dwg` do repositório): o plugin passa a ler direto dele.
   `Documentos\Fiber Plugin\Blocos` é opcional, para blocos pessoais (têm prioridade em nomes repetidos).
 
 ### Assinatura digital (opcional)
@@ -119,7 +120,7 @@ pessoais de `Documentos\Fiber Plugin\Blocos`, se houver). Em desenvolvimento, us
 | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. |
 | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. |
 | `FIBRA_INSERIR_POSTE` | Insere postes escolhendo o modelo na lista (DT ou CC 11/300, 11/600, 11/1000, 12/1000, 11/1500, 12/1500 e DT 9/200), com o bloco DT ou CC do `BLOCOS.dwg`. Cada poste já sai numerado e com o texto de número, altura/esforço e coordenada UTM (zona, E e N). A zona UTM vem do botão Zona UTM. Os modelos ficam em `Dados/postes.csv`. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC, circular, não gira. |
-| `FIBRA_INSERIR_CTO` | Insere CTO (bloco `CTO`) numerada em sequência (CTO-01, CTO-02...), com texto de identificação (sem coordenadas), vinculada ao poste mais próximo. O símbolo é ajustado para 6 m no maior lado (na escala 1:1000) e centrado no clique, seja qual for a unidade em que o bloco foi desenhado. |
+| `FIBRA_INSERIR_CTO` | Insere CTO (bloco `CTO`) numerada em sequência (CTO-01, CTO-02...), com texto de identificação (sem coordenadas), vinculada ao poste mais próximo. O símbolo é ajustado para 10 m no maior lado (na escala 1:1000) e centrado no clique, seja qual for a unidade em que o bloco foi desenhado; o nome (CTO-01) fica centralizado logo abaixo dele. |
 | `FIBRA_INSERIR_CEO` | Igual ao da CTO, para CEO (blocos `CEO_1`, `CEO_2`: escolha o modelo; **M** troca durante a inserção). |
 | `FIBRA_INSERIR_ELETRICOS` | Itens elétricos: TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | `FIBRA_INSERIR_AMARRACAO` | Amarração: depois do ponto, o bloco gira acompanhando o mouse até o clique (ou digite o ângulo). Sem coordenadas. |
@@ -134,6 +135,7 @@ pessoais de `Documentos\Fiber Plugin\Blocos`, se houver). Em desenvolvimento, us
 | `FIBRA_ESCALA` | Define a escala do desenho (1:500, 1:1000, 1:2000...). Textos e setas de esforço passam a sair no tamanho certo, e as anotações existentes podem ser ajustadas. |
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg`. Sem botão: digite o comando. |
 | `FIBRA_ABRIR_PASTA` | Abre a pasta com a planilha de cabos e a biblioteca de blocos. |
+| `FIBRA_ATUALIZAR_BLOCOS` | Botão **Atualizar Blocos**: na primeira vez pergunta qual `BLOCOS.dwg` usar (ex.: o da pasta do projeto); daí em diante o plugin lê direto dele, então um bloco novo aparece só de salvar o arquivo, sem rodar o `build.ps1`. Também troca no desenho aberto os blocos que mudaram. Opções: **Trocar** (outro arquivo) e **Padrao** (volta ao `BLOCOS.dwg` do plugin). |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada e as pastas em uso. |
 

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using FiberPlugin.Models;
@@ -14,6 +12,14 @@ namespace FiberPlugin.Core
             return FiberSettings.CableLayerPrefix + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));
         }
 
+        /// <summary>Comprimento de cada vão de uma sequência de pontos.</summary>
+        public static List<double> SpanLengths(IList<Point3d> points)
+        {
+            var spans = new List<double>();
+            for (int i = 0; i < points.Count - 1; i++) spans.Add(points[i].DistanceTo(points[i + 1]));
+            return spans;
+        }
+
         /// <param name="vertices">Vértices da polilinha.</param>
         /// <param name="spanLengths">Metragem escrita em cada vão (no roteamento automático é a distância
         /// real entre postes, que difere um pouco da linha afastada 1,8 m).</param>
@@ -23,16 +29,13 @@ namespace FiberPlugin.Core
             string layer = LayerFor(cable);
             CadHelpers.EnsureLayer(tr, db, layer, 3); // 3 = Verde
 
-            var poly = new Polyline();
+            var poly = new Polyline { Layer = layer };
             for (int i = 0; i < vertices.Count; i++)
             {
                 // Polyline 2D, ignorando o Z
                 poly.AddVertexAt(i, new Point2d(vertices[i].X, vertices[i].Y), 0, 0, 0);
             }
-            poly.Layer = layer;
-
-            space.AppendEntity(poly);
-            tr.AddNewlyCreatedDBObject(poly, true);
+            CadHelpers.Append(tr, space, poly);
             XDataTags.TagCable(tr, db, poly, cable.ShortName);
 
             LabelSpans(tr, space, vertices, spanLengths, cable.ShortName, layer);

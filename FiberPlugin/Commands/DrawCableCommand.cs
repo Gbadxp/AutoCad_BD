@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -39,8 +36,7 @@ namespace FiberPlugin.Commands
             {
                 var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
 
-                var spans = Enumerable.Range(0, points.Count - 1).Select(i => points[i].DistanceTo(points[i + 1])).ToList();
-                Polyline poly = CableDrawing.Draw(tr, db, space, points, spans, cable);
+                Polyline poly = CableDrawing.Draw(tr, db, space, points, CableDrawing.SpanLengths(points), cable);
 
                 ed.WriteMessage($"\n[AVISO]: Cabo '{cable.FullName}' lançado com sucesso!");
                 ed.WriteMessage($"\n[COMPRIMENTO TOTAL]: {poly.Length:F2} metros.");

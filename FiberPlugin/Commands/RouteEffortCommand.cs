@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -26,13 +23,9 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            var pko = new PromptKeywordOptions("\nEsforço em cada poste [Total/Cabo] <Total>: ", "Total Cabo")
-            {
-                AllowNone = true
-            };
-            PromptResult pkr = ed.GetKeywords(pko);
-            if (pkr.Status == PromptStatus.Cancel) return;
-            bool onlySelected = pkr.Status == PromptStatus.OK && pkr.StringResult == "Cabo";
+            string? mode = CadHelpers.AskKeyword(ed, "\nEsforço em cada poste [Total/Cabo] <Total>: ", "Total Cabo", "Total");
+            if (mode == null) return;
+            bool onlySelected = mode == "Cabo";
 
             var pso = new PromptSelectionOptions
             {
@@ -58,10 +51,7 @@ namespace FiberPlugin.Commands
                     if (run != null) selectedRuns.Add(run);
                 }
 
-                foreach (string name in unknown)
-                {
-                    ed.WriteMessage($"\n[AVISO]: Cabo '{name}' não está na planilha de cabos e foi ignorado.");
-                }
+                CableProvider.ReportUnknown(ed, unknown);
 
                 if (selectedRuns.Count == 0)
                 {

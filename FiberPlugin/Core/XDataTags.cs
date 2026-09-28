@@ -1,4 +1,3 @@
-using System;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
@@ -17,125 +16,80 @@ namespace FiberPlugin.Core
         private const string PoleLabelKind = "ROTULO_POSTE";
         private const string BoxKind = "CAIXA";
 
+        private static TypedValue Text(string value) => new TypedValue((int)DxfCode.ExtendedDataAsciiString, value);
+        private static TypedValue Int(int value) => new TypedValue((int)DxfCode.ExtendedDataInteger32, value);
+        private static TypedValue Real(double value) => new TypedValue((int)DxfCode.ExtendedDataReal, value);
+
         /// <summary>Grava na CTO/CEO o tipo, o número e o poste vinculado.</summary>
-        public static void TagBox(Transaction tr, Database db, Entity ent, BoxData data)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, BoxKind),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, data.Kind),
-                new TypedValue((int)DxfCode.ExtendedDataInteger32, data.Number),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, data.PoleHandle));
-        }
+        public static void TagBox(Transaction tr, Database db, Entity ent, BoxData data) =>
+            Write(tr, db, ent, BoxKind, Text(data.Kind), Int(data.Number), Text(data.PoleHandle));
 
         public static BoxData? ReadBox(Entity ent)
         {
-            TypedValue[]? d = Read(ent);
-            if (d == null || d.Length < 5 || (d[1].Value as string) != BoxKind) return null;
-            if (d[2].Value is not string kind || d[3].Value is not int number) return null;
-            return new BoxData { Kind = kind, Number = number, PoleHandle = d[4].Value as string ?? "" };
+            TypedValue[]? d = Read(ent, BoxKind, 3);
+            if (d == null || d[0].Value is not string kind || d[1].Value is not int number) return null;
+            return new BoxData { Kind = kind, Number = number, PoleHandle = d[2].Value as string ?? "" };
         }
 
         /// <summary>Grava no bloco os dados do poste: número, tipo (DT/CC), altura e esforço nominal.</summary>
-        public static void TagPole(Transaction tr, Database db, Entity ent, PoleData data)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, PoleKind),
-                new TypedValue((int)DxfCode.ExtendedDataInteger32, data.Number),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, data.Type),
-                new TypedValue((int)DxfCode.ExtendedDataReal, data.HeightM),
-                new TypedValue((int)DxfCode.ExtendedDataReal, data.EffortDaN));
-        }
+        public static void TagPole(Transaction tr, Database db, Entity ent, PoleData data) =>
+            Write(tr, db, ent, PoleKind, Int(data.Number), Text(data.Type), Real(data.HeightM), Real(data.EffortDaN));
 
         public static PoleData? ReadPole(Entity ent)
         {
-            TypedValue[]? d = Read(ent);
-            if (d == null || d.Length < 6 || (d[1].Value as string) != PoleKind) return null;
-            if (d[2].Value is not int number || d[3].Value is not string type ||
-                d[4].Value is not double height || d[5].Value is not double effort) return null;
+            TypedValue[]? d = Read(ent, PoleKind, 4);
+            if (d == null || d[0].Value is not int number || d[1].Value is not string type ||
+                d[2].Value is not double height || d[3].Value is not double effort) return null;
 
             return new PoleData { Number = number, Type = type, HeightM = height, EffortDaN = effort };
         }
 
-        /// <summary>Marca o texto de identificação com o handle do bloco do poste a que ele pertence.</summary>
-        public static void TagPoleLabel(Transaction tr, Database db, Entity ent, string poleHandle)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, PoleLabelKind),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, poleHandle));
-        }
+        /// <summary>Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence.</summary>
+        public static void TagPoleLabel(Transaction tr, Database db, Entity ent, string ownerHandle) =>
+            Write(tr, db, ent, PoleLabelKind, Text(ownerHandle));
 
-        public static string? GetPoleLabelOwner(Entity ent)
-        {
-            TypedValue[]? d = Read(ent);
-            if (d != null && d.Length >= 3 && (d[1].Value as string) == PoleLabelKind) return d[2].Value as string;
-            return null;
-        }
+        public static string? GetPoleLabelOwner(Entity ent) => Read(ent, PoleLabelKind, 1)?[0].Value as string;
 
         /// <summary>Marca o retângulo/nome de uma folha no quadro de articulação (Model), com o prefixo das folhas.</summary>
-        public static void TagSheetIndex(Transaction tr, Database db, Entity ent, string prefix)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, SheetIndexKind),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, prefix));
-        }
+        public static void TagSheetIndex(Transaction tr, Database db, Entity ent, string prefix) =>
+            Write(tr, db, ent, SheetIndexKind, Text(prefix));
 
-        public static string? GetSheetIndexPrefix(Entity ent)
-        {
-            TypedValue[]? data = Read(ent);
-            if (data != null && data.Length >= 3 && (data[1].Value as string) == SheetIndexKind) return data[2].Value as string;
-            return null;
-        }
+        public static string? GetSheetIndexPrefix(Entity ent) => Read(ent, SheetIndexKind, 1)?[0].Value as string;
 
         /// <summary>Marca a polilinha como cabo do tipo informado (nome curto do catálogo).</summary>
-        public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, CableKind),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, cableShortName));
-        }
+        public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>
+            Write(tr, db, ent, CableKind, Text(cableShortName));
 
-        /// <summary>Marca a seta/texto de esforço com o ponto do poste a que ela se refere.</summary>
-        public static void TagEffortMarker(Transaction tr, Database db, Entity ent, EffortMarkerData data)
-        {
-            CadHelpers.EnsureRegApp(tr, db);
-            ent.XData = new ResultBuffer(
-                new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, EffortKind),
+        /// <summary>Marca a seta/texto de esforço com os dados do cálculo (lidos pelo relatório).</summary>
+        public static void TagEffortMarker(Transaction tr, Database db, Entity ent, EffortMarkerData data) =>
+            Write(tr, db, ent, EffortKind,
                 new TypedValue((int)DxfCode.ExtendedDataXCoordinate, data.Point),
-                new TypedValue((int)DxfCode.ExtendedDataReal, data.Kgf),
-                new TypedValue((int)DxfCode.ExtendedDataReal, data.AngleDeg),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, data.Situation),
-                new TypedValue((int)DxfCode.ExtendedDataAsciiString, data.PoleHandle),
-                new TypedValue((int)DxfCode.ExtendedDataInteger32, data.CableCount));
-        }
+                Real(data.Kgf), Real(data.AngleDeg), Text(data.Situation), Text(data.PoleHandle), Int(data.CableCount));
 
         /// <summary>Dados completos da seta de esforço. Null em setas de versões antigas (só com o ponto).</summary>
         public static EffortMarkerData? ReadEffortMarker(Entity ent)
         {
-            TypedValue[]? d = Read(ent);
-            if (d == null || d.Length < 8 || (d[1].Value as string) != EffortKind) return null;
-            if (d[2].Value is not Point3d point || d[3].Value is not double kgf || d[4].Value is not double angle ||
-                d[7].Value is not int cables) return null;
+            TypedValue[]? d = Read(ent, EffortKind, 6);
+            if (d == null || d[0].Value is not Point3d point || d[1].Value is not double kgf || d[2].Value is not double angle ||
+                d[5].Value is not int cables) return null;
 
             return new EffortMarkerData
             {
                 Point = point,
                 Kgf = kgf,
                 AngleDeg = angle,
-                Situation = d[5].Value as string ?? "",
-                PoleHandle = d[6].Value as string ?? "",
+                Situation = d[3].Value as string ?? "",
+                PoleHandle = d[4].Value as string ?? "",
                 CableCount = cables
             };
+        }
+
+        /// <summary>Ponto do poste de qualquer seta de esforço (também as de versões antigas).</summary>
+        public static bool TryGetEffortPole(Entity ent, out Point3d pole)
+        {
+            object? value = Read(ent, EffortKind, 1)?[0].Value;
+            pole = value is Point3d p ? p : Point3d.Origin;
+            return value is Point3d;
         }
 
         /// <summary>
@@ -144,37 +98,36 @@ namespace FiberPlugin.Core
         /// </summary>
         public static string? GetCableName(Entity ent)
         {
-            TypedValue[]? data = Read(ent);
-            if (data != null && data.Length >= 3 && (data[1].Value as string) == CableKind)
-            {
-                return data[2].Value as string;
-            }
+            if (Read(ent, CableKind, 1)?[0].Value is string name) return name;
 
             if (ent.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 return ent.Layer.Substring(FiberSettings.CableLayerPrefix.Length).Replace("_", " ");
             }
-
             return null;
         }
 
-        public static bool TryGetEffortPole(Entity ent, out Point3d pole)
+        private static void Write(Transaction tr, Database db, Entity ent, string kind, params TypedValue[] data)
         {
-            TypedValue[]? data = Read(ent);
-            if (data != null && data.Length >= 3 && (data[1].Value as string) == EffortKind && data[2].Value is Point3d p)
-            {
-                pole = p;
-                return true;
-            }
-            pole = Point3d.Origin;
-            return false;
+            CadHelpers.EnsureRegApp(tr, db);
+            var values = new TypedValue[data.Length + 2];
+            values[0] = new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName);
+            values[1] = Text(kind);
+            data.CopyTo(values, 2);
+            ent.XData = new ResultBuffer(values);
         }
 
-        private static TypedValue[]? Read(Entity ent)
+        /// <summary>Dados depois do tipo, se a entidade for do tipo pedido e tiver pelo menos <paramref name="count"/> valores.</summary>
+        private static TypedValue[]? Read(Entity ent, string kind, int count)
         {
             using (ResultBuffer? rb = ent.GetXDataForApplication(FiberSettings.AppName))
             {
-                return rb?.AsArray();
+                TypedValue[]? d = rb?.AsArray();
+                if (d == null || d.Length < count + 2 || (d[1].Value as string) != kind) return null;
+
+                var data = new TypedValue[d.Length - 2];
+                Array.Copy(d, 2, data, 0, data.Length);
+                return data;
             }
         }
     }

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
@@ -19,10 +17,10 @@ namespace FiberPlugin.Commands
         {
             if (blocks.Count == 1) return blocks[0].Name;
 
-            using (var form = new UI.BlockSelectionForm(blocks, "Fiber Plugin - " + title, iconCommand))
+            using (var form = new UI.BlockSelectionForm(blocks, title, iconCommand))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return null;
-                return form.SelectedBlock;
+                return form.Selected?.Name;
             }
         }
 

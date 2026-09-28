@@ -19,40 +19,16 @@ namespace FiberPlugin.Core
         /// <summary>Denominador da escala (1000 para 1:1000). Padrão 1:1000 se o desenho ainda não tem escala definida.</summary>
         public static int Get(Database db)
         {
-            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
-            {
-                var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-                if (!nod.Contains(DictionaryKey)) return Default;
-
-                var xrec = (Xrecord)tr.GetObject(nod.GetAt(DictionaryKey), OpenMode.ForRead);
-                using (ResultBuffer? data = xrec.Data)
-                {
-                    TypedValue[]? values = data?.AsArray();
-                    if (values != null && values.Length > 0 && values[0].Value is int scale && scale >= Min && scale <= Max)
-                        return scale;
-                }
-                return Default;
-            }
+            TypedValue[]? v = CadHelpers.ReadDrawingRecord(db, DictionaryKey);
+            return v != null && v.Length > 0 && v[0].Value is int scale && scale >= Min && scale <= Max ? scale : Default;
         }
 
-        public static void Set(Transaction tr, Database db, int scale)
-        {
-            var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-            var data = new ResultBuffer(new TypedValue((int)DxfCode.Int32, scale));
+        public static void Set(Transaction tr, Database db, int scale) =>
+            CadHelpers.WriteDrawingRecord(tr, db, DictionaryKey, new TypedValue((int)DxfCode.Int32, scale));
 
-            if (nod.Contains(DictionaryKey))
-            {
-                var xrec = (Xrecord)tr.GetObject(nod.GetAt(DictionaryKey), OpenMode.ForWrite);
-                xrec.Data = data;
-            }
-            else
-            {
-                nod.UpgradeOpen();
-                var xrec = new Xrecord { Data = data };
-                nod.SetAt(DictionaryKey, xrec);
-                tr.AddNewlyCreatedDBObject(xrec, true);
-            }
-        }
+        /// <summary>Pergunta a escala 1:X (Enter = <paramref name="suggested"/>). Null se o usuário cancelar.</summary>
+        public static int? Ask(Autodesk.AutoCAD.EditorInput.Editor ed, string message, int suggested) =>
+            CadHelpers.AskInt(ed, $"{message} <{suggested}>: ", suggested, Min, Max);
 
         /// <summary>Multiplicador dos tamanhos de referência (1,0 em 1:1000).</summary>
         public static double Factor(Database db) => Get(db) / (double)Reference;

@@ -1,10 +1,6 @@
-using System;
-using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 
 namespace FiberPlugin.UI
 {
@@ -32,7 +28,6 @@ namespace FiberPlugin.UI
         public Color Primary { get; set; }        // Botão principal (ControlActive1, azul Autodesk)
         public Color PrimaryHover { get; set; }
         public Color OnPrimary { get; set; }
-        public Color Icon { get; set; }           // Ícones
         public Color Input { get; set; }          // Campo de texto (SearchBoxNormalBackground)
         public Color InputFocused { get; set; }   // Campo de texto com foco (SearchBoxFocusedBackground)
 
@@ -56,7 +51,6 @@ namespace FiberPlugin.UI
             Primary = Hex("#0696D7"),
             PrimaryHover = Hex("#1BA6E6"),
             OnPrimary = Hex("#FFFFFF"),
-            Icon = Hex("#38ABDF"),
             Input = Hex("#3B4453"),
             InputFocused = Hex("#4E5A6E")
         };
@@ -81,7 +75,6 @@ namespace FiberPlugin.UI
             Primary = Hex("#0696D7"),
             PrimaryHover = Hex("#0584BE"),
             OnPrimary = Hex("#FFFFFF"),
-            Icon = Hex("#0160BF"),
             Input = Hex("#FEFEFE"),
             InputFocused = Hex("#F2F2F2")
         };
@@ -114,7 +107,6 @@ namespace FiberPlugin.UI
         public static Color Primary => Current.Primary;
         public static Color PrimaryHover => Current.PrimaryHover;
         public static Color OnPrimary => Current.OnPrimary;
-        public static Color IconColor => Current.Icon;
         public static Color Input => Current.Input;
         public static Color InputFocused => Current.InputFocused;
 
@@ -153,27 +145,9 @@ namespace FiberPlugin.UI
             return Convert.ToInt32(Autodesk.AutoCAD.ApplicationServices.Application.GetSystemVariable("COLORTHEME"));
         }
 
-        // Ícones: Segoe Fluent Icons (Windows 11) ou Segoe MDL2 Assets (Windows 10)
+        // Lupa do campo de busca: Segoe Fluent Icons (Windows 11) ou Segoe MDL2 Assets (Windows 10)
         private static readonly string? IconFamily = FindIconFamily();
-
-        /// <summary>Nome da fonte de ícones instalada (null se nenhuma).</summary>
-        public static string? IconFamilyName => IconFamily;
-
-        public static class Icons
-        {
-            public const string Fiber = "\uE839";
-            public const string Edit = "\uE70F";
-            public const string Route = "\uE81E";
-            public const string Pin = "\uE707";
-            public const string Blocks = "\uECA5";
-            public const string Bolt = "\uE945";
-            public const string Path = "\uE7AD";
-            public const string Document = "\uE8A5";
-            public const string Search = "\uE721";
-            public const string Folder = "\uE8B7";
-            public const string Ruler = "\uECC6";
-            public const string Sheets = "\uE80A";
-        }
+        private const string SearchGlyph = "\uE721";
 
         public static void ApplyForm(Form form)
         {
@@ -241,23 +215,37 @@ namespace FiberPlugin.UI
             }
         }
 
-        /// <summary>Desenha o ícone; sem a fonte de ícones, usa a inicial do texto alternativo.</summary>
-        public static void DrawGlyph(Graphics g, string glyph, string fallback, Rectangle bounds, Color color, float size)
+        /// <summary>Lupa do campo de busca (nada, se o Windows não tiver a fonte de ícones).</summary>
+        public static void DrawSearchIcon(Graphics g, Rectangle bounds, Color color)
         {
-            const TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                                          TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
-            if (IconFamily != null)
+            if (IconFamily == null) return;
+            using (var font = new Font(IconFamily, 9f))
             {
-                using (var font = new Font(IconFamily, size))
-                {
-                    TextRenderer.DrawText(g, glyph, font, bounds, color, flags);
-                }
+                TextRenderer.DrawText(g, SearchGlyph, font, bounds, color,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             }
-            else
-            {
-                string letter = string.IsNullOrEmpty(fallback) ? "•" : fallback.Substring(0, 1).ToUpperInvariant();
-                TextRenderer.DrawText(g, letter, BodyBold, bounds, color, flags);
-            }
+        }
+
+        /// <summary>
+        /// Ícone colorido do comando (o mesmo da faixa de opções) seguido de título e subtítulo, centralizados
+        /// na altura do controle. Usado no cabeçalho das janelas e nos cartões do menu.
+        /// </summary>
+        public static void DrawIconAndText(Graphics g, Control control, int padding, string iconCommand,
+            string title, Font titleFont, string subtitle)
+        {
+            int size = Scale(control, 28);
+            var icon = new Rectangle(padding, (control.Height - size) / 2, size, size);
+            g.DrawImage(RibbonIcons.GetBitmap(iconCommand, size), icon);
+
+            int left = icon.Right + Scale(control, 10);
+            int width = control.Width - left - padding;
+            int h1 = titleFont.Height;
+            int h2 = Small.Height;
+            int top = (control.Height - h1 - h2) / 2;
+            const TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
+
+            TextRenderer.DrawText(g, title, titleFont, new Rectangle(left, top, width, h1), TextStrong, flags);
+            TextRenderer.DrawText(g, subtitle, Small, new Rectangle(left, top + h1, width, h2), Muted, flags);
         }
 
         private static string? FindIconFamily()

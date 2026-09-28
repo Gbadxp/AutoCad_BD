@@ -1,4 +1,3 @@
-using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -28,42 +27,15 @@ namespace FiberPlugin.Core
 
         public static UtmSettings? Get(Database db)
         {
-            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
-            {
-                var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-                if (!nod.Contains(DictionaryKey)) return null;
-
-                var xrec = (Xrecord)tr.GetObject(nod.GetAt(DictionaryKey), OpenMode.ForRead);
-                using (ResultBuffer? data = xrec.Data)
-                {
-                    TypedValue[]? v = data?.AsArray();
-                    if (v == null || v.Length < 2 || v[0].Value is not int zone || v[1].Value is not int south) return null;
-                    if (zone < 1 || zone > 60) return null;
-                    return new UtmSettings { Zone = zone, South = south != 0 };
-                }
-            }
+            TypedValue[]? v = CadHelpers.ReadDrawingRecord(db, DictionaryKey);
+            if (v == null || v.Length < 2 || v[0].Value is not int zone || v[1].Value is not int south) return null;
+            return zone >= 1 && zone <= 60 ? new UtmSettings { Zone = zone, South = south != 0 } : null;
         }
 
-        public static void Set(Transaction tr, Database db, UtmSettings settings)
-        {
-            var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-            var data = new ResultBuffer(
+        public static void Set(Transaction tr, Database db, UtmSettings settings) =>
+            CadHelpers.WriteDrawingRecord(tr, db, DictionaryKey,
                 new TypedValue((int)DxfCode.Int32, settings.Zone),
                 new TypedValue((int)DxfCode.Int32, settings.South ? 1 : 0));
-
-            if (nod.Contains(DictionaryKey))
-            {
-                var xrec = (Xrecord)tr.GetObject(nod.GetAt(DictionaryKey), OpenMode.ForWrite);
-                xrec.Data = data;
-            }
-            else
-            {
-                nod.UpgradeOpen();
-                var xrec = new Xrecord { Data = data };
-                nod.SetAt(DictionaryKey, xrec);
-                tr.AddNewlyCreatedDBObject(xrec, true);
-            }
-        }
 
         /// <summary>Pergunta zona e hemisfério (sugerindo o atual, ou o da geolocalização do DWG) e grava.</summary>
         public static UtmSettings? Ask(Editor ed, Database db, UtmSettings? current)
@@ -71,28 +43,14 @@ namespace FiberPlugin.Core
             UtmSettings? suggestion = current ?? FromGeoLocation(db);
 
             string hint = suggestion != null ? $" <{suggestion.Zone}>" : "";
-            var pio = new PromptIntegerOptions($"\nZona UTM (fuso) do projeto, ex.: 20, 22, 23{hint}: ")
-            {
-                AllowNone = suggestion != null,
-                AllowNegative = false,
-                AllowZero = false,
-                LowerLimit = 1,
-                UpperLimit = 60
-            };
-            PromptIntegerResult zoneRes = ed.GetInteger(pio);
-            if (zoneRes.Status == PromptStatus.Cancel) return null;
-            int zone = zoneRes.Status == PromptStatus.OK ? zoneRes.Value : suggestion!.Zone;
+            int? zone = CadHelpers.AskInt(ed, $"\nZona UTM (fuso) do projeto, ex.: 20, 22, 23{hint}: ", suggestion?.Zone, 1, 60);
+            if (zone == null) return null;
 
-            bool southDefault = suggestion?.South ?? true;
-            var pko = new PromptKeywordOptions($"\nHemisfério [Norte/Sul] <{(southDefault ? "Sul" : "Norte")}>: ", "Norte Sul")
-            {
-                AllowNone = true
-            };
-            PromptResult hemRes = ed.GetKeywords(pko);
-            if (hemRes.Status == PromptStatus.Cancel) return null;
-            bool south = hemRes.Status == PromptStatus.OK ? hemRes.StringResult == "Sul" : southDefault;
+            string hemisphere = suggestion?.South == false ? "Norte" : "Sul";
+            string? answer = CadHelpers.AskKeyword(ed, $"\nHemisfério [Norte/Sul] <{hemisphere}>: ", "Norte Sul", hemisphere);
+            if (answer == null) return null;
 
-            var settings = new UtmSettings { Zone = zone, South = south };
+            var settings = new UtmSettings { Zone = zone.Value, South = answer == "Sul" };
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 Set(tr, db, settings);

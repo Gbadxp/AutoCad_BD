@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Autodesk.AutoCAD.DatabaseServices;
 
 namespace FiberPlugin.Core
@@ -31,11 +28,15 @@ namespace FiberPlugin.Core
         /// <summary>Último problema ao ler a biblioteca (arquivo corrompido, sem permissão...), para mostrar ao usuário.</summary>
         public static string? LastError { get; private set; }
 
-        /// <summary>Caminho do BLOCOS.dwg (null se a pasta Blocos não existir).</summary>
+        /// <summary>
+        /// Caminho do BLOCOS.dwg principal: o escolhido no Atualizar Blocos ou, sem ele, o da pasta Blocos
+        /// (null se a pasta não existir).
+        /// </summary>
         public static string? LibraryFile
         {
             get
             {
+                if (PluginPaths.CustomLibrary is string custom && File.Exists(custom)) return custom;
                 string? dir = PluginPaths.BlocksDir;
                 return dir == null ? null : Path.Combine(dir, LibraryFileName);
             }
@@ -47,15 +48,18 @@ namespace FiberPlugin.Core
             LastError = null;
             var entries = new List<BlockEntry>();
 
-            // Pastas em ordem de prioridade (blocos pessoais antes dos do pacote) e, em cada pasta,
-            // o BLOCOS.dwg antes dos demais .dwg. Em nomes repetidos vale o primeiro encontrado.
-            IEnumerable<string> files = PluginPaths.BlockLibraryDirs.SelectMany(dir =>
+            // Primeiro o BLOCOS.dwg escolhido no Atualizar Blocos; depois as pastas em ordem de prioridade
+            // (blocos pessoais antes dos do pacote) e, em cada pasta, o BLOCOS.dwg antes dos demais .dwg.
+            // Em nomes repetidos vale o primeiro encontrado.
+            var files = new List<string>();
+            if (PluginPaths.CustomLibrary is string custom && File.Exists(custom)) files.Add(custom);
+            files.AddRange(PluginPaths.BlockLibraryDirs.SelectMany(dir =>
                 Directory.EnumerateFiles(dir, "*.dwg", SearchOption.TopDirectoryOnly)
                     .Where(f => !Path.GetFileName(f).StartsWith("~"))
                     .OrderBy(f => !Path.GetFileName(f).Equals(LibraryFileName, StringComparison.OrdinalIgnoreCase))
-                    .ThenBy(f => f, StringComparer.OrdinalIgnoreCase));
+                    .ThenBy(f => f, StringComparer.OrdinalIgnoreCase)));
 
-            foreach (string file in files)
+            foreach (string file in files.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 foreach (string name in BlockNamesIn(file))
                 {
@@ -86,22 +90,57 @@ namespace FiberPlugin.Core
                 }
             }
 
-            using (Database source = OpenLibrary(entry.FilePath))
+            return CopyDefinitions(db, entry.FilePath, new[] { entry.Name }).TryGetValue(entry.Name, out ObjectId id) ? id : ObjectId.Null;
+        }
+
+        /// <summary>
+        /// Troca, no desenho, a definição de todos os blocos que também estão na biblioteca: os já inseridos
+        /// passam a ter o desenho novo. Blocos da biblioteca que o desenho ainda não usa não são copiados.
+        /// Retorna quantos blocos foram atualizados.
+        /// </summary>
+        public static int UpdateDrawing(Database db)
+        {
+            var inDrawing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
-                ObjectId sourceId;
+                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+                foreach (ObjectId id in bt)
+                {
+                    var btr = (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead);
+                    if (IsUserBlock(btr)) inDrawing.Add(btr.Name);
+                }
+            }
+
+            return List()
+                .Where(e => inDrawing.Contains(e.Name))
+                .GroupBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase)
+                .Sum(file => CopyDefinitions(db, file.Key, file.Select(e => e.Name)).Count);
+        }
+
+        /// <summary>Copia (substituindo) as definições dos blocos do arquivo para o desenho. Retorna nome → bloco no desenho.</summary>
+        private static Dictionary<string, ObjectId> CopyDefinitions(Database db, string file, IEnumerable<string> names)
+        {
+            var copied = new Dictionary<string, ObjectId>(StringComparer.OrdinalIgnoreCase);
+            using (Database source = OpenLibrary(file))
+            {
+                var sourceIds = new Dictionary<string, ObjectId>(StringComparer.OrdinalIgnoreCase);
                 using (Transaction tr = source.TransactionManager.StartOpenCloseTransaction())
                 {
                     var bt = (BlockTable)tr.GetObject(source.BlockTableId, OpenMode.ForRead);
-                    if (!bt.Has(entry.Name)) return ObjectId.Null;
-                    sourceId = bt[entry.Name];
+                    foreach (string name in names)
+                    {
+                        if (bt.Has(name)) sourceIds[name] = bt[name];
+                    }
                 }
+                if (sourceIds.Count == 0) return copied;
 
                 // Clonar a definição preserva blocos dinâmicos, atributos e blocos aninhados
-                var ids = new ObjectIdCollection { sourceId };
                 var mapping = new IdMapping();
-                source.WblockCloneObjects(ids, db.BlockTableId, mapping, DuplicateRecordCloning.Replace, false);
-                return mapping[sourceId].Value;
+                source.WblockCloneObjects(new ObjectIdCollection(sourceIds.Values.ToArray()), db.BlockTableId, mapping,
+                    DuplicateRecordCloning.Replace, false);
+                foreach (var pair in sourceIds) copied[pair.Key] = mapping[pair.Value].Value;
             }
+            return copied;
         }
 
         /// <summary>

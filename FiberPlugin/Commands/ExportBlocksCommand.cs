@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -29,13 +28,10 @@ namespace FiberPlugin.Commands
                 return;
             }
 
-            var pko = new PromptKeywordOptions("\nSe o bloco já existir na biblioteca [Manter/Sobrescrever] <Manter>: ", "Manter Sobrescrever")
-            {
-                AllowNone = true
-            };
-            PromptResult pkr = ed.GetKeywords(pko);
-            if (pkr.Status == PromptStatus.Cancel) return;
-            bool overwrite = pkr.Status == PromptStatus.OK && pkr.StringResult == "Sobrescrever";
+            string? answer = CadHelpers.AskKeyword(ed, "\nSe o bloco já existir na biblioteca [Manter/Sobrescrever] <Manter>: ",
+                "Manter Sobrescrever", "Manter");
+            if (answer == null) return;
+            bool overwrite = answer == "Sobrescrever";
 
             var (added, replaced, kept, error) = BlockRepository.ExportToLibrary(db, overwrite);
             if (error != null)

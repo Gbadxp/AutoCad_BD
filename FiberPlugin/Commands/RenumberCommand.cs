@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -147,7 +145,7 @@ namespace FiberPlugin.Commands
                 target.Pole.Number = number;
                 XDataTags.TagPole(tr, db, br, target.Pole);
                 SetNumberAttribute(tr, br, PoleData.NumberText(number));
-                PoleLabels.RefreshPole(tr, db, space, br, target.Pole);
+                PoleLabels.Place(tr, db, space, br, target.Pole);
                 return PoleData.NumberText(number);
             }
 
@@ -156,7 +154,7 @@ namespace FiberPlugin.Commands
                 target.Box.Number = number;
                 XDataTags.TagBox(tr, db, br, target.Box);
                 SetNumberAttribute(tr, br, target.Box.Id);
-                PoleLabels.RefreshBox(tr, db, space, br, target.Box);
+                PoleLabels.PlaceBox(tr, db, space, br, target.Box);
                 return target.Box.Id;
             }
 
@@ -173,16 +171,8 @@ namespace FiberPlugin.Commands
             return value;
         }
 
-        private static void SetNumberAttribute(Transaction tr, BlockReference br, string value)
-        {
-            foreach (ObjectId attId in br.AttributeCollection)
-            {
-                var att = (AttributeReference)tr.GetObject(attId, OpenMode.ForRead);
-                if (!CadHelpers.IsTag(att.Tag, CadHelpers.NumberTags)) continue;
-                att.UpgradeOpen();
-                att.TextString = value;
-            }
-        }
+        private static void SetNumberAttribute(Transaction tr, BlockReference br, string value) =>
+            CadHelpers.SetAttributes(tr, br, tag => CadHelpers.IsTag(tag, CadHelpers.NumberTags) ? value : null);
 
         /// <summary>Outro bloco do mesmo tipo com o mesmo número (null se não houver).</summary>
         private static string? FindDuplicate(Transaction tr, BlockTableRecord space, ObjectId self, Target target, int number)

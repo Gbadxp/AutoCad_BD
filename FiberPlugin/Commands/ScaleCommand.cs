@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -25,17 +23,9 @@ namespace FiberPlugin.Commands
 
             int current = DrawingScale.Get(db);
 
-            var pio = new PromptIntegerOptions($"\nEscala do desenho 1:X (ex.: 500, 1000, 2000) <{current}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false,
-                LowerLimit = DrawingScale.Min,
-                UpperLimit = DrawingScale.Max
-            };
-            PromptIntegerResult pir = ed.GetInteger(pio);
-            if (pir.Status == PromptStatus.Cancel) return;
-            int scale = pir.Status == PromptStatus.OK ? pir.Value : current;
+            int? asked = DrawingScale.Ask(ed, "\nEscala do desenho 1:X (ex.: 500, 1000, 2000)", current);
+            if (asked == null) return;
+            int scale = asked.Value;
 
             if (scale == current)
             {

@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace FiberPlugin.Core
 {
@@ -30,7 +27,7 @@ namespace FiberPlugin.Core
         public static string Of(string blockName)
         {
             string name = Normalize(blockName);
-            HashSet<string> words = Words(name);
+            HashSet<string> words = Words(blockName);
 
             if (name.Contains("POSTE") || words.Contains("DT") || words.Contains("CC")) return Poles;
             if (words.Contains("CTO")) return Cto;
@@ -60,9 +57,10 @@ namespace FiberPlugin.Core
             return sb.ToString();
         }
 
-        private static HashSet<string> Words(string normalized)
+        /// <summary>Palavras do nome, em maiúsculas e sem acentos ("Poste DT-11" → POSTE, DT, 11).</summary>
+        public static HashSet<string> Words(string text)
         {
-            return new HashSet<string>(Regex.Split(normalized, "[^A-Z0-9]+").Where(w => w.Length > 0));
+            return new HashSet<string>(Regex.Split(Normalize(text), "[^A-Z0-9]+").Where(w => w.Length > 0));
         }
     }
 }

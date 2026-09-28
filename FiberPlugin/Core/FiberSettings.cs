@@ -30,7 +30,7 @@ namespace FiberPlugin.Core
 
         // Símbolos de CTO/CEO: tamanho do maior lado na escala 1:1000 (m). Os blocos são ajustados a esse
         // tamanho na inserção, independente da unidade em que foram desenhados no BLOCOS.dwg.
-        public const double BoxSymbolSize = 6.0;
+        public const double BoxSymbolSize = 10.0;
 
         // Roteamento automático: afastamento do cabo em relação ao centro do poste
         public const double AutoRouteOffset = 1.8;

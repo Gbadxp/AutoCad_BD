@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 
 namespace FiberPlugin.Core
@@ -63,6 +60,39 @@ namespace FiberPlugin.Core
             }
         }
 
+        // Arquivo que guarda o BLOCOS.dwg escolhido no botão Atualizar Blocos
+        private static string SettingsFile => Path.Combine(UserRoot, "biblioteca.txt");
+        private static string? _customLibrary;
+        private static bool _customLibraryLoaded;
+
+        /// <summary>
+        /// BLOCOS.dwg escolhido pelo usuário (ex.: o da pasta do projeto), lido direto, com prioridade sobre
+        /// o do pacote. Assim um bloco novo aparece só de salvar esse arquivo, sem reinstalar o plugin.
+        /// Null = usar a biblioteca que vem com o plugin.
+        /// </summary>
+        public static string? CustomLibrary
+        {
+            get
+            {
+                if (!_customLibraryLoaded)
+                {
+                    _customLibraryLoaded = true;
+                    try { _customLibrary = File.Exists(SettingsFile) ? File.ReadAllText(SettingsFile).Trim() : null; }
+                    catch (IOException) { _customLibrary = null; }
+                    if (_customLibrary?.Length == 0) _customLibrary = null;
+                }
+                return _customLibrary;
+            }
+            set
+            {
+                Directory.CreateDirectory(UserRoot);
+                if (value == null) File.Delete(SettingsFile);
+                else File.WriteAllText(SettingsFile, value);
+                _customLibrary = value;
+                _customLibraryLoaded = true;
+            }
+        }
+
         /// <summary>Pastas com bibliotecas de blocos, da maior para a menor prioridade.</summary>
         public static IEnumerable<string> BlockLibraryDirs
         {
@@ -100,7 +130,6 @@ namespace FiberPlugin.Core
 
                 string blocks = Path.Combine(UserRoot, BlocksFolderName);
                 Directory.CreateDirectory(blocks);
-                RemoveLegacyCategoryFolders(blocks);
                 WriteUserBlocksReadme(blocks);
             }
             catch (IOException) { }
@@ -130,15 +159,11 @@ namespace FiberPlugin.Core
             }
         }
 
-        /// <summary>
-        /// Versões até a 1.1 criavam Blocos\Fibra, \Eletrica, \Postes e \Outros. Remove essas subpastas
-        /// quando estão vazias (nunca apaga pasta com arquivos do usuário).
-        /// </summary>
-        /// <summary>Explica para que serve a pasta de blocos pessoais (substitui o LEIA-ME das versões antigas).</summary>
+        /// <summary>Explica para que serve a pasta de blocos pessoais.</summary>
         private static void WriteUserBlocksReadme(string blocksDir)
         {
             string path = Path.Combine(blocksDir, "LEIA-ME.txt");
-            if (File.Exists(path) && File.ReadAllText(path).IndexOf("subpasta", StringComparison.OrdinalIgnoreCase) < 0) return;
+            if (File.Exists(path)) return;
 
             File.WriteAllText(path,
                 "BLOCOS PESSOAIS DO FIBER PLUGIN" + Environment.NewLine + Environment.NewLine +
@@ -146,15 +171,6 @@ namespace FiberPlugin.Core
                 "Esta pasta é opcional: um BLOCOS.dwg (ou outros .dwg) colocado aqui acrescenta blocos seus." + Environment.NewLine +
                 "Se um bloco daqui tiver o mesmo nome de um bloco padrão, o daqui é usado." + Environment.NewLine +
                 "O comando FIBRA_EXPORTAR_BLOCOS grava nesta pasta os blocos do desenho aberto." + Environment.NewLine);
-        }
-
-        private static void RemoveLegacyCategoryFolders(string blocksDir)
-        {
-            foreach (string name in new[] { "Fibra", "Eletrica", "Postes", "Outros" })
-            {
-                string dir = Path.Combine(blocksDir, name);
-                if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
-            }
         }
     }
 }

@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
 using Autodesk.AutoCAD.EditorInput;
 
 namespace FiberPlugin.Core
@@ -68,13 +64,8 @@ namespace FiberPlugin.Core
             string fullName = type == PoleData.Circular ? "CIRCULAR" : "DUPLO";
 
             return names.FirstOrDefault(n => n.Trim().Equals(type, StringComparison.OrdinalIgnoreCase))
-                ?? names.FirstOrDefault(n => Words(n).Contains(type))
-                ?? names.FirstOrDefault(n => Words(n).Contains(fullName));
-        }
-
-        private static HashSet<string> Words(string name)
-        {
-            return new HashSet<string>(Regex.Split(name.ToUpperInvariant(), "[^A-Z0-9]+").Where(w => w.Length > 0));
+                ?? names.FirstOrDefault(n => BlockCategories.Words(n).Contains(type))
+                ?? names.FirstOrDefault(n => BlockCategories.Words(n).Contains(fullName));
         }
     }
 }

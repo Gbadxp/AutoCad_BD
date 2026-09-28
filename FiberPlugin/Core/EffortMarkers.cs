@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
@@ -133,14 +131,11 @@ namespace FiberPlugin.Core
             // Sem esforço (alinhamento reto) não há sentido para indicar: só os textos
             if (hasEffort)
             {
-                var arrow = new Polyline();
+                var arrow = new Polyline { Layer = FiberSettings.EffortLayer };
                 arrow.AddVertexAt(0, new Point2d(tail.X, tail.Y), 0, 0, 0);
                 arrow.AddVertexAt(1, new Point2d(headBase.X, headBase.Y), 0, FiberSettings.EffortArrowHeadWidth * _scale, 0);
                 arrow.AddVertexAt(2, new Point2d(tip.X, tip.Y), 0, 0, 0);
-                arrow.Layer = FiberSettings.EffortLayer;
-                _space.AppendEntity(arrow);
-                _tr.AddNewlyCreatedDBObject(arrow, true);
-                yield return arrow;
+                yield return CadHelpers.Append(_tr, _space, arrow);
             }
 
             // Textos centralizados na haste, acima e abaixo dela

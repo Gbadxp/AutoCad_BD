@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -42,7 +40,7 @@ namespace FiberPlugin.Commands
                         var space = (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite);
 
                         PoleLabels.Place(tr, db, space, br, pole.Data!);
-                        UpdateCoordinateAttributes(tr, br, utm);
+                        CadHelpers.SetAttributes(tr, br, tag => CadHelpers.CoordinateAttribute(tag, br.Position, utm));
                     }
                     ed.WriteMessage($"\n[INFO]: {poles.Count} poste(s) atualizado(s).");
                 }
@@ -50,19 +48,6 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
             ed.Regen();
-        }
-
-        private static void UpdateCoordinateAttributes(Transaction tr, BlockReference br, UtmSettings utm)
-        {
-            foreach (ObjectId attId in br.AttributeCollection)
-            {
-                var att = (AttributeReference)tr.GetObject(attId, OpenMode.ForRead);
-                string? value = CadHelpers.CoordinateAttribute(att.Tag, br.Position, utm);
-                if (value == null) continue;
-
-                att.UpgradeOpen();
-                att.TextString = value;
-            }
         }
     }
 }

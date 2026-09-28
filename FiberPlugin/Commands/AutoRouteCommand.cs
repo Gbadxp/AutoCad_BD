@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -61,7 +58,7 @@ namespace FiberPlugin.Commands
                 List<Point3d> vertices = RouteOptimizer.OffsetPath(ordered, FiberSettings.AutoRouteOffset);
 
                 // A metragem escrita é o vão real entre postes
-                var spans = Enumerable.Range(0, ordered.Count - 1).Select(i => ordered[i].DistanceTo(ordered[i + 1])).ToList();
+                List<double> spans = CableDrawing.SpanLengths(ordered);
 
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 

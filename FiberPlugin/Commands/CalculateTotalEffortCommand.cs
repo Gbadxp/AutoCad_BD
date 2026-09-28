@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -46,10 +44,7 @@ namespace FiberPlugin.Commands
                     List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, unknown);
                     EffortResult result = EffortCalculator.AtPole(runs, polePoint, FiberSettings.PoleMatchTolerance);
 
-                    foreach (string name in unknown)
-                    {
-                        ed.WriteMessage($"\n[AVISO]: Cabo '{name}' não está na planilha de cabos e foi ignorado.");
-                    }
+                    CableProvider.ReportUnknown(ed, unknown);
 
                     if (result.CableCount == 0)
                     {

@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -141,24 +138,13 @@ namespace FiberPlugin.Commands
             }
 
             // 2. Folha
-            var pko = new PromptKeywordOptions("\nTamanho da folha [A0/A1/A2/A3/A4] <A2>: ", "A0 A1 A2 A3 A4") { AllowNone = true };
-            PromptResult formatRes = ed.GetKeywords(pko);
-            if (formatRes.Status == PromptStatus.Cancel) return null;
-            SheetFormat format = SheetFormat.Find(formatRes.Status == PromptStatus.OK ? formatRes.StringResult : "A2") ?? SheetFormat.All[2];
+            string? formatName = CadHelpers.AskKeyword(ed, "\nTamanho da folha [A0/A1/A2/A3/A4] <A2>: ", "A0 A1 A2 A3 A4", "A2");
+            if (formatName == null) return null;
+            SheetFormat format = SheetFormat.Find(formatName) ?? SheetFormat.All[2];
 
             // 3. Escala (padrão: a escala do desenho)
-            int drawingScale = DrawingScale.Get(db);
-            var pio = new PromptIntegerOptions($"\nEscala 1:X <{drawingScale}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false,
-                LowerLimit = DrawingScale.Min,
-                UpperLimit = DrawingScale.Max
-            };
-            PromptIntegerResult scaleRes = ed.GetInteger(pio);
-            if (scaleRes.Status == PromptStatus.Cancel) return null;
-            int scale = scaleRes.Status == PromptStatus.OK ? scaleRes.Value : drawingScale;
+            int? scale = DrawingScale.Ask(ed, "\nEscala 1:X", DrawingScale.Get(db));
+            if (scale == null) return null;
 
             // 4. Sobreposição
             var pdo = new PromptDoubleOptions("\nSobreposição entre folhas vizinhas em % <5>: ")
@@ -177,7 +163,7 @@ namespace FiberPlugin.Commands
             string prefix = CadHelpers.SanitizeName(prefixRes.StringResult.Trim());
             if (prefix.Length == 0) prefix = "FL";
 
-            return new SheetOptions { Area = area, Format = format, Scale = scale, Overlap = overlap, Prefix = prefix };
+            return new SheetOptions { Area = area, Format = format, Scale = scale.Value, Overlap = overlap, Prefix = prefix };
         }
 
         /// <summary>Extensões dos elementos do Model, para descobrir quais folhas têm conteúdo.</summary>
@@ -262,15 +248,13 @@ namespace FiberPlugin.Commands
                 DrawFrame(tr, paperSpace, plan, number, title);
 
                 Rect area = plan.Format.ViewportArea(plan.Landscape);
-                var vp = new Viewport
+                Viewport vp = CadHelpers.Append(tr, paperSpace, new Viewport
                 {
                     CenterPoint = new Point3d(area.CenterX, area.CenterY, 0),
                     Width = area.Width,
                     Height = area.Height,
                     Layer = ViewportLayer
-                };
-                paperSpace.AppendEntity(vp);
-                tr.AddNewlyCreatedDBObject(vp, true);
+                });
 
                 vp.ViewDirection = Vector3d.ZAxis;
                 vp.ViewTarget = Point3d.Origin;
@@ -290,12 +274,7 @@ namespace FiberPlugin.Commands
             Rect frame = plan.Format.Frame(plan.Landscape);
             double bandTop = frame.MinY + SheetFormat.InfoBandHeight;
 
-            var border = new Polyline();
-            border.AddVertexAt(0, new Point2d(frame.MinX, frame.MinY), 0, 0, 0);
-            border.AddVertexAt(1, new Point2d(frame.MaxX, frame.MinY), 0, 0, 0);
-            border.AddVertexAt(2, new Point2d(frame.MaxX, frame.MaxY), 0, 0, 0);
-            border.AddVertexAt(3, new Point2d(frame.MinX, frame.MaxY), 0, 0, 0);
-            border.Closed = true;
+            Polyline border = Rectangle(frame);
             border.ConstantWidth = 0.5;
             AddPaper(tr, paperSpace, border);
 
@@ -323,8 +302,17 @@ namespace FiberPlugin.Commands
         private static void AddPaper(Transaction tr, BlockTableRecord paperSpace, Entity ent)
         {
             ent.Layer = FrameLayer;
-            paperSpace.AppendEntity(ent);
-            tr.AddNewlyCreatedDBObject(ent, true);
+            CadHelpers.Append(tr, paperSpace, ent);
+        }
+
+        private static Polyline Rectangle(Rect r)
+        {
+            var rect = new Polyline { Closed = true };
+            rect.AddVertexAt(0, new Point2d(r.MinX, r.MinY), 0, 0, 0);
+            rect.AddVertexAt(1, new Point2d(r.MaxX, r.MinY), 0, 0, 0);
+            rect.AddVertexAt(2, new Point2d(r.MaxX, r.MaxY), 0, 0, 0);
+            rect.AddVertexAt(3, new Point2d(r.MinX, r.MaxY), 0, 0, 0);
+            return rect;
         }
 
         /// <summary>Impressora DWG To PDF, papel do formato escolhido, plotagem da folha em 1:1.</summary>
@@ -384,31 +372,17 @@ namespace FiberPlugin.Commands
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 // Remove o quadro anterior das folhas com o mesmo prefixo (coleta antes de apagar)
-                var previous = new List<ObjectId>();
-                foreach (ObjectId id in modelSpace)
-                {
-                    if (tr.GetObject(id, OpenMode.ForRead) is Entity ent &&
-                        string.Equals(XDataTags.GetSheetIndexPrefix(ent), prefix, StringComparison.OrdinalIgnoreCase))
-                    {
-                        previous.Add(id);
-                    }
-                }
+                List<ObjectId> previous = modelSpace.Cast<ObjectId>()
+                    .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent &&
+                                 string.Equals(XDataTags.GetSheetIndexPrefix(ent), prefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
                 foreach (ObjectId id in previous) tr.GetObject(id, OpenMode.ForWrite).Erase();
 
                 for (int i = 0; i < plan.Tiles.Count; i++)
                 {
                     Rect r = plan.Tiles[i].ModelArea;
-
-                    var rect = new Polyline();
-                    rect.AddVertexAt(0, new Point2d(r.MinX, r.MinY), 0, 0, 0);
-                    rect.AddVertexAt(1, new Point2d(r.MaxX, r.MinY), 0, 0, 0);
-                    rect.AddVertexAt(2, new Point2d(r.MaxX, r.MaxY), 0, 0, 0);
-                    rect.AddVertexAt(3, new Point2d(r.MinX, r.MaxY), 0, 0, 0);
-                    rect.Closed = true;
+                    Polyline rect = Rectangle(r);
                     rect.Layer = SheetIndexLayer;
-                    modelSpace.AppendEntity(rect);
-                    tr.AddNewlyCreatedDBObject(rect, true);
-                    XDataTags.TagSheetIndex(tr, db, rect, prefix);
 
                     var label = new MText
                     {
@@ -418,9 +392,12 @@ namespace FiberPlugin.Commands
                         TextHeight = Math.Min(r.Width, r.Height) * 0.05,
                         Layer = SheetIndexLayer
                     };
-                    modelSpace.AppendEntity(label);
-                    tr.AddNewlyCreatedDBObject(label, true);
-                    XDataTags.TagSheetIndex(tr, db, label, prefix);
+
+                    foreach (Entity ent in new Entity[] { rect, label })
+                    {
+                        CadHelpers.Append(tr, modelSpace, ent);
+                        XDataTags.TagSheetIndex(tr, db, ent, prefix);
+                    }
                 }
 
                 tr.Commit();

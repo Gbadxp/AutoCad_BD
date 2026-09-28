@@ -12,7 +12,9 @@ substituído pela versão do BLOCOS.dwg, e os blocos já inseridos ficam com o d
 
 COMO ACRESCENTAR BLOCOS
 -----------------------
-- Abra o BLOCOS.dwg, crie ou cole o bloco (comando BLOCO) e salve; ou
+- Abra o BLOCOS.dwg, crie ou cole o bloco (comando BLOCO) e salve. No AutoCAD, clique em
+  Atualizar Blocos (aba Fibra): na primeira vez, escolha este BLOCOS.dwg; daí em diante o
+  plugin lê direto dele, sem precisar rodar o build.ps1 nem reinstalar; ou
 - Com um projeto aberto, rode FIBRA_EXPORTAR_BLOCOS: os blocos daquele desenho são
   copiados para dentro do BLOCOS.dwg (a versão anterior fica salva como BLOCOS.bak).
 

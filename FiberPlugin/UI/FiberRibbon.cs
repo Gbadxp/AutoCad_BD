@@ -1,13 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.Windows;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 using Wpf = System.Windows;
-using WpfMedia = System.Windows.Media;
-using WpfImaging = System.Windows.Media.Imaging;
 
 namespace FiberPlugin.UI
 {
@@ -18,7 +12,6 @@ namespace FiberPlugin.UI
     {
         private const string TabId = "FIBER_PLUGIN_TAB";
         private const int RowsPerColumn = 3;
-
 
         private static bool _workspaceHooked;
 
@@ -73,7 +66,7 @@ namespace FiberPlugin.UI
                 // Botões grandes primeiro
                 foreach (Tool tool in tools.Where(t => t.LargeOnRibbon))
                 {
-                    items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: true));
+                    items.Add(Button(tool, large: true));
                 }
 
                 // Botões pequenos em colunas de 3 linhas, como o painel Modificar do AutoCAD
@@ -84,7 +77,7 @@ namespace FiberPlugin.UI
                     foreach (Tool tool in smalls.Skip(start).Take(RowsPerColumn))
                     {
                         if (column.Items.Count > 0) column.Items.Add(new RibbonRowBreak());
-                        column.Items.Add(Button(tool.RibbonLabel, tool.Glyph, tool.Command, tool.Description, large: false));
+                        column.Items.Add(Button(tool, large: false));
                     }
                     items.Add(column);
                 }
@@ -100,49 +93,22 @@ namespace FiberPlugin.UI
             return new RibbonPanel { Source = source };
         }
 
-        private static RibbonButton Button(string text, string glyph, string command, string tooltip, bool large)
+        private static RibbonButton Button(Tool tool, bool large)
         {
             return new RibbonButton
             {
-                Id = "FIBER_" + command,
-                Text = text,
+                Id = "FIBER_" + tool.Command,
+                Text = tool.RibbonLabel,
                 ShowText = true,
                 ShowImage = true,
                 Size = large ? RibbonItemSize.Large : RibbonItemSize.Standard,
                 Orientation = large ? Wpf.Controls.Orientation.Vertical : Wpf.Controls.Orientation.Horizontal,
-                // Ícone colorido no estilo AutoCAD; sem desenho próprio, cai no ícone de fonte
-                LargeImage = RibbonIcons.Get(command, 32) ?? GlyphImage(glyph, 32),
-                Image = RibbonIcons.Get(command, 16) ?? GlyphImage(glyph, 16),
-                ToolTip = tooltip,
-                CommandParameter = command,
+                LargeImage = RibbonIcons.Get(tool.Command, 32),
+                Image = RibbonIcons.Get(tool.Command, 16),
+                ToolTip = tool.Description,
+                CommandParameter = tool.Command,
                 CommandHandler = RibbonCommandHandler.Instance
             };
-        }
-
-        /// <summary>Desenha o ícone (Segoe Fluent Icons / MDL2 Assets) numa imagem, sem precisar de arquivos .png.</summary>
-        private static WpfMedia.ImageSource GlyphImage(string glyph, int size)
-        {
-            string? family = Theme.IconFamilyName;
-            string text = family != null ? glyph : "•";
-            var typeface = new WpfMedia.Typeface(new WpfMedia.FontFamily(family ?? "Segoe UI"),
-                Wpf.FontStyles.Normal, Wpf.FontWeights.Normal, Wpf.FontStretches.Normal);
-            System.Drawing.Color c = Theme.IconColor;
-            var brush = new WpfMedia.SolidColorBrush(WpfMedia.Color.FromRgb(c.R, c.G, c.B));
-            brush.Freeze();
-
-            var formatted = new WpfMedia.FormattedText(text, CultureInfo.InvariantCulture, Wpf.FlowDirection.LeftToRight,
-                typeface, size * 0.82, brush, 1.0);
-
-            var visual = new WpfMedia.DrawingVisual();
-            using (WpfMedia.DrawingContext dc = visual.RenderOpen())
-            {
-                dc.DrawText(formatted, new Wpf.Point((size - formatted.Width) / 2, (size - formatted.Height) / 2));
-            }
-
-            var bitmap = new WpfImaging.RenderTargetBitmap(size, size, 96, 96, WpfMedia.PixelFormats.Pbgra32);
-            bitmap.Render(visual);
-            bitmap.Freeze();
-            return bitmap;
         }
     }
 

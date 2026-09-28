@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using FiberPlugin.Models;
@@ -93,14 +91,20 @@ namespace FiberPlugin.Core
         public static EffortResult AtPathIndex(IList<Point3d> path, int index, double weightKgKm)
         {
             var result = new EffortResult { CableCount = 1 };
-            Vector2d total = new Vector2d(0, 0);
-            if (index > 0) total += PullVector(path[index], path[index - 1], weightKgKm);
-            if (index < path.Count - 1) total += PullVector(path[index], path[index + 1], weightKgKm);
-            result.Resultant = total;
-            result.AddGeometry(path[index],
-                index > 0 ? path[index - 1] : (Point3d?)null,
-                index < path.Count - 1 ? path[index + 1] : (Point3d?)null);
+            AddVertex(result, path, index, weightKgKm);
             return result;
+        }
+
+        /// <summary>Soma ao resultado a tração dos vãos vizinhos ao vértice <paramref name="index"/> do cabo.</summary>
+        private static void AddVertex(EffortResult result, IList<Point3d> path, int index, double weightKgKm)
+        {
+            Point3d at = path[index];
+            Point3d? previous = index > 0 ? path[index - 1] : (Point3d?)null;
+            Point3d? next = index < path.Count - 1 ? path[index + 1] : (Point3d?)null;
+
+            if (previous != null) result.Resultant += PullVector(at, previous.Value, weightKgKm);
+            if (next != null) result.Resultant += PullVector(at, next.Value, weightKgKm);
+            result.AddGeometry(at, previous, next);
         }
 
         /// <summary>
@@ -110,8 +114,6 @@ namespace FiberPlugin.Core
         public static EffortResult AtPole(IEnumerable<CableRun> runs, Point3d pole, double tolerance)
         {
             var result = new EffortResult();
-            Vector2d total = new Vector2d(0, 0);
-
             foreach (CableRun run in runs)
             {
                 int best = -1;
@@ -123,18 +125,10 @@ namespace FiberPlugin.Core
                 }
                 if (best < 0) continue;
 
-                Point3d at = run.Vertices[best];
-                if (best > 0) total += PullVector(at, run.Vertices[best - 1], run.WeightKgKm);
-                if (best < run.Vertices.Count - 1) total += PullVector(at, run.Vertices[best + 1], run.WeightKgKm);
-
+                AddVertex(result, run.Vertices, best, run.WeightKgKm);
                 result.CableCount++;
                 result.Cables.Add($"{run.Name} ({run.WeightKgKm} kg/km)");
-                result.AddGeometry(at,
-                    best > 0 ? run.Vertices[best - 1] : (Point3d?)null,
-                    best < run.Vertices.Count - 1 ? run.Vertices[best + 1] : (Point3d?)null);
             }
-
-            result.Resultant = total;
             return result;
         }
 

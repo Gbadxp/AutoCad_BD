@@ -1,8 +1,6 @@
-using System;
-using System.Collections.Generic;
 using Autodesk.AutoCAD.Geometry;
-using GI = Autodesk.AutoCAD.GraphicsInterface;
 using DB = Autodesk.AutoCAD.DatabaseServices;
+using GI = Autodesk.AutoCAD.GraphicsInterface;
 
 namespace FiberPlugin.Core
 {

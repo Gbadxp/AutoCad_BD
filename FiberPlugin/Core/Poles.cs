@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
@@ -124,25 +121,8 @@ namespace FiberPlugin.Core
 
         /// <summary>Pergunta o número do próximo poste. Null se o usuário cancelar.</summary>
         /// <param name="what">O que está sendo numerado, com o artigo: "do próximo poste", "da próxima CTO".</param>
-        public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste")
-        {
-            var pio = new Autodesk.AutoCAD.EditorInput.PromptIntegerOptions($"\nNúmero {what} <{suggested}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false
-            };
-            var res = ed.GetInteger(pio);
-            if (res.Status == Autodesk.AutoCAD.EditorInput.PromptStatus.Cancel) return null;
-            return res.Status == Autodesk.AutoCAD.EditorInput.PromptStatus.OK ? res.Value : suggested;
-        }
-
-        /// <summary>Próximo número livre, com base no maior número de poste já existente no desenho.</summary>
-        public static int NextNumber(Transaction tr, BlockTableRecord space)
-        {
-            int max = Collect(tr, space).Select(p => ParseNumber(p.Number) ?? 0).DefaultIfEmpty(0).Max();
-            return max + 1;
-        }
+        public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste") =>
+            CadHelpers.AskInt(ed, $"\nNúmero {what} <{suggested}>: ", suggested);
 
         /// <summary>"DT 11/200" ou "CC 12/600daN" → 200 / 600.</summary>
         public static double? ParseNominalDaN(string name)

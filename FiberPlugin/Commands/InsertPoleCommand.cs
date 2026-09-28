@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -133,11 +130,11 @@ namespace FiberPlugin.Commands
 
         private static PoleData? ChooseModel(List<PoleData> models)
         {
-            using (var form = new UI.PoleSelectionForm(models, _lastModel))
+            using (var form = UI.Pickers.Pole(models, _lastModel))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return null;
-                _lastModel = form.SelectedModel;
-                return form.SelectedModel;
+                _lastModel = form.Selected;
+                return form.Selected;
             }
         }
 
