@@ -76,6 +76,8 @@ namespace FiberPlugin.UI
             ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
+            ["FIBRA_PARAMETROS"] = PaintParameters,
+            ["FIBRA_ESFORCO_EXISTENTE"] = PaintExistingEffort,
             ["FIBRA_RELATORIO"] = PaintReport,
             ["FIBRA_MEMORIAL"] = PaintMemorial,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
@@ -306,6 +308,27 @@ namespace FiberPlugin.UI
             Arrow(dc, ink.Red, 21, 21, 26, 30, 2.0);
             dc.DrawEllipse(ink.Blue, null, new W.Point(12, 15), 2, 2);
             dc.DrawEllipse(ink.Blue, null, new W.Point(21, 21), 2, 2);
+        }
+
+        private static void PaintParameters(M.DrawingContext dc, Ink ink)
+        {
+            // Poste com a altura do cabo marcada (cota) e o cabo saindo para o lado
+            dc.DrawRectangle(ink.Line, null, new W.Rect(13, 3, 4, 26));
+            dc.DrawLine(Ink.Pen(ink.Fiber, 2.2), new W.Point(17, 13), new W.Point(30, 15));
+            M.Pen dim = Ink.Pen(ink.Blue, 1.4);
+            dc.DrawLine(dim, new W.Point(6, 13), new W.Point(6, 29));
+            dc.DrawLine(dim, new W.Point(3.5, 13), new W.Point(12, 13));
+            dc.DrawLine(dim, new W.Point(3.5, 29), new W.Point(12, 29));
+            dc.DrawEllipse(ink.Yellow, Ink.Pen(ink.YellowDark, 0.8), new W.Point(15, 13), 2.4, 2.4);
+        }
+
+        private static void PaintExistingEffort(M.DrawingContext dc, Ink ink)
+        {
+            // Poste visto de cima com a seta cinza (existente) e a vermelha (projeto)
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.8), new W.Point(10, 22), 5.5, 5.5);
+            dc.DrawEllipse(ink.Line, null, new W.Point(10, 22), 1.8, 1.8);
+            Arrow(dc, ink.Line, 12, 17, 12, 2.5, 2.2);
+            Arrow(dc, ink.Red, 14.5, 19, 29, 7, 2.2);
         }
 
         private static void PaintReport(M.DrawingContext dc, Ink ink)

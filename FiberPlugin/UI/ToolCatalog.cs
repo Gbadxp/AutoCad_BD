@@ -50,7 +50,9 @@ namespace FiberPlugin.UI
             ("Esforços", new[]
             {
                 new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
-                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Setas em todos os postes de um cabo", "Esforço no\nPercurso")
+                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Setas em todos os postes de um cabo", "Esforço no\nPercurso"),
+                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros", largeOnRibbon: false),
+                new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente", largeOnRibbon: false)
             }),
             ("Documentos", new[]
             {

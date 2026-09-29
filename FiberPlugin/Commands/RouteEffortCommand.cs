@@ -37,6 +37,8 @@ namespace FiberPlugin.Commands
 
             List<CableModel> catalog = CableProvider.GetCables(ed);
             ObjectId arrowId = BlockRepository.EnsureInDrawing(db, FiberSettings.EffortBlockName);
+            Traction traction = Traction.Load(db, ed);
+            traction.WriteMethod(ed);
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -47,7 +49,7 @@ namespace FiberPlugin.Commands
                 var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (SelectedObject so in psr.Value)
                 {
-                    CableRun? run = EffortCalculator.ToCableRun(tr.GetObject(so.ObjectId, OpenMode.ForRead), catalog, unknown);
+                    CableRun? run = EffortCalculator.ToCableRun(tr.GetObject(so.ObjectId, OpenMode.ForRead), catalog, traction, unknown);
                     if (run != null) selectedRuns.Add(run);
                 }
 
@@ -86,7 +88,7 @@ namespace FiberPlugin.Commands
 
                 List<CableRun> runsForEffort = onlySelected
                     ? selectedRuns
-                    : EffortCalculator.CollectCables(tr, modelSpace, catalog);
+                    : EffortCalculator.CollectCables(tr, modelSpace, catalog, traction);
 
                 var markers = new EffortMarkers(tr, db, modelSpace, arrowId);
                 int exceeded = 0;
@@ -98,13 +100,12 @@ namespace FiberPlugin.Commands
                     EffortResult result = EffortCalculator.AtPole(runsForEffort, point, tolerance);
                     if (result.CableCount == 0) continue;
 
-                    markers.Place(point, result, pole);
+                    PoleLoad load = markers.Place(point, result, pole);
+                    if (load.Exceeded) exceeded++;
 
                     string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({point.X:F1}; {point.Y:F1})";
-                    if (Poles.IsExceeded(pole, result.Kgf)) exceeded++;
-                    string? status = Poles.StatusText(pole, result.Kgf);
-
-                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf, ANG. {result.AngleDeg:F0}°" +
+                    string? status = load.Text(pole);
+                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf no cabo, ANG. {result.AngleDeg:F0}°" +
                                     (status != null ? " | " + status : ""));
                 }
 
@@ -113,6 +114,7 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[SUCESSO]: Esforço colocado em {stops.Count} ponto(s) do percurso.");
                 if (exceeded > 0)
                     ed.WriteMessage($"\n[ATENÇÃO]: {exceeded} poste(s) com esforço ACIMA do nominal.");
+                traction.WriteWarnings(ed);
             }
             ed.UpdateScreen();
         }

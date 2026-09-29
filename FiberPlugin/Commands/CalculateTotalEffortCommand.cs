@@ -20,6 +20,8 @@ namespace FiberPlugin.Commands
 
             List<CableModel> catalog = CableProvider.GetCables(ed);
             ObjectId arrowId = BlockRepository.EnsureInDrawing(db, FiberSettings.EffortBlockName);
+            Traction traction = Traction.Load(db, ed);
+            traction.WriteMethod(ed);
 
             while (true)
             {
@@ -41,7 +43,7 @@ namespace FiberPlugin.Commands
                     Point3d polePoint = pole?.Position ?? ppr.Value;
 
                     var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, unknown);
+                    List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, traction, unknown);
                     EffortResult result = EffortCalculator.AtPole(runs, polePoint, FiberSettings.PoleMatchTolerance);
 
                     CableProvider.ReportUnknown(ed, unknown);
@@ -53,17 +55,18 @@ namespace FiberPlugin.Commands
                         continue;
                     }
 
-                    new EffortMarkers(tr, db, modelSpace, arrowId).Place(polePoint, result, pole);
+                    PoleLoad load = new EffortMarkers(tr, db, modelSpace, arrowId).Place(polePoint, result, pole);
                     tr.Commit();
 
                     ed.WriteMessage($"\n[SUCESSO]: {(pole != null ? "Poste " + pole.Number : "Ponto sem poste")} | {result.Situation} | " +
-                                    $"{result.Kgf:F2} kgf, ANG. {result.AngleDeg:F0}° ({result.CableCount} cabo(s)).");
+                                    $"{result.Kgf:F2} kgf no cabo, ANG. {result.AngleDeg:F0}° ({result.CableCount} cabo(s)).");
 
-                    string? status = Poles.StatusText(pole, result.Kgf);
+                    string? status = load.Text(pole);
                     if (status != null) ed.WriteMessage($"\n           Poste {pole!.Number} | {status}");
                 }
                 ed.UpdateScreen();
             }
+            traction.WriteWarnings(ed);
         }
     }
 }

@@ -13,6 +13,9 @@ namespace FiberPlugin.Core
         public string Situation { get; set; } = ""; // Fim de rede, Ângulo (x°), Passagem
         public string PoleHandle { get; set; } = ""; // Handle do bloco do poste vinculado ("" = sem poste)
         public int CableCount { get; set; }
+
+        /// <summary>Esforço transferido a 20 cm do topo, em kgf (null: sem poste ou altura desconhecida).</summary>
+        public double? TopKgf { get; set; }
     }
 
     /// <summary>
@@ -28,6 +31,7 @@ namespace FiberPlugin.Core
         private readonly BlockTableRecord _space;
         private readonly ObjectId _arrowBlockId;
         private readonly double _scale; // Fator da escala do desenho (1,0 em 1:1000)
+        private readonly double _attachHeight;
         private readonly List<(ObjectId Id, Point3d Pole)> _existing = new List<(ObjectId, Point3d)>();
 
         /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para usar texto).</param>
@@ -38,6 +42,7 @@ namespace FiberPlugin.Core
             _space = space;
             _arrowBlockId = arrowBlockId;
             _scale = DrawingScale.Factor(db);
+            _attachHeight = CalcSettings.Get(db).AttachHeightM;
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, 4); // 4 = Ciano, como no modelo de projeto
 
@@ -61,15 +66,18 @@ namespace FiberPlugin.Core
         /// <param name="pole">Ponto de onde sai a seta (centro do poste vinculado, ou o ponto do cabo).</param>
         /// <param name="linkedPole">Poste a que o cálculo pertence; fica gravado na seta para o relatório.</param>
         /// <param name="angleOverride">Direção usada quando o esforço é nulo (poste em alinhamento reto).</param>
-        public void Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null, double? angleOverride = null)
+        /// <returns>Esforço do poste comparado com o nominal, para as mensagens do comando.</returns>
+        public PoleLoad Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null, double? angleOverride = null)
         {
             RemoveAt(pole);
+            PoleLoad load = PoleLoad.For(linkedPole, result.Kgf, _attachHeight);
 
             bool hasEffort = result.Kgf > 0.1;
             double angle = hasEffort ? result.AngleRad : angleOverride ?? 0;
 
-            // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°"
-            string effortText = result.Kgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
+            // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
+            // 20 cm do topo (NDU 009, item 16.3 h); sem o poste, o da altura do cabo.
+            string effortText = load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
             string angleText = "ANG. " + NormalizeDegrees(angle).ToString("F0", CultureInfo.InvariantCulture) + "°";
 
             var created = new List<Entity>();
@@ -104,7 +112,8 @@ namespace FiberPlugin.Core
                 AngleDeg = NormalizeDegrees(angle),
                 Situation = result.Situation,
                 PoleHandle = linkedPole?.Id.Handle.ToString() ?? "",
-                CableCount = result.CableCount
+                CableCount = result.CableCount,
+                TopKgf = load.TopKgf
             };
 
             foreach (Entity ent in created)
@@ -112,6 +121,7 @@ namespace FiberPlugin.Core
                 XDataTags.TagEffortMarker(_tr, _db, ent, data);
                 _existing.Add((ent.ObjectId, pole));
             }
+            return load;
         }
 
         /// <summary>

@@ -22,9 +22,7 @@ namespace FiberPlugin.Commands
         {
             public EffortMarkerData Marker { get; set; } = new EffortMarkerData();
             public PoleInfo? Pole { get; set; }
-            public double? NominalKgf => Pole?.NominalKgf;
-            public string Result => Poles.Status(Marker.Kgf, NominalKgf);
-            public double? Usage => NominalKgf > 0 ? Marker.Kgf / NominalKgf.Value * 100 : (double?)null;
+            public PoleLoad Load { get; set; } = null!;   // Esforço a 20 cm do topo + existente x nominal
         }
 
         [CommandMethod("FIBRA_RELATORIO")]
@@ -40,6 +38,7 @@ namespace FiberPlugin.Commands
             var effortPoints = new List<EffortPoint>();
             List<CableTotal> cables;
             int legacyMarkers = 0;
+            double attachHeight = CalcSettings.Get(db).AttachHeightM;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -73,7 +72,7 @@ namespace FiberPlugin.Commands
 
                         polesByHandle.TryGetValue(marker.PoleHandle, out PoleInfo? pole);
                         pole ??= Poles.Nearest(poles, marker.Point, 0.01);
-                        effortPoints.Add(new EffortPoint { Marker = marker, Pole = pole });
+                        effortPoints.Add(new EffortPoint { Marker = marker, Pole = pole, Load = PoleLoad.For(pole, marker.Kgf, attachHeight) });
                     }
                     else if (XDataTags.TryGetEffortPole(ent, out var oldPoint) && legacyPoints.Add(Key(oldPoint)))
                     {
@@ -170,7 +169,7 @@ namespace FiberPlugin.Commands
 
             sheet.Header("Esforços", "Quantidade");
             sheet.Row("Pontos de esforço calculados", effortPoints.Count);
-            sheet.Row("Postes com esforço acima do nominal", effortPoints.Count(e => e.Result == "EXCEDIDO"));
+            sheet.Row("Postes com esforço acima do nominal", effortPoints.Count(e => e.Load.Exceeded));
             sheet.Row("Pontos de esforço sem poste vinculado", effortPoints.Count(e => e.Pole == null));
             if (legacyMarkers > 0) sheet.Row("Setas antigas sem dados (recalcule)", legacyMarkers);
         }
@@ -178,10 +177,11 @@ namespace FiberPlugin.Commands
         private static void WritePoles(XlsxWriter workbook, List<PoleInfo> poles, List<EffortPoint> effortPoints, UtmSettings? utm)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Postes")
-                .ColumnWidths(10, 7, 14, 11, 16, 16, 11, 16, 16, 15, 16, 11, 22, 13, 13);
+                .ColumnWidths(10, 7, 14, 11, 16, 16, 11, 16, 16, 15, 16, 11, 22, 18, 15, 13, 13, 13);
 
             sheet.Header("Número", "Tipo", "Descrição", "Altura (m)", "Nominal (daN)", "Nominal (kgf)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)",
-                         "Poste", "Esforço (kgf)", "Ângulo (°)", "Situação", "Utilização (%)", "Resultado");
+                         "Poste", "Esforço no cabo (kgf)", "Ângulo (°)", "Situação", "A 20 cm do topo (kgf)", "Existente (kgf)", "Total (kgf)",
+                         "Utilização (%)", "Resultado");
 
             foreach (PoleInfo pole in poles)
             {
@@ -202,8 +202,11 @@ namespace FiberPlugin.Commands
                     Round(effort?.Marker.Kgf, 2),
                     Round(effort?.Marker.AngleDeg, 1),
                     effort?.Marker.Situation,
-                    Round(effort?.Usage, 0),
-                    effort?.Result);
+                    Round(effort?.Load.TopKgf, 2),
+                    Round(effort?.Load.ExistingKgf, 2),
+                    Round(effort?.Load.TotalKgf, 2),
+                    Round(effort?.Load.Usage, 0),
+                    effort?.Load.Result);
             }
         }
 
@@ -233,10 +236,11 @@ namespace FiberPlugin.Commands
         private static void WriteEfforts(XlsxWriter workbook, List<EffortPoint> effortPoints)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Esforços")
-                .ColumnWidths(8, 14, 15, 20, 14, 11, 10, 15, 14, 13, 14, 14, 60);
+                .ColumnWidths(8, 14, 15, 20, 18, 11, 10, 18, 15, 13, 15, 14, 13, 14, 14, 60);
 
-            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Esforço (kgf)", "Ângulo (°)", "Cabos",
-                         "Nominal (kgf)", "Utilização (%)", "Resultado", "Coordenada E", "Coordenada N", "Descrição");
+            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Esforço no cabo (kgf)", "Ângulo (°)", "Cabos",
+                         "A 20 cm do topo (kgf)", "Existente (kgf)", "Total (kgf)", "Nominal (kgf)", "Utilização (%)", "Resultado",
+                         "Coordenada E", "Coordenada N", "Descrição");
 
             int n = 1;
             foreach (EffortPoint e in effortPoints)
@@ -254,9 +258,12 @@ namespace FiberPlugin.Commands
                     Math.Round(m.Kgf, 2),
                     Math.Round(m.AngleDeg, 1),
                     m.CableCount,
-                    Round(e.NominalKgf, 2),
-                    Round(e.Usage, 0),
-                    e.Result,
+                    Round(e.Load.TopKgf, 2),
+                    Round(e.Load.ExistingKgf, 2),
+                    Round(e.Load.TotalKgf, 2),
+                    Round(e.Load.NominalKgf, 2),
+                    Round(e.Load.Usage, 0),
+                    e.Load.Result,
                     Math.Round(m.Point.X, 2),
                     Math.Round(m.Point.Y, 2),
                     description);

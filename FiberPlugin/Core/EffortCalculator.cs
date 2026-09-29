@@ -4,12 +4,16 @@ using FiberPlugin.Models;
 
 namespace FiberPlugin.Core
 {
-    /// <summary>Um cabo desenhado, com o peso vindo do catálogo.</summary>
+    /// <summary>Um cabo desenhado, com o modelo do catálogo e a regra de tração do projeto.</summary>
     public class CableRun
     {
-        public string Name { get; set; } = "";
-        public double WeightKgKm { get; set; }
+        public CableModel Model { get; set; } = new CableModel();
         public List<Point3d> Vertices { get; set; } = new List<Point3d>();
+
+        /// <summary>Tração (kgf) de um vão deste cabo com o comprimento informado (m).</summary>
+        public Func<double, double> Tension { get; set; } = _ => 0;
+
+        public string Name => Model.ShortName;
     }
 
     public class EffortResult
@@ -62,48 +66,38 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>
-    /// Esforço resultante no poste pela soma vetorial das trações dos vãos que chegam nele.
-    ///
-    /// Premissas (simplificadas, documentadas no README):
-    ///  - Tração de cada vão pela aproximação da parábola: T = p·L² / (8·f), com flecha f = 1% do vão
-    ///    → T = 12,5 · p · L  (p em kgf/m, resultado em kgf).
-    ///  - Não considera vento, temperatura, desnível entre postes nem a tração de projeto do fabricante.
+    /// Esforço resultante no poste pela soma vetorial das trações dos vãos que chegam nele (método
+    /// analítico da NDU 009, Anexo A). A tração de cada vão vem da Tabela 08 da norma ou do peso do cabo
+    /// com flecha de 1% (veja Traction). Não considera vento, temperatura nem desnível entre postes.
     /// </summary>
     public static class EffortCalculator
     {
-        /// <summary>Tração do vão em kgf.</summary>
-        public static double SpanTensionKgf(double weightKgKm, double spanM)
-        {
-            double weightKgfPerM = weightKgKm / 1000.0;
-            return weightKgfPerM * spanM / (8.0 * FiberSettings.SagRatio);
-        }
-
         /// <summary>Vetor de tração que o vão de <paramref name="at"/> até <paramref name="toward"/> exerce no ponto "at".</summary>
-        public static Vector2d PullVector(Point3d at, Point3d toward, double weightKgKm)
+        public static Vector2d PullVector(Point3d at, Point3d toward, Func<double, double> tension)
         {
             var v = new Vector2d(toward.X - at.X, toward.Y - at.Y);
             double span = v.Length;
             if (span < 1e-6) return new Vector2d(0, 0);
-            return v.GetNormal() * SpanTensionKgf(weightKgKm, span);
+            return v.GetNormal() * tension(span);
         }
 
         /// <summary>Esforço no vértice <paramref name="index"/> de uma sequência de postes (um único cabo).</summary>
-        public static EffortResult AtPathIndex(IList<Point3d> path, int index, double weightKgKm)
+        public static EffortResult AtPathIndex(IList<Point3d> path, int index, Func<double, double> tension)
         {
             var result = new EffortResult { CableCount = 1 };
-            AddVertex(result, path, index, weightKgKm);
+            AddVertex(result, path, index, tension);
             return result;
         }
 
         /// <summary>Soma ao resultado a tração dos vãos vizinhos ao vértice <paramref name="index"/> do cabo.</summary>
-        private static void AddVertex(EffortResult result, IList<Point3d> path, int index, double weightKgKm)
+        private static void AddVertex(EffortResult result, IList<Point3d> path, int index, Func<double, double> tension)
         {
             Point3d at = path[index];
             Point3d? previous = index > 0 ? path[index - 1] : (Point3d?)null;
             Point3d? next = index < path.Count - 1 ? path[index + 1] : (Point3d?)null;
 
-            if (previous != null) result.Resultant += PullVector(at, previous.Value, weightKgKm);
-            if (next != null) result.Resultant += PullVector(at, next.Value, weightKgKm);
+            if (previous != null) result.Resultant += PullVector(at, previous.Value, tension);
+            if (next != null) result.Resultant += PullVector(at, next.Value, tension);
             result.AddGeometry(at, previous, next);
         }
 
@@ -125,9 +119,9 @@ namespace FiberPlugin.Core
                 }
                 if (best < 0) continue;
 
-                AddVertex(result, run.Vertices, best, run.WeightKgKm);
+                AddVertex(result, run.Vertices, best, run.Tension);
                 result.CableCount++;
-                result.Cables.Add($"{run.Name} ({run.WeightKgKm} kg/km)");
+                result.Cables.Add(run.Name);
             }
             return result;
         }
@@ -137,12 +131,12 @@ namespace FiberPlugin.Core
         /// são ignorados e listados em <paramref name="unknownCables"/>.
         /// </summary>
         public static List<CableRun> CollectCables(Transaction tr, BlockTableRecord space,
-            List<CableModel> catalog, ISet<string>? unknownCables = null)
+            List<CableModel> catalog, Traction traction, ISet<string>? unknownCables = null)
         {
             var runs = new List<CableRun>();
             foreach (ObjectId id in space)
             {
-                CableRun? run = ToCableRun(tr.GetObject(id, OpenMode.ForRead), catalog, unknownCables);
+                CableRun? run = ToCableRun(tr.GetObject(id, OpenMode.ForRead), catalog, traction, unknownCables);
                 if (run != null) runs.Add(run);
             }
             return runs;
@@ -152,7 +146,7 @@ namespace FiberPlugin.Core
         /// Converte a entidade em CableRun se ela for um cabo do plugin com peso cadastrado.
         /// Cabos fora da planilha vão para <paramref name="unknownCables"/>.
         /// </summary>
-        public static CableRun? ToCableRun(DBObject obj, List<CableModel> catalog, ISet<string>? unknownCables = null)
+        public static CableRun? ToCableRun(DBObject obj, List<CableModel> catalog, Traction traction, ISet<string>? unknownCables = null)
         {
             if (obj is not Polyline poly) return null;
 
@@ -166,7 +160,7 @@ namespace FiberPlugin.Core
                 return null;
             }
 
-            var run = new CableRun { Name = model.ShortName, WeightKgKm = model.WeightKgKm };
+            var run = new CableRun { Model = model, Tension = span => traction.Tension(model, span) };
             for (int v = 0; v < poly.NumberOfVertices; v++) run.Vertices.Add(poly.GetPoint3dAt(v));
             return run;
         }

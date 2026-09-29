@@ -36,6 +36,8 @@ namespace FiberPlugin.Commands
 
             // Seta de esforço: do desenho ou importada da pasta Blocos
             ObjectId arrowId = BlockRepository.EnsureInDrawing(db, FiberSettings.EffortBlockName);
+            Traction traction = Traction.Load(db, ed);
+            traction.WriteMethod(ed);
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -48,7 +50,7 @@ namespace FiberPlugin.Commands
                 // 3. Cálculo de Esforço Vetorial (Tração Resultante)
                 for (int i = 0; i < points.Count; i++)
                 {
-                    EffortResult result = EffortCalculator.AtPathIndex(points, i, cable.WeightKgKm);
+                    EffortResult result = EffortCalculator.AtPathIndex(points, i, span => traction.Tension(cable, span));
 
                     // Poste em suspensão perfeitamente reto (esforço zero): seta perpendicular à linha
                     Point3d next = i < points.Count - 1 ? points[i + 1] : points[i];
@@ -56,15 +58,14 @@ namespace FiberPlugin.Commands
                     double perpendicular = Math.Atan2(next.Y - prev.Y, next.X - prev.X) + Math.PI / 2.0;
 
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
-                    markers.Place(points[i], result, pole, perpendicular);
-
-                    string? status = Poles.StatusText(pole, result.Kgf);
+                    string? status = markers.Place(points[i], result, pole, perpendicular).Text(pole);
                     string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
                     ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf" + (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();
-                ed.WriteMessage($"\n[AVISO]: Esforço gerado em {points.Count} postes (calculado com flecha de 1%).");
+                ed.WriteMessage($"\n[INFO]: Esforço gerado em {points.Count} postes.");
+                traction.WriteWarnings(ed);
             }
             ed.UpdateScreen();
         }

@@ -31,9 +31,9 @@ namespace FiberPlugin.Core
             return new BoxData { Kind = kind, Number = number, PoleHandle = d[2].Value as string ?? "" };
         }
 
-        /// <summary>Grava no bloco os dados do poste: número, tipo (DT/CC), altura e esforço nominal.</summary>
+        /// <summary>Grava no bloco os dados do poste: número, tipo (DT/CC), altura, esforço nominal e esforço existente.</summary>
         public static void TagPole(Transaction tr, Database db, Entity ent, PoleData data) =>
-            Write(tr, db, ent, PoleKind, Int(data.Number), Text(data.Type), Real(data.HeightM), Real(data.EffortDaN));
+            Write(tr, db, ent, PoleKind, Int(data.Number), Text(data.Type), Real(data.HeightM), Real(data.EffortDaN), Real(data.ExistingKgf));
 
         public static PoleData? ReadPole(Entity ent)
         {
@@ -41,7 +41,9 @@ namespace FiberPlugin.Core
             if (d == null || d[0].Value is not int number || d[1].Value is not string type ||
                 d[2].Value is not double height || d[3].Value is not double effort) return null;
 
-            return new PoleData { Number = number, Type = type, HeightM = height, EffortDaN = effort };
+            // O esforço existente veio depois (1.9.15): postes antigos não têm
+            double existing = d.Length > 4 && d[4].Value is double e ? e : 0;
+            return new PoleData { Number = number, Type = type, HeightM = height, EffortDaN = effort, ExistingKgf = existing };
         }
 
         /// <summary>Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence.</summary>
@@ -64,7 +66,8 @@ namespace FiberPlugin.Core
         public static void TagEffortMarker(Transaction tr, Database db, Entity ent, EffortMarkerData data) =>
             Write(tr, db, ent, EffortKind,
                 new TypedValue((int)DxfCode.ExtendedDataXCoordinate, data.Point),
-                Real(data.Kgf), Real(data.AngleDeg), Text(data.Situation), Text(data.PoleHandle), Int(data.CableCount));
+                Real(data.Kgf), Real(data.AngleDeg), Text(data.Situation), Text(data.PoleHandle), Int(data.CableCount),
+                Real(data.TopKgf ?? -1));
 
         /// <summary>Dados completos da seta de esforço. Null em setas de versões antigas (só com o ponto).</summary>
         public static EffortMarkerData? ReadEffortMarker(Entity ent)
@@ -80,7 +83,8 @@ namespace FiberPlugin.Core
                 AngleDeg = angle,
                 Situation = d[3].Value as string ?? "",
                 PoleHandle = d[4].Value as string ?? "",
-                CableCount = cables
+                CableCount = cables,
+                TopKgf = d.Length > 6 && d[6].Value is double top && top >= 0 ? top : (double?)null
             };
         }
 

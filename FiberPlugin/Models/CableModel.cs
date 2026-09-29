@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using Autodesk.AutoCAD.EditorInput;
 using FiberPlugin.Core;
 
@@ -10,6 +11,19 @@ namespace FiberPlugin.Models
         public string ShortName { get; set; } = "";
         public double WeightKgKm { get; set; }
 
+        /// <summary>Número de fibras (coluna Fibras ou o nome: "06F.O", "36 FO"). Null se desconhecido.</summary>
+        public int? Fibers { get; set; }
+
+        /// <summary>Diâmetro externo em mm, do datasheet (coluna Diametro_mm). Null se não informado.</summary>
+        public double? DiameterMm { get; set; }
+
+        /// <summary>Número de fibras escrito no nome do cabo ("ASU-80 06F.O" → 6, "CFOA-SM-AS-80-S-36 FO" → 36).</summary>
+        public static int? FibersFromName(string name)
+        {
+            Match m = Regex.Match(name, @"(\d+)\s*F", RegexOptions.IgnoreCase);
+            return m.Success && int.TryParse(m.Groups[1].Value, out int n) && n > 0 ? n : (int?)null;
+        }
+
         public override string ToString()
         {
             return FullName; // Para exibir no ComboBox do formulário
@@ -17,7 +31,8 @@ namespace FiberPlugin.Models
     }
 
     /// <summary>
-    /// Catálogo de cabos lido da planilha Dados\cabos.csv (colunas: NomeCompleto;NomeCurto;Peso_kg_km).
+    /// Catálogo de cabos lido da planilha Dados\cabos.csv
+    /// (colunas: NomeCompleto;NomeCurto;Peso_kg_km e, opcionais, Fibras;Diametro_mm).
     /// A planilha é relida a cada comando, então basta salvar no Excel para o cabo novo aparecer.
     /// </summary>
     public static class CableProvider
@@ -101,7 +116,18 @@ namespace FiberPlugin.Models
                     continue;
                 }
 
-                cables.Add(new CableModel { FullName = cols[0], ShortName = cols[1], WeightKgKm = weight });
+                cables.Add(new CableModel
+                {
+                    FullName = cols[0],
+                    ShortName = cols[1],
+                    WeightKgKm = weight,
+                    Fibers = cols.Length > 3 && int.TryParse(cols[3], out int fibers) && fibers > 0
+                        ? fibers
+                        : CableModel.FibersFromName(cols[1] + " " + cols[0]),
+                    DiameterMm = cols.Length > 4 && DataFiles.TryParseNumber(cols[4], out double diameter) && diameter > 0
+                        ? diameter
+                        : (double?)null
+                });
             }
 
             return cables;
