@@ -23,7 +23,7 @@ namespace FiberPlugin.UI
                 $"{blocks.Count} bloco(s) na biblioteca {BlockRepository.LibraryFileName}",
                 "Buscar bloco...", "Nenhum bloco encontrado", "Inserir",
                 b => (b.Name, null, b.Category),
-                (b, q) => SearchBox.Matches(b.Name, q),
+                (b, q) => InputBox.Matches(b.Name, q),
                 itemHeight: 32,
                 hint: "Blocos da biblioteca são importados sozinhos")
         {

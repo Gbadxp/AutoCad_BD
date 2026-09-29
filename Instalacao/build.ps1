@@ -51,14 +51,17 @@ New-Item -ItemType Directory -Force (Join-Path $contents 'net48'), (Join-Path $c
 Copy-Item (Join-Path $pluginDir 'bin\Release\net48\FiberPlugin.dll') (Join-Path $contents 'net48')
 Copy-Item (Join-Path $pluginDir 'bin\Release\net8.0-windows\FiberPlugin.dll') (Join-Path $contents 'net8')
 
-# Dados e Blocos padrão, sem os temporários e backups que o AutoCAD cria ao salvar (.bak, .dwl, ~...)
+# Dados (com a subpasta Memorial) e Blocos, sem os temporários e backups que o AutoCAD cria ao salvar
 $temporarios = '.bak', '.dwl', '.dwl2', '.tmp', '.sv$'
 foreach ($folder in 'Dados', 'Blocos') {
-    $target = Join-Path $contents $folder
-    New-Item -ItemType Directory -Force $target | Out-Null
-    Get-ChildItem (Join-Path $pluginDir $folder) -File |
+    $source = Join-Path $pluginDir $folder
+    Get-ChildItem $source -Recurse -File |
         Where-Object { $_.Name -notlike '~*' -and $temporarios -notcontains $_.Extension } |
-        Copy-Item -Destination $target
+        ForEach-Object {
+            $target = Join-Path (Join-Path $contents $folder) $_.FullName.Substring($source.Length + 1)
+            New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+            Copy-Item $_.FullName $target
+        }
 }
 Copy-Item (Join-Path $root 'README.md') $contents
 

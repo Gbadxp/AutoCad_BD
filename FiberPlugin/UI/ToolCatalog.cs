@@ -52,9 +52,10 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
                 new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Setas em todos os postes de um cabo", "Esforço no\nPercurso")
             }),
-            ("Relatório", new[]
+            ("Documentos", new[]
             {
-                new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório")
+                new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório"),
+                new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo")
             }),
             ("Pranchas", new[]
             {

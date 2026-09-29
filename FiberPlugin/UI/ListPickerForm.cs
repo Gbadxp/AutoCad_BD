@@ -15,7 +15,7 @@ namespace FiberPlugin.UI
         private readonly Label _empty;
         private readonly ThemedButton _ok;
 
-        protected SearchBox Search { get; }
+        protected InputBox Search { get; }
         protected ThemedListBox List { get; }
         protected Panel Body { get; }
 
@@ -38,7 +38,7 @@ namespace FiberPlugin.UI
             ClientSize = new Size(480, 500);
 
             var header = new HeaderPanel { IconCommand = iconCommand, Title = heading, Subtitle = subtitle };
-            Search = new SearchBox(searchHint);
+            Search = new InputBox(searchHint);
 
             List = new ThemedListBox { Dock = DockStyle.Fill, LogicalItemHeight = itemHeight, Describe = o => describe((T)o) };
             _empty = new Label
@@ -119,8 +119,8 @@ namespace FiberPlugin.UI
                 $"{cables.Count} cabo(s) cadastrados em Dados\\{CableProvider.FileName}",
                 "Buscar por nome, tipo ou peso...", "Nenhum cabo encontrado", okText,
                 c => (c.FullName, c.ShortName, $"{c.WeightKgKm.ToString("0.##", CultureInfo.CurrentCulture)} kg/km"),
-                (c, q) => SearchBox.Matches(c.FullName, q) || SearchBox.Matches(c.ShortName, q) ||
-                          SearchBox.Matches(c.WeightKgKm.ToString(CultureInfo.CurrentCulture), q),
+                (c, q) => InputBox.Matches(c.FullName, q) || InputBox.Matches(c.ShortName, q) ||
+                          InputBox.Matches(c.WeightKgKm.ToString(CultureInfo.CurrentCulture), q),
                 itemHeight: 44);
 
         /// <param name="current">Modelo já selecionado ao abrir (o último usado).</param>
@@ -133,7 +133,7 @@ namespace FiberPlugin.UI
                       $"{m.TypeName}  ·  {m.HeightM.ToString("0.#", CultureInfo.CurrentCulture)} m  ·  " +
                       $"{m.EffortDaN.ToString("0", CultureInfo.CurrentCulture)} daN",
                       m.Type),
-                (m, q) => SearchBox.Matches(m.Designation, q) || SearchBox.Matches(m.TypeName, q));
+                (m, q) => InputBox.Matches(m.Designation, q) || InputBox.Matches(m.TypeName, q));
 
             PoleData? match = current == null ? null : models.FirstOrDefault(m => m.Designation == current.Designation);
             if (match != null) form.SelectItem(match);

@@ -27,14 +27,6 @@ namespace FiberPlugin.Commands
             public double? Usage => NominalKgf > 0 ? Marker.Kgf / NominalKgf.Value * 100 : (double?)null;
         }
 
-        private class CableTotal
-        {
-            public string Name { get; set; } = "";
-            public CableModel? Model { get; set; }
-            public int Runs { get; set; }
-            public double Length { get; set; }
-        }
-
         [CommandMethod("FIBRA_RELATORIO")]
         public void GenerateReport()
         {
@@ -46,7 +38,7 @@ namespace FiberPlugin.Commands
             List<PoleInfo> poles;
             List<BoxInfo> boxes;
             var effortPoints = new List<EffortPoint>();
-            var cables = new Dictionary<string, CableTotal>(StringComparer.OrdinalIgnoreCase);
+            List<CableTotal> cables;
             int legacyMarkers = 0;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -64,27 +56,14 @@ namespace FiberPlugin.Commands
                     .ThenBy(b => b.Data.Number)
                     .ToList();
 
+                cables = CableDrawing.Totals(tr, modelSpace, catalog);
+
                 var seenPoints = new HashSet<string>();
                 var legacyPoints = new HashSet<string>();
 
                 foreach (ObjectId id in modelSpace)
                 {
-                    DBObject obj = tr.GetObject(id, OpenMode.ForRead);
-
-                    // Cabos: metragem e quantidade de lances por tipo
-                    if (obj is Polyline poly && XDataTags.GetCableName(poly) is string cableName)
-                    {
-                        if (!cables.TryGetValue(cableName, out CableTotal? total))
-                        {
-                            total = new CableTotal { Name = cableName, Model = CableProvider.Find(catalog, cableName) };
-                            cables[cableName] = total;
-                        }
-                        total.Runs++;
-                        total.Length += poly.Length;
-                        continue;
-                    }
-
-                    if (obj is not Entity ent) continue;
+                    if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
 
                     // Pontos de esforço (a seta e os textos de um mesmo ponto guardam os mesmos dados)
                     EffortMarkerData? marker = XDataTags.ReadEffortMarker(ent);
@@ -127,11 +106,11 @@ namespace FiberPlugin.Commands
 
             var workbook = new XlsxWriter();
             UtmSettings? utm = UtmZone.Get(db);
-            WriteSummary(workbook, doc, db, poles, boxes, effortPoints, cables.Values, legacyMarkers);
+            WriteSummary(workbook, doc, db, poles, boxes, effortPoints, cables, legacyMarkers);
             WritePoles(workbook, poles, effortPoints, utm);
             WriteBoxes(workbook, boxes, poles, utm);
             WriteEfforts(workbook, effortPoints);
-            WriteCables(workbook, cables.Values);
+            WriteCables(workbook, cables);
 
             try
             {
@@ -186,7 +165,7 @@ namespace FiberPlugin.Commands
             sheet.Row("CEO", boxes.Count(b => b.Data.Kind == BlockCategories.Ceo)).Blank();
 
             sheet.Header("Cabos", "Metragem (m)");
-            foreach (CableTotal c in cables.OrderBy(c => c.Name)) sheet.Row(c.Model?.FullName ?? c.Name, Math.Round(c.Length, 2));
+            foreach (CableTotal c in cables) sheet.Row(c.Description, Math.Round(c.Length, 2));
             sheet.Row("Total de cabos", Math.Round(cables.Sum(c => c.Length), 2)).Blank();
 
             sheet.Header("Esforços", "Quantidade");
@@ -284,17 +263,16 @@ namespace FiberPlugin.Commands
             }
         }
 
-        private static void WriteCables(XlsxWriter workbook, IEnumerable<CableTotal> cables)
+        private static void WriteCables(XlsxWriter workbook, List<CableTotal> cables)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Cabos").ColumnWidths(30, 16, 13, 9, 15);
 
             sheet.Header("Cabo", "Nome curto", "Peso (kg/km)", "Lances", "Metragem (m)");
-            foreach (CableTotal c in cables.OrderBy(c => c.Name))
+            foreach (CableTotal c in cables)
             {
-                sheet.Row(c.Model?.FullName ?? c.Name, c.Name, c.Model?.WeightKgKm, c.Runs, Math.Round(c.Length, 2));
+                sheet.Row(c.Description, c.Name, c.Model?.WeightKgKm, c.Runs, Math.Round(c.Length, 2));
             }
-            List<CableTotal> list = cables.ToList();
-            sheet.Row("TOTAL", null, null, list.Sum(c => c.Runs), Math.Round(list.Sum(c => c.Length), 2));
+            sheet.Row("TOTAL", null, null, cables.Sum(c => c.Runs), Math.Round(cables.Sum(c => c.Length), 2));
         }
 
         private static double? Round(double? value, int digits) => value.HasValue ? Math.Round(value.Value, digits) : (double?)null;

@@ -4,9 +4,40 @@ using FiberPlugin.Models;
 
 namespace FiberPlugin.Core
 {
+    /// <summary>Metragem de um tipo de cabo no desenho (relatório e memorial descritivo).</summary>
+    public class CableTotal
+    {
+        public string Name { get; set; } = "";       // Nome curto (ex.: ASU-80 06F.O)
+        public CableModel? Model { get; set; }       // Null se o cabo não está na planilha
+        public int Runs { get; set; }                // Quantidade de lances (polilinhas)
+        public double Length { get; set; }           // Metros
+
+        /// <summary>Nome completo da planilha ou, sem ele, o nome curto.</summary>
+        public string Description => Model?.FullName ?? Name;
+    }
+
     /// <summary>Desenho do cabo (polilinha + textos vão a vão), usado no lançamento manual e no automático.</summary>
     public static class CableDrawing
     {
+        /// <summary>Metragem e lances de cada tipo de cabo do espaço, em ordem de nome.</summary>
+        public static List<CableTotal> Totals(Transaction tr, BlockTableRecord space, List<CableModel> catalog)
+        {
+            var totals = new Dictionary<string, CableTotal>(StringComparer.OrdinalIgnoreCase);
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Polyline poly || XDataTags.GetCableName(poly) is not string name) continue;
+
+                if (!totals.TryGetValue(name, out CableTotal? total))
+                {
+                    total = new CableTotal { Name = name, Model = CableProvider.Find(catalog, name) };
+                    totals[name] = total;
+                }
+                total.Runs++;
+                total.Length += poly.Length;
+            }
+            return totals.Values.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
         public static string LayerFor(CableModel cable)
         {
             return FiberSettings.CableLayerPrefix + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));

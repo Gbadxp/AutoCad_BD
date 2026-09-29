@@ -7,7 +7,7 @@ namespace FiberPlugin.UI
     public class MainMenuForm : Form
     {
         private readonly FlowLayoutPanel flow;
-        private readonly SearchBox search;
+        private readonly InputBox search;
         private readonly List<(Label Header, List<CommandCard> Cards)> sections = new List<(Label, List<CommandCard>)>();
         private bool _sizing;
 
@@ -26,7 +26,7 @@ namespace FiberPlugin.UI
                 Subtitle = "Ferramentas para projetos de redes FTTH no AutoCAD"
             };
 
-            search = new SearchBox("Buscar ferramenta...");
+            search = new InputBox("Buscar ferramenta...");
 
             // Cartões
             flow = new FlowLayoutPanel
@@ -119,7 +119,7 @@ namespace FiberPlugin.UI
         private void ApplyFilter()
         {
             string query = search.Query;
-            bool Matches(string text) => SearchBox.Matches(text, query);
+            bool Matches(string text) => InputBox.Matches(text, query);
 
             flow.SuspendLayout();
             foreach (var (header, cards) in sections)

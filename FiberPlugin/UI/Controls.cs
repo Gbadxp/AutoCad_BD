@@ -158,16 +158,21 @@ namespace FiberPlugin.UI
         }
     }
 
-    /// <summary>Campo de busca igual ao do AutoCAD: clareia e ganha borda azul quando está em foco.</summary>
-    internal class SearchBox : Panel
+    /// <summary>
+    /// Campo de texto igual ao do AutoCAD: clareia e ganha borda azul quando está em foco.
+    /// Com lupa, é o campo de busca das janelas.
+    /// </summary>
+    internal class InputBox : Panel
     {
+        private readonly bool _searchIcon;
         private readonly Label _placeholder;
         private bool _hover;
 
         public TextBox Input { get; }
 
-        public SearchBox(string placeholder)
+        public InputBox(string placeholder, bool searchIcon = true)
         {
+            _searchIcon = searchIcon;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             Cursor = Cursors.IBeam;
@@ -260,7 +265,7 @@ namespace FiberPlugin.UI
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
-            int left = Theme.Scale(this, 28);
+            int left = Theme.Scale(this, _searchIcon ? 28 : 9);
             Input.SetBounds(left, (Height - Input.Height) / 2, Math.Max(10, Width - left - Theme.Scale(this, 8)), Input.Height);
             // Deixa a coluna do cursor livre para ele continuar piscando
             _placeholder?.SetBounds(Input.Left + Theme.Scale(this, 3), Input.Top, Math.Max(10, Input.Width - Theme.Scale(this, 3)), Input.Height);
@@ -277,7 +282,7 @@ namespace FiberPlugin.UI
             Theme.FillRounded(g, Fill, r, radius);
             Theme.DrawRounded(g, Input.Focused ? Theme.Accent : _hover ? Theme.BorderHover : Theme.Border, r, radius);
 
-            Theme.DrawSearchIcon(g, new Rectangle(Theme.Scale(this, 6), 0, Theme.Scale(this, 18), Height), Theme.Muted);
+            if (_searchIcon) Theme.DrawSearchIcon(g, new Rectangle(Theme.Scale(this, 6), 0, Theme.Scale(this, 18), Height), Theme.Muted);
         }
     }
 

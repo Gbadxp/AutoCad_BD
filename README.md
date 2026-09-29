@@ -13,7 +13,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.13.msi`](Instalador/FiberPlugin-1.9.13.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.14.msi`](Instalador/FiberPlugin-1.9.14.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -95,9 +95,11 @@ AutoCad_BD/
 │   ├── Core/               rotinas compartilhadas (cálculos, desenho, biblioteca de blocos)
 │   ├── Models/             catálogo de cabos
 │   ├── UI/                 aba Fibra, menu e janelas
-│   ├── Dados/              planilhas editáveis no Excel
+│   ├── Dados/              dados editáveis (Excel / Bloco de Notas)
 │   │   ├── cabos.csv       cabos cadastrados (NomeCompleto;NomeCurto;Peso_kg_km)
-│   │   └── postes.csv      modelos de poste (Tipo;Altura_m;Esforco_daN)
+│   │   ├── postes.csv      modelos de poste (Tipo;Altura_m;Esforco_daN)
+│   │   ├── empresa.txt     dados da empresa para o Memorial Descritivo
+│   │   └── Memorial/       logo.png e figuras de instalação do memorial
 │   └── Blocos/
 │       └── BLOCOS.dwg      todos os blocos do plugin (a única biblioteca)
 ├── Instalacao/             como gerar o instalador
@@ -161,10 +163,11 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. |
 | Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Seta de esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo). Cada ponto é vinculado ao poste mais próximo (até 10 m) e guarda a situação (fim de rede, passagem ou ângulo). |
 
-### Relatório e Pranchas
+### Documentos e Pranchas
 | Botão | Comando | Função |
 |---|---|---|
 | Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, esforço nominal, coordenadas e esforço calculado), **CTO e CEO** (ID, bloco, poste vinculado e coordenadas), **Esforços** (cada ponto ligado ao poste de onde sai o cálculo) e **Cabos** (metragem e lances por tipo). |
+| Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Fiber Plugin
@@ -172,7 +175,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 |---|---|---|
 | Zona UTM | `FIBRA_ZONA_UTM` | Zona UTM e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Oferece atualizar os textos dos postes já inseridos. |
 | Escala | `FIBRA_ESCALA` | Escala do desenho (1:500, 1:1000, 1:2000...): textos, setas de esforço e CTO/CEO novas saem no tamanho certo, e as anotações existentes podem ser ajustadas. |
-| Pasta de Dados | `FIBRA_ABRIR_PASTA` | Abre a pasta com as planilhas de cabos e postes. |
+| Pasta de Dados | `FIBRA_ABRIR_PASTA` | Abre a pasta com as planilhas de cabos e postes e os dados do memorial (empresa.txt, logo e figuras). |
 | Atualizar Blocos | `FIBRA_ATUALIZAR_BLOCOS` | Na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
 ### Só pela linha de comando
@@ -183,6 +186,27 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg` escolhido no Atualizar Blocos. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
+
+## Memorial Descritivo (PDF)
+
+O botão **Memorial Descritivo** gera o PDF que acompanha o pedido de ocupação de postes:
+
+1. **Capa** com logo, percurso, solicitante, concessionária, responsável técnico e os totais do projeto.
+2. **Ofício** à concessionária, com a qualificação da empresa e do representante e a assinatura.
+3. **Memorial**: dados da empresa, objetivo, percurso, cabos ópticos, postes por tipo, cabos por tipo
+   (lances e metragem) e total de postes para aluguel.
+4. **Detalhamento de instalação** com as figuras A a E (afastamentos, plaqueta com a rota do projeto,
+   reserva técnica, alta tensão dupla e aterramento), endereço da obra e assinatura.
+
+Postes, CTO/CEO e metragem de cabo são levantados do desenho. Na janela você informa o **percurso da rede**
+(vai na capa e na plaqueta), o **endereço da obra** e o **local e data**; percurso e endereço ficam gravados
+no DWG para a próxima vez. O PDF é gerado pelo Microsoft Edge (já vem no Windows), sem abrir janela.
+
+- **Dados da empresa**: `Dados/empresa.txt`, um campo por linha (`Campo: valor`); campo vazio não aparece.
+  RG, CPF e endereço do representante são dados pessoais: preencha só na cópia local
+  (`Documentos\Fiber Plugin\Dados\empresa.txt`, botão **Pasta de Dados**), nunca no repositório, que é público.
+- **Logo e figuras**: `Dados/Memorial/` (`logo.png`, `fig-a-...` a `fig-e-...`). Para trocar, substitua o
+  arquivo mantendo o nome.
 
 ## Folhas para impressão (PDF)
 
