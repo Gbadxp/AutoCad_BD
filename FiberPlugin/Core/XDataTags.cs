@@ -33,7 +33,8 @@ namespace FiberPlugin.Core
 
         /// <summary>Grava no bloco os dados do poste: número, tipo (DT/CC), altura, esforço nominal e esforço existente.</summary>
         public static void TagPole(Transaction tr, Database db, Entity ent, PoleData data) =>
-            Write(tr, db, ent, PoleKind, Int(data.Number), Text(data.Type), Real(data.HeightM), Real(data.EffortDaN), Real(data.ExistingKgf));
+            Write(tr, db, ent, PoleKind, Int(data.Number), Text(data.Type), Real(data.HeightM), Real(data.EffortDaN), Real(data.ExistingKgf),
+                Text(data.EnergisaId));
 
         public static PoleData? ReadPole(Entity ent)
         {
@@ -41,9 +42,16 @@ namespace FiberPlugin.Core
             if (d == null || d[0].Value is not int number || d[1].Value is not string type ||
                 d[2].Value is not double height || d[3].Value is not double effort) return null;
 
-            // O esforço existente veio depois (1.9.15): postes antigos não têm
-            double existing = d.Length > 4 && d[4].Value is double e ? e : 0;
-            return new PoleData { Number = number, Type = type, HeightM = height, EffortDaN = effort, ExistingKgf = existing };
+            // Esforço existente e ID da Energisa vieram depois (1.9.15): postes antigos não têm
+            return new PoleData
+            {
+                Number = number,
+                Type = type,
+                HeightM = height,
+                EffortDaN = effort,
+                ExistingKgf = d.Length > 4 && d[4].Value is double existing ? existing : 0,
+                EnergisaId = d.Length > 5 ? d[5].Value as string ?? "" : ""
+            };
         }
 
         /// <summary>Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence.</summary>

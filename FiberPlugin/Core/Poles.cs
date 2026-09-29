@@ -19,6 +19,9 @@ namespace FiberPlugin.Core
         /// <summary>Esforço que já existe no poste (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo.</summary>
         public double ExistingKgf { get; set; }
 
+        /// <summary>ID do poste fornecido pela Energisa (ID_Poste da Tabela A da NDU 009). Vazio enquanto não informado.</summary>
+        public string EnergisaId { get; set; } = "";
+
         /// <summary>"11/300" (altura em m / esforço em daN), o texto mostrado no desenho.</summary>
         public string HeightEffort =>
             HeightM.ToString("0.#", CultureInfo.InvariantCulture) + "/" + EffortDaN.ToString("0", CultureInfo.InvariantCulture);

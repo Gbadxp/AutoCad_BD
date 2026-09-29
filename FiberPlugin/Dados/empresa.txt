@@ -12,6 +12,7 @@ CNPJ: 14.629.705/0001-87
 Telefone: (69) 9279-1461
 E-mail: engenharia@brasildigital.net.br
 Telefone de emergência: (69) 9270-1461
+Tipo de companhia: Internet
 
 Representante: Diego Santos Matias
 Qualificação: brasileiro, casado, engenheiro

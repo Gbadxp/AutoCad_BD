@@ -22,6 +22,7 @@ namespace FiberPlugin.Core
         public string Phone { get; private set; } = "";
         public string Email { get; private set; } = "";
         public string EmergencyPhone { get; private set; } = "";
+        public string CompanyType { get; private set; } = "";      // Tipo de companhia (Tabela A): Internet, Telefonia...
         public string Representative { get; private set; } = "";
         public string Qualification { get; private set; } = "";    // Ex.: brasileiro, casado, engenheiro
         public string Rg { get; private set; } = "";
@@ -64,6 +65,7 @@ namespace FiberPlugin.Core
                 Phone = Get("Telefone"),
                 Email = Get("E-mail"),
                 EmergencyPhone = Get("Telefone de emergência"),
+                CompanyType = Get("Tipo de companhia") is { Length: > 0 } type ? type : "Internet",
                 Representative = Get("Representante"),
                 Qualification = Get("Qualificação"),
                 Rg = Get("RG"),

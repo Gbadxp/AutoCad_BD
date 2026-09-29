@@ -29,7 +29,9 @@ namespace FiberPlugin.Core
         /// <param name="utm">Zona do projeto; sem ela a linha "20 L" é omitida e o norte sai como hemisfério sul.</param>
         public static string Text(PoleData data, Point3d position, UtmSettings? utm)
         {
-            return PoleData.NumberText(data.Number) + LineBreak +
+            // O ID da Energisa só aparece depois de informado (comando FIBRA_ID_ENERGISA)
+            string id = data.EnergisaId.Length > 0 ? "ID " + data.EnergisaId + LineBreak : "";
+            return PoleData.NumberText(data.Number) + LineBreak + id +
                    data.HeightEffort + LineBreak +
                    CoordinateLines(position, utm);
         }

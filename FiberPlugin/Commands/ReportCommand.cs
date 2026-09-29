@@ -39,6 +39,7 @@ namespace FiberPlugin.Commands
             List<CableTotal> cables;
             int legacyMarkers = 0;
             double attachHeight = CalcSettings.Get(db).AttachHeightM;
+            List<(PoleInfo Pole, EffortResult Result)> occupied;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -56,6 +57,13 @@ namespace FiberPlugin.Commands
                     .ToList();
 
                 cables = CableDrawing.Totals(tr, modelSpace, catalog);
+
+                // Postes ocupados pelos cabos do projeto e a situação de cada um (Tabela A)
+                List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, Traction.Load(db));
+                occupied = poles
+                    .Select(p => (Pole: p, Result: EffortCalculator.AtPole(runs, p.Position, FiberSettings.PoleMatchTolerance)))
+                    .Where(x => x.Result.CableCount > 0)
+                    .ToList();
 
                 var seenPoints = new HashSet<string>();
                 var legacyPoints = new HashSet<string>();
@@ -110,6 +118,7 @@ namespace FiberPlugin.Commands
             WriteBoxes(workbook, boxes, poles, utm);
             WriteEfforts(workbook, effortPoints);
             WriteCables(workbook, cables);
+            WriteTableA(workbook, occupied, boxes, CompanyInfo.Load(out _), utm);
 
             try
             {
@@ -280,6 +289,39 @@ namespace FiberPlugin.Commands
                 sheet.Row(c.Description, c.Name, c.Model?.WeightKgKm, c.Runs, Math.Round(c.Length, 2));
             }
             sheet.Row("TOTAL", null, null, cables.Sum(c => c.Runs), Math.Round(cables.Sum(c => c.Length), 2));
+        }
+
+        /// <summary>
+        /// Tabela A da NDU 009 (seção 23), obrigatória no projeto: uma linha por poste ocupado pelos cabos.
+        /// O ID_Poste vem do FIBRA_ID_ENERGISA (em branco enquanto não informado).
+        /// </summary>
+        private static void WriteTableA(XlsxWriter workbook, List<(PoleInfo Pole, EffortResult Result)> occupied,
+            List<BoxInfo> boxes, CompanyInfo? company, UtmSettings? utm)
+        {
+            XlsxWriter.Sheet sheet = workbook.AddSheet("Tabela A (NDU 009)").ColumnWidths(12, 14, 44, 14, 46, 16, 24, 20);
+            sheet.Title("Tabela A - Projeto de Uso Mútuo (NDU 009, seção 23)").Blank();
+            sheet.Header("Poste (projeto)", "ID_Poste", "Coordenadas Georreferenciadas", "Tipo de Cabo", "Nome da Ocupante",
+                         "Tipo de Companhia", "Tipo de Equipamento", "CNPJ da Companhia");
+
+            var withBox = new HashSet<string>(boxes.Select(b => b.Data.PoleHandle));
+            foreach (var (pole, result) in occupied)
+            {
+                string equipment = result.EndCount > 0 || result.MaxDeflectionDeg >= EffortResult.AngleThresholdDeg ? "Ancoragem" : "Suspensão";
+                if (withBox.Contains(pole.Id.Handle.ToString())) equipment += "; Equipamentos";
+
+                string coordinates = (utm != null ? UtmZone.ZoneText(pole.Position, utm) + " " : "") +
+                                     UtmZone.EastingText(pole.Position.X) + " " + UtmZone.NorthingText(pole.Position.Y, utm?.South ?? true);
+
+                sheet.Row(
+                    pole.Number,
+                    pole.Data?.EnergisaId is { Length: > 0 } id ? id : null,
+                    coordinates,
+                    "Cabo Óptico",
+                    company?.LegalName,
+                    company?.CompanyType,
+                    equipment,
+                    company?.Cnpj);
+            }
         }
 
         private static double? Round(double? value, int digits) => value.HasValue ? Math.Round(value.Value, digits) : (double?)null;
