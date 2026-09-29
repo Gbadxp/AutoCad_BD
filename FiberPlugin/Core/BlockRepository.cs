@@ -7,7 +7,6 @@ namespace FiberPlugin.Core
     {
         public string Name { get; set; } = "";
         public string Category { get; set; } = BlockCategories.Others;
-        public string FilePath { get; set; } = "";   // Arquivo da biblioteca que contém a definição do bloco
     }
 
     /// <summary>
@@ -54,7 +53,7 @@ namespace FiberPlugin.Core
             }
 
             return BlockNamesIn(file)
-                .Select(name => new BlockEntry { Name = name, Category = BlockCategories.Of(name), FilePath = file })
+                .Select(name => new BlockEntry { Name = name, Category = BlockCategories.Of(name) })
                 .OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
@@ -69,7 +68,7 @@ namespace FiberPlugin.Core
         public static ObjectId EnsureInDrawing(Database db, string blockName)
         {
             BlockEntry? entry = List().FirstOrDefault(e => e.Name.Equals(blockName, StringComparison.OrdinalIgnoreCase));
-            if (entry == null)
+            if (entry == null || LibraryFile is not string file)
             {
                 using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
                 {
@@ -78,7 +77,7 @@ namespace FiberPlugin.Core
                 }
             }
 
-            return CopyDefinitions(db, entry.FilePath, new[] { entry.Name }).TryGetValue(entry.Name, out ObjectId id) ? id : ObjectId.Null;
+            return CopyDefinitions(db, file, new[] { entry.Name }).TryGetValue(entry.Name, out ObjectId id) ? id : ObjectId.Null;
         }
 
         /// <summary>
@@ -99,10 +98,8 @@ namespace FiberPlugin.Core
                 }
             }
 
-            return List()
-                .Where(e => inDrawing.Contains(e.Name))
-                .GroupBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase)
-                .Sum(file => CopyDefinitions(db, file.Key, file.Select(e => e.Name)).Count);
+            List<string> names = List().Select(e => e.Name).Where(inDrawing.Contains).ToList();
+            return names.Count == 0 || LibraryFile is not string file ? 0 : CopyDefinitions(db, file, names).Count;
         }
 
         /// <summary>Copia (substituindo) as definições dos blocos do arquivo para o desenho. Retorna nome → bloco no desenho.</summary>

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.IO;
 using FiberPlugin.Core;
 
 namespace FiberPlugin.UI
@@ -23,8 +22,9 @@ namespace FiberPlugin.UI
             : base(blocks, heading, iconCommand,
                 $"{blocks.Count} bloco(s) na biblioteca {BlockRepository.LibraryFileName}",
                 "Buscar bloco...", "Nenhum bloco encontrado", "Inserir",
-                b => (b.Name, Path.GetFileName(b.FilePath), b.Category),
+                b => (b.Name, null, b.Category),
                 (b, q) => SearchBox.Matches(b.Name, q),
+                itemHeight: 32,
                 hint: "Blocos da biblioteca são importados sozinhos")
         {
             List<string> categories = BlockCategories.Order

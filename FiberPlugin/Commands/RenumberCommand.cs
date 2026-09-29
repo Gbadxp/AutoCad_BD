@@ -83,20 +83,28 @@ namespace FiberPlugin.Commands
                     if (asked == null) break;
                     number = asked.Value;
                 }
-                forced = null;
-                next[target.Key] = number + 1;
-
                 string newLabel;
                 string? duplicate;
-                using (Transaction tr = db.TransactionManager.StartTransaction())
+                try
                 {
-                    var br = (BlockReference)tr.GetObject(res.ObjectId, OpenMode.ForWrite);
-                    var space = (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite);
-                    newLabel = Apply(tr, db, space, br, target, number);
-                    duplicate = FindDuplicate(tr, space, br.ObjectId, target, number);
-                    tr.Commit();
+                    using (Transaction tr = db.TransactionManager.StartTransaction())
+                    {
+                        var br = (BlockReference)tr.GetObject(res.ObjectId, OpenMode.ForWrite);
+                        var space = (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite);
+                        newLabel = Apply(tr, db, space, br, target, number);
+                        duplicate = FindDuplicate(tr, space, br.ObjectId, target, number);
+                        tr.Commit();
+                    }
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception ex) when (ex.ErrorStatus == ErrorStatus.OnLockedLayer)
+                {
+                    ed.WriteMessage($"\n[AVISO]: {target.Label} está em layer travada e não foi renumerado.");
+                    continue;
                 }
 
+                // Só avança a sequência depois de gravar
+                forced = null;
+                next[target.Key] = number + 1;
                 changed++;
                 ed.WriteMessage($"\n[OK]: {target.Label} → {newLabel}");
                 if (duplicate != null) ed.WriteMessage($"\n[AVISO]: {duplicate} também está em outro bloco. Renumere-o também.");

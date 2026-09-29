@@ -15,7 +15,7 @@
     ProductCode="{7E240BCF-213F-410E-B352-D37A2A8F0569}"
     UpgradeCode="{A6937BE7-03FA-4FD8-AC06-14773C517517}"
     SupportedLocales="Enu|Ptb"
-    HelpFile="./Contents/LEIA-ME.txt">
+    HelpFile="./Contents/README.md">
 
   <CompanyDetails Name="Fiber Plugin" />
 

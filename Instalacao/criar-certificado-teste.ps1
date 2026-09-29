@@ -3,7 +3,7 @@
     Cria um certificado de assinatura de código AUTOASSINADO para testes / uso interno.
 
 .DESCRIPTION
-    Instalando pelo instalar.ps1 ou pelo .msi (Program Files), a assinatura NÃO é necessária:
+    Instalando pelo .msi (Program Files), a assinatura NÃO é necessária:
     essa pasta já é confiável para o AutoCAD.
 
     A assinatura serve para carregar a DLL de outras pastas sem o aviso do SECURELOAD.

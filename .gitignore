@@ -10,8 +10,5 @@ obj/
 *.dwl2
 *.sv$
 
-# Saída do instalador
-Instalacao/dist/
-Instalacao/Installer/bin/
-Instalacao/Installer/obj/
+# Certificado de teste (criar-certificado-teste.ps1)
 *.cer
