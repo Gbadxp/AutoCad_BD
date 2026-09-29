@@ -51,9 +51,12 @@ namespace FiberPlugin.Commands
 
             // Planejamento: grade de folhas, melhor orientação, descartando folhas vazias
             List<Rect> content;
+            SheetLegend legend;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                content = CollectContent(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
+                content = CollectContent(tr, modelSpace);
+                legend = SheetLegend.Collect(tr, modelSpace);
                 tr.Commit();
             }
 
@@ -99,7 +102,7 @@ namespace FiberPlugin.Commands
                 for (int i = 0; i < plan.Tiles.Count; i++)
                 {
                     string name = $"{options.Prefix}-{(i + 1).ToString("D" + digits, CultureInfo.InvariantCulture)}";
-                    string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], i + 1, title);
+                    string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], i + 1, title, legend);
                     if (warning != null) warnings.Add(warning);
                     names.Add(name);
                 }
@@ -222,7 +225,8 @@ namespace FiberPlugin.Commands
         }
 
         /// <returns>Aviso sobre a configuração de impressão, ou null se tudo certo.</returns>
-        private static string? CreateSheet(Database db, LayoutManager lm, string name, SheetPlan plan, SheetTile tile, int number, string title)
+        private static string? CreateSheet(Database db, LayoutManager lm, string name, SheetPlan plan, SheetTile tile, int number, string title,
+            SheetLegend legend)
         {
             ObjectId layoutId = lm.CreateLayout(name);
             lm.CurrentLayout = name; // O viewport só pode ser ligado com a folha ativa
@@ -246,6 +250,7 @@ namespace FiberPlugin.Commands
                 CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
 
                 DrawFrame(tr, paperSpace, plan, number, title);
+                legend.Draw(tr, db, paperSpace, plan.Format.LegendArea(plan.Landscape), FrameLayer);
 
                 Rect area = plan.Format.ViewportArea(plan.Landscape);
                 Viewport vp = CadHelpers.Append(tr, paperSpace, new Viewport

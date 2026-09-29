@@ -64,11 +64,21 @@ namespace FiberPlugin.Core
         public Rect Frame(bool landscape) =>
             new Rect(MarginLeft, Margin, PaperWidth(landscape) - Margin, PaperHeight(landscape) - Margin);
 
-        /// <summary>Área do viewport: a moldura menos a faixa de informações, em mm no papel.</summary>
+        /// <summary>Largura da coluna de norte e legenda, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
+        public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
+
+        /// <summary>Área do viewport: a moldura menos a faixa de informações e a coluna da legenda, em mm no papel.</summary>
         public Rect ViewportArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MinX, frame.MinY + InfoBandHeight, frame.MaxX, frame.MaxY);
+            return new Rect(frame.MinX, frame.MinY + InfoBandHeight, frame.MaxX - LegendWidth(landscape), frame.MaxY);
+        }
+
+        /// <summary>Coluna do norte e da legenda, em mm no papel.</summary>
+        public Rect LegendArea(bool landscape)
+        {
+            Rect frame = Frame(landscape);
+            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + InfoBandHeight, frame.MaxX, frame.MaxY);
         }
     }
 
