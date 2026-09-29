@@ -56,6 +56,7 @@ namespace FiberPlugin.UI
             }),
             ("Documentos", new[]
             {
+                new Tool("FIBRA_VERIFICAR", "Verificar Projeto", "Confere o desenho com a NDU 009 e marca o que falta", "Verificar\nProjeto"),
                 new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório"),
                 new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo")
             }),

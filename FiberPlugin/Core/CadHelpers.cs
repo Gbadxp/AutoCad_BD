@@ -37,6 +37,19 @@ namespace FiberPlugin.Core
             lt.DowngradeOpen();
         }
 
+        /// <summary>Layer que não imprime (quadro de folhas, bordas de viewport, marcações de verificação).</summary>
+        public static void EnsureNonPlottingLayer(Transaction tr, Database db, string name, short colorIndex)
+        {
+            EnsureLayer(tr, db, name, colorIndex);
+            var lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            var ltr = (LayerTableRecord)tr.GetObject(lt[name], OpenMode.ForRead);
+            if (ltr.IsPlottable)
+            {
+                ltr.UpgradeOpen();
+                ltr.IsPlottable = false;
+            }
+        }
+
         public static void EnsureRegApp(Transaction tr, Database db)
         {
             var rat = (RegAppTable)tr.GetObject(db.RegAppTableId, OpenMode.ForRead);

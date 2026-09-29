@@ -20,7 +20,8 @@ namespace FiberPlugin.Commands
             CalcSettings? settings = CalcSettings.Ask(ed, doc.Database);
             if (settings == null) return;
 
-            ed.WriteMessage($"\n[SUCESSO]: Cabo a {settings.AttachHeightM:0.00} m do solo; tração: {settings.MethodText}.");
+            ed.WriteMessage($"\n[SUCESSO]: Cabo a {settings.AttachHeightM:0.00} m do solo; tração: {settings.MethodText}; " +
+                            $"altura mínima ao solo {settings.MinGroundClearanceM:0.0} m.");
             ed.WriteMessage("\n[DICA]: Rode o Esforço no Percurso de novo para atualizar as setas já desenhadas.");
         }
 

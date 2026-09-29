@@ -15,6 +15,7 @@ namespace FiberPlugin.Core
         private const string PoleKind = "POSTE";
         private const string PoleLabelKind = "ROTULO_POSTE";
         private const string BoxKind = "CAIXA";
+        private const string CheckKind = "VERIFICACAO";
 
         private static TypedValue Text(string value) => new TypedValue((int)DxfCode.ExtendedDataAsciiString, value);
         private static TypedValue Int(int value) => new TypedValue((int)DxfCode.ExtendedDataInteger32, value);
@@ -65,6 +66,11 @@ namespace FiberPlugin.Core
             Write(tr, db, ent, SheetIndexKind, Text(prefix));
 
         public static string? GetSheetIndexPrefix(Entity ent) => Read(ent, SheetIndexKind, 1)?[0].Value as string;
+
+        /// <summary>Marca o círculo/texto de uma não conformidade do Verificar Projeto (apagados a cada verificação).</summary>
+        public static void TagCheck(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, CheckKind);
+
+        public static bool IsCheck(Entity ent) => Read(ent, CheckKind, 0) != null;
 
         /// <summary>Marca a polilinha como cabo do tipo informado (nome curto do catálogo).</summary>
         public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>

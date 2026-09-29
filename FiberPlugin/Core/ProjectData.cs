@@ -27,6 +27,9 @@ namespace FiberPlugin.Core
         /// <summary>Pontos de esforço das setas, em ordem de poste (pontos sem poste no fim).</summary>
         public List<EffortPoint> Efforts { get; private set; } = new List<EffortPoint>();
 
+        /// <summary>Blocos de equipamentos elétricos da Energisa (trafo, chaves, para-raios...), com o nome do bloco.</summary>
+        public List<(string Name, Point3d Position)> Equipment { get; private set; } = new List<(string, Point3d)>();
+
         /// <summary>Setas de versões antigas, sem os dados do cálculo.</summary>
         public int LegacyMarkers { get; private set; }
 
@@ -64,6 +67,13 @@ namespace FiberPlugin.Core
                 foreach (ObjectId id in modelSpace)
                 {
                     if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
+
+                    if (ent is BlockReference br && CadHelpers.GetBlockName(tr, br) is string blockName &&
+                        BlockCategories.Of(blockName) == BlockCategories.Electrical)
+                    {
+                        data.Equipment.Add((blockName, br.Position));
+                        continue;
+                    }
 
                     // A seta e os textos de um mesmo ponto guardam os mesmos dados
                     EffortMarkerData? marker = XDataTags.ReadEffortMarker(ent);

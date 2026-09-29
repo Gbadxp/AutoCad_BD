@@ -79,6 +79,7 @@ namespace FiberPlugin.UI
             ["FIBRA_PARAMETROS"] = PaintParameters,
             ["FIBRA_ESFORCO_EXISTENTE"] = PaintExistingEffort,
             ["FIBRA_RELATORIO"] = PaintReport,
+            ["FIBRA_VERIFICAR"] = PaintCheck,
             ["FIBRA_MEMORIAL"] = PaintMemorial,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_ESCALA"] = PaintScale,
@@ -342,6 +343,22 @@ namespace FiberPlugin.UI
             dc.DrawLine(grid, new W.Point(10, 21.5), new W.Point(23, 21.5));
             dc.DrawLine(grid, new W.Point(14.5, 17), new W.Point(14.5, 26));
             dc.DrawLine(grid, new W.Point(18.8, 17), new W.Point(18.8, 26));
+        }
+
+        private static void PaintCheck(M.DrawingContext dc, Ink ink)
+        {
+            // Prancheta com itens conferidos (verde) e um pendente (vermelho)
+            dc.DrawRoundedRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(5, 4, 22, 26), 2, 2);
+            dc.DrawRectangle(ink.Line, null, new W.Rect(11, 2, 10, 4));
+            M.Pen ok = Ink.Pen(ink.Green, 2.0), text = Ink.Pen(ink.Line, 1.2);
+            dc.DrawGeometry(null, ok, G("M8,11.5 L10,13.5 L13.5,9.5"));
+            dc.DrawLine(text, new W.Point(16, 11.5), new W.Point(24, 11.5));
+            dc.DrawGeometry(null, ok, G("M8,18 L10,20 L13.5,16"));
+            dc.DrawLine(text, new W.Point(16, 18), new W.Point(24, 18));
+            M.Pen bad = Ink.Pen(ink.Red, 2.0);
+            dc.DrawLine(bad, new W.Point(8.5, 22.5), new W.Point(12.5, 26.5));
+            dc.DrawLine(bad, new W.Point(12.5, 22.5), new W.Point(8.5, 26.5));
+            dc.DrawLine(text, new W.Point(16, 24.5), new W.Point(24, 24.5));
         }
 
         private static void PaintMemorial(M.DrawingContext dc, Ink ink)

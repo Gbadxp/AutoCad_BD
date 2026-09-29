@@ -53,6 +53,7 @@ namespace FiberPlugin.Commands
             WriteEfforts(workbook, effortPoints);
             WriteCables(workbook, cables);
             WriteTableA(workbook, project.Occupied, boxes, CompanyInfo.Load(out _), utm);
+            WriteChecks(workbook, NormCheck.Run(project));
 
             try
             {
@@ -255,6 +256,27 @@ namespace FiberPlugin.Commands
                     company?.CompanyType,
                     equipment,
                     company?.Cnpj);
+            }
+        }
+
+        /// <summary>Não conformidades com a NDU 009 (as mesmas do Verificar Projeto).</summary>
+        private static void WriteChecks(XlsxWriter workbook, List<NormIssue> issues)
+        {
+            XlsxWriter.Sheet sheet = workbook.AddSheet("Verificação NDU 009").ColumnWidths(8, 26, 90, 14, 16, 16);
+            sheet.Title("Verificação do projeto com a NDU 009").Blank();
+            if (issues.Count == 0)
+            {
+                sheet.Row("Nenhuma não conformidade encontrada.");
+                return;
+            }
+
+            sheet.Header("Tipo", "Onde", "Descrição", "Item da NDU", "Coordenada E", "Coordenada N");
+            foreach (NormIssue i in issues)
+            {
+                bool located = i.Point != Autodesk.AutoCAD.Geometry.Point3d.Origin;
+                sheet.Row(i.Severity, i.Where, i.Message, i.Rule,
+                    located ? Math.Round(i.Point.X, 2) : (double?)null,
+                    located ? Math.Round(i.Point.Y, 2) : (double?)null);
             }
         }
 

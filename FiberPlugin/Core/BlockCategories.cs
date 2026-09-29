@@ -47,7 +47,7 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>Maiúsculas e sem acentos ("Amarração" → "AMARRACAO").</summary>
-        private static string Normalize(string text)
+        public static string Normalize(string text)
         {
             var sb = new StringBuilder();
             foreach (char c in text.ToUpperInvariant().Normalize(NormalizationForm.FormD))

@@ -22,6 +22,9 @@ namespace FiberPlugin.Core
         /// <summary>True: tração pela Tabela 08 da NDU 009. False: pelo peso do cabo (flecha de 1%).</summary>
         public bool UseNormTable { get; set; } = true;
 
+        /// <summary>Altura mínima do cabo ao solo no meio do vão, em m (Tabela 02 da NDU 009: ruas e avenidas 5,0 m).</summary>
+        public double MinGroundClearanceM { get; set; } = 5.0;
+
         public string MethodText => UseNormTable
             ? "Tabela 08 da NDU 009 (cabo autossustentado, flecha de 1%)"
             : "Peso do cabo, flecha de 1% (T = p·L / 0,08)";
@@ -34,6 +37,7 @@ namespace FiberPlugin.Core
             {
                 if (height >= 1 && height <= 30) settings.AttachHeightM = height;
                 settings.UseNormTable = table != 0;
+                if (v.Length >= 3 && v[2].Value is double clearance && clearance > 0) settings.MinGroundClearanceM = clearance;
             }
             return settings;
         }
@@ -41,7 +45,8 @@ namespace FiberPlugin.Core
         public void Save(Transaction tr, Database db) =>
             CadHelpers.WriteDrawingRecord(tr, db, DictionaryKey,
                 new TypedValue((int)DxfCode.Real, AttachHeightM),
-                new TypedValue((int)DxfCode.Int32, UseNormTable ? 1 : 0));
+                new TypedValue((int)DxfCode.Int32, UseNormTable ? 1 : 0),
+                new TypedValue((int)DxfCode.Real, MinGroundClearanceM));
 
         /// <summary>Pergunta os parâmetros (sugerindo os atuais) e grava no DWG. Null se o usuário cancelar.</summary>
         public static CalcSettings? Ask(Editor ed, Database db)
@@ -68,7 +73,19 @@ namespace FiberPlugin.Core
             string? answer = CadHelpers.AskKeyword(ed, $"\nTração dos cabos [Tabela/Peso] <{method}>: ", "Tabela Peso", method);
             if (answer == null) return null;
 
-            var settings = new CalcSettings { AttachHeightM = height, UseNormTable = answer == "Tabela" };
+            string clearanceHint = current.MinGroundClearanceM.ToString("0.0", CultureInfo.InvariantCulture);
+            var pco = new PromptDoubleOptions(
+                $"\nAltura mínima do cabo ao solo, em m (Tabela 02: ruas 5.0, área rural com veículos 4.5, pedestres 3.0) <{clearanceHint}>: ")
+            {
+                AllowNone = true,
+                AllowNegative = false,
+                AllowZero = false
+            };
+            PromptDoubleResult clearanceRes = ed.GetDouble(pco);
+            if (clearanceRes.Status == PromptStatus.Cancel) return null;
+            double clearance = clearanceRes.Status == PromptStatus.OK ? clearanceRes.Value : current.MinGroundClearanceM;
+
+            var settings = new CalcSettings { AttachHeightM = height, UseNormTable = answer == "Tabela", MinGroundClearanceM = clearance };
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 settings.Save(tr, db);

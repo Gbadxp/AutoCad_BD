@@ -243,7 +243,7 @@ namespace FiberPlugin.Commands
                 }
 
                 CadHelpers.EnsureLayer(tr, db, FrameLayer, 7);
-                EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
+                CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
 
                 DrawFrame(tr, paperSpace, plan, number, title);
 
@@ -368,7 +368,7 @@ namespace FiberPlugin.Commands
         {
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                EnsureNonPlottingLayer(tr, db, SheetIndexLayer, 8);
+                CadHelpers.EnsureNonPlottingLayer(tr, db, SheetIndexLayer, 8);
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 // Remove o quadro anterior das folhas com o mesmo prefixo (coleta antes de apagar)
@@ -404,18 +404,6 @@ namespace FiberPlugin.Commands
             }
         }
 
-        private static void EnsureNonPlottingLayer(Transaction tr, Database db, string name, short colorIndex)
-        {
-            CadHelpers.EnsureLayer(tr, db, name, colorIndex);
-            var lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
-            var ltr = (LayerTableRecord)tr.GetObject(lt[name], OpenMode.ForRead);
-            if (ltr.IsPlottable)
-            {
-                ltr.UpgradeOpen();
-                ltr.IsPlottable = false;
-            }
-        }
-
         /// <summary>Altera uma variável de sistema e devolve o valor anterior (null se ela não existir).</summary>
         private static object? TrySetSystemVariable(string name, object value)
         {
@@ -430,6 +418,5 @@ namespace FiberPlugin.Commands
                 return null;
             }
         }
-
     }
 }
