@@ -166,9 +166,7 @@ namespace FiberPlugin.UI
         /// <summary>Resumo das pastas Dados e Blocos para o rodapé.</summary>
         private static string LibraryStatus()
         {
-            string blocksText = PluginPaths.BlocksDir == null
-                ? "pasta Blocos não encontrada"
-                : $"{CountBlocks()} bloco(s) em {BlockRepository.LibraryFileName}";
+            string blocksText = $"{CountBlocks()} bloco(s) em {BlockRepository.LibraryFileName}";
 
             return $"{CountCables()} cabo(s) cadastrados  ·  {blocksText}  ·  Esc fecha";
         }

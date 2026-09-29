@@ -58,42 +58,71 @@ namespace FiberPlugin.Core
             PlaceText(tr, db, space, box, BoxText(data), BoxLayer, below: true);
         }
 
+        /// <summary>
+        /// Depois de o bloco mudar de tamanho, leva o texto junto: ele se desloca o mesmo que o ponto do
+        /// desenho a que está preso, mantendo a posição que o usuário tiver dado.
+        /// </summary>
+        /// <param name="before">Extensão do bloco antes da mudança.</param>
+        public static void Follow(Transaction tr, BlockTableRecord space, BlockReference owner, Extents3d before)
+        {
+            bool below = XDataTags.ReadBox(owner) != null;
+            Vector3d delta = Anchor(ExtentsOf(owner, 0), below, 0) - Anchor(before, below, 0);
+            foreach (MText label in LabelsOf(tr, space, owner))
+            {
+                label.UpgradeOpen();
+                label.Location += delta;
+            }
+        }
+
         /// <param name="below">True: centralizado abaixo do bloco (CTO/CEO). False: à direita, no alto (postes).</param>
         private static void PlaceText(Transaction tr, Database db, BlockTableRecord space, BlockReference owner, string contents,
             string layer, bool below)
         {
-            string handle = owner.Handle.ToString();
-            bool found = false;
-            foreach (ObjectId id in space)
+            List<MText> existing = LabelsOf(tr, space, owner);
+            foreach (MText txt in existing)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not MText txt || XDataTags.GetPoleLabelOwner(txt) != handle) continue;
                 txt.UpgradeOpen();
                 txt.Contents = contents;
-                found = true;
             }
-            if (found) return;
+            if (existing.Count > 0) return;
 
             CadHelpers.EnsureLayer(tr, db, layer, 7);
+            double factor = DrawingScale.Factor(db);
+            Point3d anchor = Anchor(ExtentsOf(owner, Offset * factor), below, Gap * factor);
+            MText label = CadHelpers.AddText(tr, space, anchor, contents, 0,
+                below ? AttachmentPoint.TopCenter : AttachmentPoint.BottomLeft, layer);
+            XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
+        }
 
-            // Posição pelo desenho do bloco (e não pelo ponto base, que nas CTO/CEO fica no canto)
-            double gap = Gap * DrawingScale.Factor(db);
-            Extents3d e;
+        private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner)
+        {
+            string handle = owner.Handle.ToString();
+            var labels = new List<MText>();
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is MText txt && XDataTags.GetPoleLabelOwner(txt) == handle) labels.Add(txt);
+            }
+            return labels;
+        }
+
+        /// <summary>Extensão do desenho do bloco (e não o ponto base, que nas CTO/CEO fica no canto).</summary>
+        /// <param name="fallback">Meia largura usada se o bloco não tiver extensão.</param>
+        private static Extents3d ExtentsOf(BlockReference owner, double fallback)
+        {
             try
             {
-                e = owner.GeometricExtents;
+                return owner.GeometricExtents;
             }
             catch (Autodesk.AutoCAD.Runtime.Exception)
             {
-                double offset = Offset * DrawingScale.Factor(db);
-                e = new Extents3d(owner.Position - new Vector3d(offset, offset, 0), owner.Position + new Vector3d(offset, offset, 0));
+                var half = new Vector3d(fallback, fallback, 0);
+                return new Extents3d(owner.Position - half, owner.Position + half);
             }
-
-            Point3d anchor = below
-                ? new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2.0, e.MinPoint.Y - gap, 0)
-                : new Point3d(e.MaxPoint.X + gap, e.MaxPoint.Y, 0);
-            MText label = CadHelpers.AddText(tr, space, anchor, contents, 0,
-                below ? AttachmentPoint.TopCenter : AttachmentPoint.BottomLeft, layer);
-            XDataTags.TagPoleLabel(tr, db, label, handle);
         }
+
+        /// <summary>Ponto do texto: centralizado abaixo do bloco ou à direita, no alto.</summary>
+        private static Point3d Anchor(Extents3d e, bool below, double gap) => below
+            ? new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2.0, e.MinPoint.Y - gap, 0)
+            : new Point3d(e.MaxPoint.X + gap, e.MaxPoint.Y, 0);
     }
 }

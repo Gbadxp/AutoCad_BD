@@ -12,9 +12,8 @@ namespace FiberPlugin.Core
     /// Instalado (pacote .bundle em ApplicationPlugins):
     ///  - Dados: Documentos\Fiber Plugin\Dados, editável pelo usuário. Arquivos que faltarem lá são
     ///    copiados do pacote (nunca sobrescreve o que o usuário editou).
-    ///  - Blocos: a biblioteca BLOCOS.dwg que vem DENTRO do pacote, atualizada a cada instalação.
-    ///    Documentos\Fiber Plugin\Blocos é opcional, para blocos pessoais; em nomes repetidos, o bloco
-    ///    pessoal tem prioridade.
+    ///  - Blocos: o BLOCOS.dwg escolhido no botão Atualizar Blocos (ex.: o da pasta do projeto) ou,
+    ///    sem ele, a cópia que vem dentro do pacote.
     /// </summary>
     public static class PluginPaths
     {
@@ -46,19 +45,8 @@ namespace FiberPlugin.Core
             }
         }
 
-        /// <summary>
-        /// Pasta onde o usuário grava blocos (e onde o FIBRA_EXPORTAR_BLOCOS salva o BLOCOS.dwg).
-        /// Instalado: Documentos\Fiber Plugin\Blocos. Desenvolvimento: a pasta Blocos do código-fonte.
-        /// </summary>
-        public static string? BlocksDir
-        {
-            get
-            {
-                if (!IsInstalled) return FindUpwards(BlocksFolderName);
-                EnsureUserFolders();
-                return Path.Combine(UserRoot, BlocksFolderName);
-            }
-        }
+        /// <summary>Pasta Blocos: a do código-fonte (desenvolvimento) ou a do pacote instalado.</summary>
+        public static string? BlocksDir => FindUpwards(BlocksFolderName);
 
         // Arquivo que guarda o BLOCOS.dwg escolhido no botão Atualizar Blocos
         private static string SettingsFile => Path.Combine(UserRoot, "biblioteca.txt");
@@ -93,18 +81,6 @@ namespace FiberPlugin.Core
             }
         }
 
-        /// <summary>Pastas com bibliotecas de blocos, da maior para a menor prioridade.</summary>
-        public static IEnumerable<string> BlockLibraryDirs
-        {
-            get
-            {
-                var dirs = new List<string>();
-                if (BlocksDir is string user && Directory.Exists(user)) dirs.Add(user);
-                if (IsInstalled && FindUpwards(BlocksFolderName) is string package) dirs.Add(package); // Contents\Blocos do pacote
-                return dirs.Distinct(StringComparer.OrdinalIgnoreCase);
-            }
-        }
-
         /// <summary>Caminho de um arquivo dentro da pasta Dados (null se a pasta não existir).</summary>
         public static string? DataFile(string fileName)
         {
@@ -114,7 +90,7 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Prepara Documentos\Fiber Plugin: copia do pacote os arquivos de Dados que ainda não existem lá
-        /// (nunca sobrescreve) e cria a pasta Blocos para blocos pessoais.
+        /// (nunca sobrescreve o que o usuário editou).
         /// </summary>
         public static void EnsureUserFolders()
         {
@@ -127,10 +103,6 @@ namespace FiberPlugin.Core
                 Directory.CreateDirectory(data);
                 string? packageData = FindUpwards(DataFolderName);
                 if (packageData != null) CopyMissingFiles(packageData, data);
-
-                string blocks = Path.Combine(UserRoot, BlocksFolderName);
-                Directory.CreateDirectory(blocks);
-                WriteUserBlocksReadme(blocks);
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
@@ -157,20 +129,6 @@ namespace FiberPlugin.Core
                 Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? target);
                 if (!File.Exists(destination)) File.Copy(file, destination);
             }
-        }
-
-        /// <summary>Explica para que serve a pasta de blocos pessoais.</summary>
-        private static void WriteUserBlocksReadme(string blocksDir)
-        {
-            string path = Path.Combine(blocksDir, "LEIA-ME.txt");
-            if (File.Exists(path)) return;
-
-            File.WriteAllText(path,
-                "BLOCOS PESSOAIS DO FIBER PLUGIN" + Environment.NewLine + Environment.NewLine +
-                "Os blocos padrão vêm no BLOCOS.dwg instalado junto com o plugin e são atualizados a cada versão." + Environment.NewLine +
-                "Esta pasta é opcional: um BLOCOS.dwg (ou outros .dwg) colocado aqui acrescenta blocos seus." + Environment.NewLine +
-                "Se um bloco daqui tiver o mesmo nome de um bloco padrão, o daqui é usado." + Environment.NewLine +
-                "O comando FIBRA_EXPORTAR_BLOCOS grava nesta pasta os blocos do desenho aberto." + Environment.NewLine);
         }
     }
 }

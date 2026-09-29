@@ -28,9 +28,10 @@ namespace FiberPlugin.Core
         public const double EffortArrowHeadLength = 2.5;    // Comprimento da ponta
         public const double EffortArrowHeadWidth = 1.2;     // Largura da base da ponta
 
-        // Símbolos de CTO/CEO: tamanho do maior lado na escala 1:1000 (m). Os blocos são ajustados a esse
-        // tamanho na inserção, independente da unidade em que foram desenhados no BLOCOS.dwg.
-        public const double BoxSymbolSize = 10.0;
+        // Símbolos de CTO/CEO: maior lado com 7 mm no papel (7 m no desenho em 1:1000, 14 m em 1:2000...).
+        // Os blocos são ajustados a esse tamanho na inserção, independente da unidade em que foram
+        // desenhados no BLOCOS.dwg.
+        public const double BoxSymbolSize = 7.0;
 
         // Roteamento automático: afastamento do cabo em relação ao centro do poste
         public const double AutoRouteOffset = 1.8;

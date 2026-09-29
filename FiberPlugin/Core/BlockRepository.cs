@@ -11,8 +11,8 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>
-    /// Biblioteca de blocos: o arquivo Blocos\BLOCOS.dwg, com as definições de todos os blocos do projeto
-    /// (outros .dwg soltos na pasta Blocos também são lidos, com prioridade para o BLOCOS.dwg).
+    /// Biblioteca de blocos: um único arquivo BLOCOS.dwg, com as definições de todos os blocos do projeto
+    /// (o escolhido no botão Atualizar Blocos ou, sem ele, o da pasta Blocos).
     /// O plugin só oferece os blocos definidos na biblioteca. Quando um deles é usado e ainda não existe
     /// no desenho, a definição é copiada automaticamente, sem precisar de template.
     /// O grupo de cada bloco (e o comando que o insere) vem do nome: veja BlockCategories.
@@ -42,33 +42,21 @@ namespace FiberPlugin.Core
             }
         }
 
-        /// <summary>Todos os blocos da biblioteca, em ordem alfabética.</summary>
+        /// <summary>Todos os blocos da biblioteca, em ordem alfabética. Lista vazia (com LastError) se o arquivo não existir.</summary>
         public static List<BlockEntry> List()
         {
             LastError = null;
-            var entries = new List<BlockEntry>();
-
-            // Primeiro o BLOCOS.dwg escolhido no Atualizar Blocos; depois as pastas em ordem de prioridade
-            // (blocos pessoais antes dos do pacote) e, em cada pasta, o BLOCOS.dwg antes dos demais .dwg.
-            // Em nomes repetidos vale o primeiro encontrado.
-            var files = new List<string>();
-            if (PluginPaths.CustomLibrary is string custom && File.Exists(custom)) files.Add(custom);
-            files.AddRange(PluginPaths.BlockLibraryDirs.SelectMany(dir =>
-                Directory.EnumerateFiles(dir, "*.dwg", SearchOption.TopDirectoryOnly)
-                    .Where(f => !Path.GetFileName(f).StartsWith("~"))
-                    .OrderBy(f => !Path.GetFileName(f).Equals(LibraryFileName, StringComparison.OrdinalIgnoreCase))
-                    .ThenBy(f => f, StringComparer.OrdinalIgnoreCase)));
-
-            foreach (string file in files.Distinct(StringComparer.OrdinalIgnoreCase))
+            string? file = LibraryFile;
+            if (file == null || !File.Exists(file))
             {
-                foreach (string name in BlockNamesIn(file))
-                {
-                    if (entries.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
-                    entries.Add(new BlockEntry { Name = name, Category = BlockCategories.Of(name), FilePath = file });
-                }
+                LastError = $"{LibraryFileName} não encontrado ({file ?? "pasta Blocos"}). Use o botão Atualizar Blocos para escolher o arquivo.";
+                return new List<BlockEntry>();
             }
 
-            return entries.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            return BlockNamesIn(file)
+                .Select(name => new BlockEntry { Name = name, Category = BlockCategories.Of(name), FilePath = file })
+                .OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
         }
 
         /// <summary>
@@ -144,18 +132,18 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Copia os blocos do desenho aberto para dentro do BLOCOS.dwg. Antes de gravar, o arquivo
-        /// anterior é guardado como BLOCOS.bak. Retorna (adicionados, substituídos, mantidos, erro).
+        /// Copia os blocos do desenho aberto para dentro do BLOCOS.dwg. Retorna (adicionados, substituídos,
+        /// mantidos, erro). O arquivo antigo fica no histórico do Git.
         /// </summary>
         public static (int Added, int Replaced, int Kept, string? Error) ExportToLibrary(Database db, bool overwrite)
         {
-            string? path = LibraryFile;
-            if (path == null)
+            // O BLOCOS.dwg do pacote fica em Arquivos de Programas e não pode ser alterado
+            if (PluginPaths.IsInstalled && PluginPaths.CustomLibrary == null)
             {
-                string dir = Path.Combine(PluginPaths.AssemblyDir, PluginPaths.BlocksFolderName);
-                Directory.CreateDirectory(dir);
-                path = Path.Combine(dir, LibraryFileName);
+                return (0, 0, 0, $"Escolha o seu {LibraryFileName} no botão Atualizar Blocos antes de exportar.");
             }
+            string? path = LibraryFile;
+            if (path == null) return (0, 0, 0, $"{LibraryFileName} não encontrado. Use o botão Atualizar Blocos para escolher o arquivo.");
 
             int added = 0, replaced = 0, kept = 0;
             var toCopy = new ObjectIdCollection();
@@ -200,12 +188,11 @@ namespace FiberPlugin.Core
                     string temp = Path.Combine(Path.GetDirectoryName(path) ?? ".", "~BLOCOS_tmp.dwg");
                     library.SaveAs(temp, DwgVersion.Current);
 
-                    if (File.Exists(path)) File.Copy(path, Path.ChangeExtension(path, ".bak"), true);
                     File.Copy(temp, path, true);
                     File.Delete(temp);
                 }
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 return (0, 0, kept, $"Não foi possível gravar {LibraryFileName} ({ex.Message}). Se ele estiver aberto no AutoCAD, feche-o e tente de novo.");
             }

@@ -73,6 +73,7 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
             ["FIBRA_ATUALIZAR_BLOCOS"] = PaintUpdateBlocks,
+            ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
             ["FIBRA_RELATORIO"] = PaintReport,
@@ -279,6 +280,15 @@ namespace FiberPlugin.UI
             dc.DrawRectangle(ink.Blue, Ink.Pen(ink.Paper, 1.2), new W.Rect(8.5, 8.5, 13, 13));
             dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.4), G("M27,19 A5.5,5.5 0 1 1 19.8,27"));
             Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
+        }
+
+        private static void PaintBlockSize(M.DrawingContext dc, Ink ink)
+        {
+            // Bloco pequeno, contorno do tamanho novo e seta diagonal de ampliar
+            dc.DrawRectangle(null, new M.Pen(ink.Line, 1.4) { DashStyle = M.DashStyles.Dash }, new W.Rect(3, 3, 26, 26));
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(3, 17, 12, 12));
+            Arrow(dc, ink.Green, 13, 19, 26.5, 5.5, 2.2);
+            Grip(dc, ink, 29, 3);
         }
 
         private static void PaintEffortPole(M.DrawingContext dc, Ink ink)

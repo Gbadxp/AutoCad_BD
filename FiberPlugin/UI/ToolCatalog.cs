@@ -44,7 +44,8 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Amarração com direção", "Amarração", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_BLOCO", "Outros Blocos", "Blocos do BLOCOS.dwg fora dos grupos", "Outros Blocos", largeOnRibbon: false),
-                new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false)
+                new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false),
+                new Tool("FIBRA_TAMANHO_BLOCO", "Tamanho do Bloco", "Muda o tamanho dos blocos selecionados", "Tamanho", largeOnRibbon: false)
             }),
             ("Esforços", new[]
             {

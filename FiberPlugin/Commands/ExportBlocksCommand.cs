@@ -42,8 +42,6 @@ namespace FiberPlugin.Commands
 
             ed.WriteMessage($"\n[SUCESSO]: {BlockRepository.LibraryFile}: {added} bloco(s) novo(s)" +
                             (replaced > 0 ? $", {replaced} substituído(s)" : "") + ".");
-            if (kept > 0) ed.WriteMessage($"\n[INFO]: {kept} bloco(s) já existiam na biblioteca e foram mantidos.");
-            if (added + replaced > 0) ed.WriteMessage("\n[INFO]: A versão anterior da biblioteca foi guardada como BLOCOS.bak.");
-        }
+            if (kept > 0) ed.WriteMessage($"\n[INFO]: {kept} bloco(s) já existiam na biblioteca e foram mantidos.");        }
     }
 }

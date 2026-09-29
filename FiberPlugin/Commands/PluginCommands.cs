@@ -115,8 +115,8 @@ namespace FiberPlugin.Commands
             ed.WriteMessage($"\nEscala do desenho: 1:{DrawingScale.Get(AcApp.DocumentManager.MdiActiveDocument.Database)}");
             ed.WriteMessage($"\nDLL: {PluginPaths.AssemblyDir}");
             ed.WriteMessage($"\nDados: {PluginPaths.DataDir ?? "(não encontrada)"}");
-            if (PluginPaths.CustomLibrary != null) ed.WriteMessage($"\nBiblioteca escolhida: {PluginPaths.CustomLibrary}");
-            foreach (string dir in PluginPaths.BlockLibraryDirs) ed.WriteMessage($"\nBlocos: {dir}");
+            ed.WriteMessage($"\nBlocos: {BlockRepository.LibraryFile ?? "(não encontrado)"}" +
+                            (PluginPaths.CustomLibrary != null ? " (escolhido no Atualizar Blocos)" : " (do plugin)"));
             ed.WriteMessage($"\nBlocos na biblioteca: {BlockRepository.List().Count}\n");
         }
     }

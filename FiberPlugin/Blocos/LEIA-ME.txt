@@ -16,7 +16,10 @@ COMO ACRESCENTAR BLOCOS
   Atualizar Blocos (aba Fibra): na primeira vez, escolha este BLOCOS.dwg; daí em diante o
   plugin lê direto dele, sem precisar rodar o build.ps1 nem reinstalar; ou
 - Com um projeto aberto, rode FIBRA_EXPORTAR_BLOCOS: os blocos daquele desenho são
-  copiados para dentro do BLOCOS.dwg (a versão anterior fica salva como BLOCOS.bak).
+  copiados para dentro do BLOCOS.dwg.
+
+Esta pasta tem só o BLOCOS.dwg. Se aparecer um BLOCOS.bak, é a cópia de segurança que
+o AutoCAD cria ao salvar: pode apagar (o plugin não usa e ela não vai para o GitHub).
 
 GRUPOS E COMANDOS
 -----------------
