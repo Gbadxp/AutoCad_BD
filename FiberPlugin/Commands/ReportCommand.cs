@@ -18,13 +18,6 @@ namespace FiberPlugin.Commands
     /// </summary>
     public class ReportCommand
     {
-        private class EffortPoint
-        {
-            public EffortMarkerData Marker { get; set; } = new EffortMarkerData();
-            public PoleInfo? Pole { get; set; }
-            public PoleLoad Load { get; set; } = null!;   // Esforço a 20 cm do topo + existente x nominal
-        }
-
         [CommandMethod("FIBRA_RELATORIO")]
         public void GenerateReport()
         {
@@ -32,76 +25,17 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            List<CableModel> catalog = CableProvider.GetCables();
-            List<PoleInfo> poles;
-            List<BoxInfo> boxes;
-            var effortPoints = new List<EffortPoint>();
-            List<CableTotal> cables;
-            int legacyMarkers = 0;
-            double attachHeight = CalcSettings.Get(db).AttachHeightM;
-            List<(PoleInfo Pole, EffortResult Result)> occupied;
-
-            using (Transaction tr = db.TransactionManager.StartTransaction())
-            {
-                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
-
-                poles = Poles.Collect(tr, modelSpace)
-                    .OrderBy(p => Poles.ParseNumber(p.Number) ?? int.MaxValue)
-                    .ThenBy(p => p.Number)
-                    .ToList();
-                var polesByHandle = poles.ToDictionary(p => p.Id.Handle.ToString(), StringComparer.OrdinalIgnoreCase);
-
-                boxes = Boxes.Collect(tr, modelSpace)
-                    .OrderBy(b => b.Data.Kind == BlockCategories.Cto ? 0 : 1)
-                    .ThenBy(b => b.Data.Number)
-                    .ToList();
-
-                cables = CableDrawing.Totals(tr, modelSpace, catalog);
-
-                // Postes ocupados pelos cabos do projeto e a situação de cada um (Tabela A)
-                List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, Traction.Load(db));
-                occupied = poles
-                    .Select(p => (Pole: p, Result: EffortCalculator.AtPole(runs, p.Position, FiberSettings.PoleMatchTolerance)))
-                    .Where(x => x.Result.CableCount > 0)
-                    .ToList();
-
-                var seenPoints = new HashSet<string>();
-                var legacyPoints = new HashSet<string>();
-
-                foreach (ObjectId id in modelSpace)
-                {
-                    if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
-
-                    // Pontos de esforço (a seta e os textos de um mesmo ponto guardam os mesmos dados)
-                    EffortMarkerData? marker = XDataTags.ReadEffortMarker(ent);
-                    if (marker != null)
-                    {
-                        if (!seenPoints.Add(Key(marker.Point))) continue;
-
-                        polesByHandle.TryGetValue(marker.PoleHandle, out PoleInfo? pole);
-                        pole ??= Poles.Nearest(poles, marker.Point, 0.01);
-                        effortPoints.Add(new EffortPoint { Marker = marker, Pole = pole, Load = PoleLoad.For(pole, marker.Kgf, attachHeight) });
-                    }
-                    else if (XDataTags.TryGetEffortPole(ent, out var oldPoint) && legacyPoints.Add(Key(oldPoint)))
-                    {
-                        legacyMarkers++;
-                    }
-                }
-
-                tr.Commit();
-            }
-
-            if (poles.Count == 0 && boxes.Count == 0 && effortPoints.Count == 0 && cables.Count == 0)
+            ProjectData project = ProjectData.Collect(db, CableProvider.GetCables());
+            if (project.IsEmpty)
             {
                 ed.WriteMessage("\n[AVISO]: Nada para relatar: o desenho não tem postes, pontos de esforço nem cabos do plugin.");
                 return;
             }
-
-            // Pontos em ordem de poste; pontos sem poste no fim
-            effortPoints = effortPoints
-                .OrderBy(e => e.Pole == null)
-                .ThenBy(e => e.Pole != null ? Poles.ParseNumber(e.Pole.Number) ?? int.MaxValue : int.MaxValue)
-                .ToList();
+            List<PoleInfo> poles = project.PoleList;
+            List<BoxInfo> boxes = project.BoxList;
+            List<EffortPoint> effortPoints = project.Efforts;
+            List<CableTotal> cables = project.CableTotals;
+            int legacyMarkers = project.LegacyMarkers;
 
             string title = Path.GetFileNameWithoutExtension(doc.Name);
             string? path = CadHelpers.AskSavePath("Salvar Relatório do Projeto", $"Relatorio_{title}.xlsx", "Planilha do Excel (*.xlsx)|*.xlsx");
@@ -118,7 +52,7 @@ namespace FiberPlugin.Commands
             WriteBoxes(workbook, boxes, poles, utm);
             WriteEfforts(workbook, effortPoints);
             WriteCables(workbook, cables);
-            WriteTableA(workbook, occupied, boxes, CompanyInfo.Load(out _), utm);
+            WriteTableA(workbook, project.Occupied, boxes, CompanyInfo.Load(out _), utm);
 
             try
             {
@@ -325,8 +259,5 @@ namespace FiberPlugin.Commands
         }
 
         private static double? Round(double? value, int digits) => value.HasValue ? Math.Round(value.Value, digits) : (double?)null;
-
-        private static string Key(Autodesk.AutoCAD.Geometry.Point3d p) =>
-            Math.Round(p.X, 2).ToString(CultureInfo.InvariantCulture) + ";" + Math.Round(p.Y, 2).ToString(CultureInfo.InvariantCulture);
     }
 }

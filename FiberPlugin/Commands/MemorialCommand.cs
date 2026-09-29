@@ -12,9 +12,9 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Gera o Memorial Descritivo em PDF para a concessionária: capa, ofício, dados da empresa, percurso,
-    /// cabos e postes levantados do desenho, e as figuras de instalação.
-    /// Percurso e endereço da obra ficam gravados no DWG para a próxima vez.
+    /// Gera o Memorial Descritivo em PDF para a concessionária (conteúdo do item 16.2 da NDU 009): capa, ofício,
+    /// dados da empresa e do contrato, cabos, postes e pontos de fixação, cálculo de esforços e figuras.
+    /// Os dados do projeto digitados na janela ficam gravados no DWG para a próxima vez.
     /// </summary>
     public class MemorialCommand
     {
@@ -36,30 +36,33 @@ namespace FiberPlugin.Commands
                 return;
             }
 
-            MemorialData data = Collect(db);
-            data.Company = company;
+            ProjectData project = ProjectData.Collect(db, CableProvider.GetCables());
+            MemorialData data = Build(db, project, company);
             if (data.PoleCount == 0) ed.WriteMessage("\n[AVISO]: Nenhum poste no desenho.");
             if (data.Cables.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum cabo lançado no desenho.");
+            if (data.Efforts.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum esforço calculado: rode o Esforço no Percurso antes, para o memorial trazer a tabela de esforços.");
 
             // Dados do projeto (sugere os da última vez neste desenho)
-            TypedValue[]? saved = CadHelpers.ReadDrawingRecord(db, DictionaryKey);
-            string savedRoute = saved?.Length > 0 ? saved[0].Value as string ?? "" : "";
-            string savedAddress = saved?.Length > 1 ? saved[1].Value as string ?? "" : "";
+            string[] saved = ReadSaved(db);
             string placeDate = Join(", ", company.City, DateTime.Today.ToString("d 'de' MMMM 'de' yyyy", Br));
-
-            using (var form = new UI.MemorialForm(Summary(data), savedRoute, savedAddress, placeDate))
+            using (var form = new UI.MemorialForm(Summary(data), saved[0], saved[1], placeDate, saved[2], saved[3], saved[4], saved[5]))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
                 data.Route = form.Route;
                 data.WorkAddress = form.WorkAddress;
                 data.PlaceAndDate = form.PlaceAndDate;
+                data.ContractNumber = form.ContractNumber;
+                data.ArtNumber = form.ArtNumber;
+                data.StartDate = form.StartDate;
+                data.Deadline = form.Deadline;
             }
+            if (data.ContractNumber.Length == 0) ed.WriteMessage("\n[AVISO]: Sem o número do contrato de uso mútuo, que a NDU 009 exige no memorial (item 16.2 a).");
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 CadHelpers.WriteDrawingRecord(tr, db, DictionaryKey,
-                    new TypedValue((int)DxfCode.Text, data.Route),
-                    new TypedValue((int)DxfCode.Text, data.WorkAddress));
+                    new[] { data.Route, data.WorkAddress, data.ContractNumber, data.ArtNumber, data.StartDate, data.Deadline }
+                        .Select(v => new TypedValue((int)DxfCode.Text, v)).ToArray());
                 tr.Commit();
             }
 
@@ -72,10 +75,9 @@ namespace FiberPlugin.Commands
 
             ed.WriteMessage("\n[INFO]: Gerando o PDF...");
             string html = Path.Combine(Path.GetTempPath(), $"FiberPlugin-memorial-{Guid.NewGuid():N}.html");
-            string? assets = PluginPaths.DataFile(MemorialDocument.AssetsFolder);
             try
             {
-                File.WriteAllText(html, MemorialDocument.Html(data, assets), new System.Text.UTF8Encoding(false));
+                File.WriteAllText(html, MemorialDocument.Html(data, PluginPaths.DataFile(MemorialDocument.AssetsFolder)), new System.Text.UTF8Encoding(false));
                 error = PdfPrinter.Print(html, pdf);
             }
             finally
@@ -100,19 +102,17 @@ namespace FiberPlugin.Commands
             }
         }
 
-        /// <summary>Postes (por tipo), CTO/CEO e cabos do Model.</summary>
-        private static MemorialData Collect(Database db)
+        /// <summary>Converte o que foi levantado do desenho nos valores do memorial.</summary>
+        private static MemorialData Build(Database db, ProjectData project, CompanyInfo company)
         {
-            var data = new MemorialData();
-            List<CableModel> catalog = CableProvider.GetCables();
+            Traction traction = project.Traction;
+            UtmSettings? utm = UtmZone.Get(db);
 
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            return new MemorialData
             {
-                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
-
-                List<PoleInfo> poles = Poles.Collect(tr, modelSpace);
-                data.PoleCount = poles.Count;
-                data.PoleTypes = poles
+                Company = company,
+                PoleCount = project.PoleList.Count,
+                PoleTypes = project.PoleList
                     .GroupBy(p => p.Data?.Designation ?? "Sem modelo")
                     .OrderByDescending(g => g.Count())
                     .Select(g =>
@@ -123,16 +123,56 @@ namespace FiberPlugin.Commands
                             : $"{m.TypeName} · {m.HeightM.ToString("0.#", Br)} m · {m.EffortDaN.ToString("0", Br)} daN";
                         return (g.Key, description, g.Count());
                     })
-                    .ToList();
+                    .ToList(),
+                CtoCount = project.BoxList.Count(b => b.Data.Kind == BlockCategories.Cto),
+                CeoCount = project.BoxList.Count(b => b.Data.Kind == BlockCategories.Ceo),
+                FixationPoints = project.Occupied.Count,
+                Cables = project.CableTotals.Select(t =>
+                {
+                    double maxSpan = project.MaxSpan(t.Name);
+                    return new MemorialCable
+                    {
+                        Description = t.Description,
+                        Name = t.Name,
+                        Fibers = t.Model?.Fibers,
+                        WeightKgKm = t.Model?.WeightKgKm ?? 0,
+                        DiameterMm = t.Model?.DiameterMm,
+                        Runs = t.Runs,
+                        Length = t.Length,
+                        MaxSpan = maxSpan,
+                        MaxTension = t.Model != null ? traction.Tension(t.Model, maxSpan) : 0,
+                        TractionSource = t.Model != null ? traction.Describe(t.Model) : "Cabo fora da planilha"
+                    };
+                }).ToList(),
+                Efforts = project.Efforts.Select(e => new MemorialEffort
+                {
+                    Pole = e.Pole?.Number ?? "Sem poste",
+                    Structure = e.Pole?.Data?.Designation ?? e.Pole?.Name ?? "",
+                    Situation = e.Marker.Situation,
+                    CableKgf = e.Marker.Kgf,
+                    AngleDeg = e.Marker.AngleDeg,
+                    TopKgf = e.Load.TopKgf,
+                    ExistingKgf = e.Load.ExistingKgf,
+                    TotalKgf = e.Load.TotalKgf,
+                    NominalKgf = e.Load.NominalKgf,
+                    Usage = e.Load.Usage,
+                    Result = e.Load.Result
+                }).ToList(),
+                AttachHeightM = traction.Settings.AttachHeightM,
+                TractionMethod = traction.UsesTable ? traction.Settings.MethodText : new CalcSettings { UseNormTable = false }.MethodText,
+                CoordinateSystem = utm != null
+                    ? $"UTM SIRGAS 2000, zona {utm.Zone} {(utm.South ? "Sul" : "Norte")}"
+                    : "UTM SIRGAS 2000 (zona não definida no desenho)"
+            };
+        }
 
-                List<BoxInfo> boxes = Boxes.Collect(tr, modelSpace);
-                data.CtoCount = boxes.Count(b => b.Data.Kind == BlockCategories.Cto);
-                data.CeoCount = boxes.Count(b => b.Data.Kind == BlockCategories.Ceo);
-
-                data.Cables = CableDrawing.Totals(tr, modelSpace, catalog);
-                tr.Commit();
-            }
-            return data;
+        /// <summary>Percurso, endereço, contrato, ART, início e prazo gravados da última vez (vazios se não houver).</summary>
+        private static string[] ReadSaved(Database db)
+        {
+            TypedValue[]? values = CadHelpers.ReadDrawingRecord(db, DictionaryKey);
+            var saved = new string[6];
+            for (int i = 0; i < saved.Length; i++) saved[i] = values != null && values.Length > i ? values[i].Value as string ?? "" : "";
+            return saved;
         }
 
         /// <summary>"223 postes · 8.999 m de cabo · 18 CTO · 2 CEO" para o cabeçalho da janela.</summary>
@@ -140,7 +180,8 @@ namespace FiberPlugin.Commands
             $"{d.PoleCount} poste(s)",
             $"{Math.Round(d.CableLength).ToString("N0", Br)} m de cabo",
             d.CtoCount > 0 ? $"{d.CtoCount} CTO" : "",
-            d.CeoCount > 0 ? $"{d.CeoCount} CEO" : "");
+            d.CeoCount > 0 ? $"{d.CeoCount} CEO" : "",
+            $"{d.Efforts.Count} esforço(s)");
 
         private static string Join(string separator, params string[] parts) => string.Join(separator, parts.Where(p => p.Length > 0));
     }

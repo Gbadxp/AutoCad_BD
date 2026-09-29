@@ -5,61 +5,102 @@ using System.Text;
 
 namespace FiberPlugin.Core
 {
-    /// <summary>Dados do projeto para o Memorial Descritivo.</summary>
+    /// <summary>Um tipo de cabo do projeto, com os dados mecânicos (item 16.2 d da NDU 009).</summary>
+    public sealed class MemorialCable
+    {
+        public string Description { get; set; } = "";   // Nome completo da planilha
+        public string Name { get; set; } = "";          // Nome curto
+        public int? Fibers { get; set; }
+        public double WeightKgKm { get; set; }
+        public double? DiameterMm { get; set; }
+        public int Runs { get; set; }
+        public double Length { get; set; }
+        public double MaxSpan { get; set; }
+        public double MaxTension { get; set; }           // Tração no maior vão, em kgf
+        public string TractionSource { get; set; } = "";
+    }
+
+    /// <summary>Esforço resultante num poste (intensidade, direção e sentido), já comparado com o nominal.</summary>
+    public sealed class MemorialEffort
+    {
+        public string Pole { get; set; } = "";
+        public string Structure { get; set; } = "";
+        public string Situation { get; set; } = "";
+        public double CableKgf { get; set; }
+        public double AngleDeg { get; set; }
+        public double? TopKgf { get; set; }
+        public double ExistingKgf { get; set; }
+        public double TotalKgf { get; set; }
+        public double? NominalKgf { get; set; }
+        public double? Usage { get; set; }
+        public string Result { get; set; } = "";
+    }
+
+    /// <summary>Dados do projeto para o Memorial Descritivo (valores prontos, sem objetos do AutoCAD).</summary>
     public sealed class MemorialData
     {
         public CompanyInfo Company { get; set; } = null!;
         public string Route { get; set; } = "";          // Percurso da rede (também vai na plaqueta)
         public string WorkAddress { get; set; } = "";    // Endereço da obra
         public string PlaceAndDate { get; set; } = "";   // Ex.: Porto Velho/RO, 29 de setembro de 2026
+        public string ContractNumber { get; set; } = ""; // Contrato de uso mútuo (obrigatório na NDU 009)
+        public string ArtNumber { get; set; } = "";
+        public string StartDate { get; set; } = "";      // Início previsto da obra
+        public string Deadline { get; set; } = "";       // Prazo de execução
 
         public int PoleCount { get; set; }
         public List<(string Type, string Description, int Count)> PoleTypes { get; set; } = new List<(string, string, int)>();
         public int CtoCount { get; set; }
         public int CeoCount { get; set; }
-        public List<CableTotal> Cables { get; set; } = new List<CableTotal>();
+        public int FixationPoints { get; set; }          // Um por poste ocupado pelos cabos do projeto
+        public List<MemorialCable> Cables { get; set; } = new List<MemorialCable>();
+        public List<MemorialEffort> Efforts { get; set; } = new List<MemorialEffort>();
+
+        public double AttachHeightM { get; set; }
+        public string TractionMethod { get; set; } = "";
+        public string CoordinateSystem { get; set; } = "";
 
         public double CableLength => Cables.Sum(c => c.Length);
     }
 
     /// <summary>
-    /// Monta o Memorial Descritivo em HTML (folhas A4 prontas para virar PDF): capa, ofício à concessionária,
-    /// memorial (empresa, objetivo, percurso, cabos, posteamento) e figuras de instalação.
-    /// O logo e as figuras vêm de Dados\Memorial e vão embutidos no arquivo.
+    /// Monta o Memorial Descritivo em HTML (folhas A4 prontas para virar PDF) com o conteúdo pedido no item 16.2
+    /// da NDU 009: capa, ofício, dados da empresa e do contrato, percurso, cabos, posteamento e pontos de fixação,
+    /// cálculo de esforços (parâmetros, dados mecânicos e resultante por poste), figuras de instalação, prazo,
+    /// endereço da obra e responsável técnico. O logo e as figuras vêm de Dados\Memorial.
     /// </summary>
     public static class MemorialDocument
     {
         public const string AssetsFolder = "Memorial";
 
+        private const int EffortRowsPerPage = 24;
         private static readonly CultureInfo Br = new CultureInfo("pt-BR");
 
         public static string Html(MemorialData d, string? assetsDir)
         {
-            CompanyInfo c = d.Company;
             string logo = Image(assetsDir, "logo.png");
 
-            var pages = new List<string>
-            {
-                CoverPage(d, logo),
-                LetterPage(d),
-                GeneralPage(d),
-                NetworkPage(d),
-                FigurePage("6.1", "Figura A — Afastamentos mínimos",
-                    "Afastamentos mínimos entre condutores da rede de telecomunicações e da rede de distribuição de energia elétrica ao longo do vão.",
-                    Figure(assetsDir, "fig-a-afastamentos.png", "Figura A — Afastamentos mínimos ao longo do vão", 175)),
-                PlatePage(d, assetsDir),
-                FigurePage("6.3", "Espaçamento mínimo entre poste e reserva técnica",
-                    "Reserva técnica de cabo de fibra óptica no meio do vão.",
-                    Figure(assetsDir, "fig-c-reserva-tecnica.jpg", "Figura C — Reserva técnica no meio do vão", 175)),
-                FigurePage("6.4", "Afastamento mínimo em alta tensão dupla",
-                    "Distância de compartilhamento de alta tensão dupla em relação aos circuitos de baixa, média tensão e telecomunicações.",
-                    Figure(assetsDir, "fig-d-alta-tensao.jpg", "Figura D — Alta tensão dupla", 175)),
-                FigurePage("6.5", "Espaçamento mínimo em relação ao aterramento",
-                    "Espaçamentos mínimos e aterramento dos equipamentos da ocupante nos postes.",
-                    Figure(assetsDir, "fig-e-aterramento.jpg", "Figura E — Aterramento dos equipamentos", 112)) +
-                    Section("7", "Endereço da obra", $"""<div class="card soft">{E(d.WorkAddress)}</div>""") +
-                    Signature(c)
-            };
+            var pages = new List<string> { CoverPage(d, logo), LetterPage(d), GeneralPage(d), NetworkPage(d), CalculationPage(d) };
+            pages.AddRange(EffortPages(d));
+            pages.Add(FigurePage("7.1", "Figura A — Afastamentos mínimos",
+                          "Afastamentos mínimos entre condutores da rede de telecomunicações e da rede de distribuição de energia elétrica ao longo do vão.",
+                          Figure(assetsDir, "fig-a-afastamentos.png", "Figura A — Afastamentos mínimos ao longo do vão", 140),
+                          """
+                          <p>Os cabos ópticos serão instalados de forma aérea, fixados aos postes na faixa de ocupação reservada às
+                          redes de telecomunicações, com as ferragens adequadas. A ordem do número de fibras segue o definido no
+                          projeto. As figuras desta seção apresentam os afastamentos e espaçamentos mínimos a respeitar.</p>
+                          """));
+            pages.Add(PlatePage(d, assetsDir, logo));
+            pages.Add(FigurePage("7.3", "Espaçamento mínimo entre poste e reserva técnica",
+                          "Reserva técnica de cabo de fibra óptica no meio do vão.",
+                          Figure(assetsDir, "fig-c-reserva-tecnica.jpg", "Figura C — Reserva técnica no meio do vão", 175)));
+            pages.Add(FigurePage("7.4", "Afastamento mínimo em alta tensão dupla",
+                          "Distância de compartilhamento de alta tensão dupla em relação aos circuitos de baixa, média tensão e telecomunicações.",
+                          Figure(assetsDir, "fig-d-alta-tensao.jpg", "Figura D — Alta tensão dupla", 175)));
+            pages.Add(FigurePage("7.5", "Espaçamento mínimo em relação ao aterramento",
+                          "Espaçamentos mínimos e aterramento dos equipamentos da ocupante nos postes.",
+                          Figure(assetsDir, "fig-e-aterramento.jpg", "Figura E — Aterramento dos equipamentos", 175)));
+            pages.Add(ClosingPage(d));
 
             var html = new StringBuilder();
             html.Append($$"""
@@ -97,8 +138,8 @@ namespace FiberPlugin.Core
                   </div>
                   <div class="facts">
                     {{Fact("Solicitante", c.LegalName, c.Cnpj.Length > 0 ? "CNPJ " + c.Cnpj : null)}}
-                    {{Fact("Concessionária", c.Utility, c.Department)}}
-                    {{Fact("Responsável técnico", c.Representative, c.Crea.Length > 0 ? "CREA " + c.Crea : null)}}
+                    {{Fact("Concessionária", c.Utility, d.ContractNumber.Length > 0 ? "Contrato de uso mútuo nº " + d.ContractNumber : c.Department)}}
+                    {{Fact("Responsável técnico", c.Representative, Join(" · ", c.Crea.Length > 0 ? "CREA " + c.Crea : "", d.ArtNumber.Length > 0 ? "ART " + d.ArtNumber : ""))}}
                     {{Fact("Local e data", d.PlaceAndDate)}}
                   </div>
                   <div class="band">
@@ -109,8 +150,8 @@ namespace FiberPlugin.Core
                     </svg>
                     <div class="band-kpis">
                       <div><b>{{N(d.PoleCount)}}</b><span>postes</span></div>
+                      <div><b>{{N(d.FixationPoints)}}</b><span>pontos de fixação</span></div>
                       <div><b>{{M(d.CableLength)}}</b><span>de cabo óptico</span></div>
-                      <div><b>{{d.Cables.Count}}</b><span>tipo(s) de cabo</span></div>
                       {{(d.CtoCount + d.CeoCount > 0 ? $"<div><b>{d.CtoCount} / {d.CeoCount}</b><span>CTO / CEO</span></div>" : "")}}
                     </div>
                   </div>
@@ -135,7 +176,9 @@ namespace FiberPlugin.Core
                 if (c.RepresentativeAddress.Length > 0) text.Append($", residente e domiciliado à {E(c.RepresentativeAddress)}");
             }
             text.Append(", encaminha em anexo o <b>projeto de esforço mecânico para aprovação e ocupação de postes</b>");
+            if (d.ContractNumber.Length > 0) text.Append($", referente ao <b>contrato de uso mútuo nº {E(d.ContractNumber)}</b>");
             if (c.Crea.Length > 0) text.Append($", com registro no CREA/RO (Conselho Regional de Engenharia e Agronomia) sob o <b>nº {E(c.Crea)}</b>");
+            if (d.ArtNumber.Length > 0) text.Append($" e <b>ART nº {E(d.ArtNumber)}</b>");
             text.Append(", e a descrição (data sheet) dos suprimentos empregados, com o objetivo apresentado neste memorial.");
 
             return $$"""
@@ -151,19 +194,17 @@ namespace FiberPlugin.Core
                 <p class="letter">{{text}}</p>
                 <p class="letter">Colocamo-nos à disposição para quaisquer esclarecimentos.</p>
                 <p class="greeting">Atenciosamente,</p>
-                {{Signature(c)}}
+                {{Signature(d)}}
                 """;
         }
 
         private static string GeneralPage(MemorialData d)
         {
             CompanyInfo c = d.Company;
-            string Row(string label, string value) => value.Length == 0 ? "" : $"<dt>{label}</dt><dd>{E(value)}</dd>";
-
             string cables = d.Cables.Count == 0
                 ? """<div class="card soft muted">Nenhum cabo lançado no desenho.</div>"""
                 : "<ul class=\"cables\">" + string.Concat(d.Cables.Select(k =>
-                    $"""<li><span class="dot"></span><b>Cabo óptico {E(k.Description)}</b>{(k.Model != null ? $"""<span class="muted"> · {E(k.Name)}</span>""" : "")}</li>""")) + "</ul>";
+                    $"""<li><span class="dot"></span><b>Cabo óptico {E(k.Description)}</b><span class="muted"> · {E(k.Name)}</span></li>""")) + "</ul>";
 
             return
                 """<h1 class="doc-title">Memorial Descritivo</h1>""" +
@@ -174,6 +215,9 @@ namespace FiberPlugin.Core
                       {Row("CNPJ", c.Cnpj)}
                       {Row("Telefone", c.Phone)}
                       {Row("E-mail", c.Email)}
+                      {Row("Contrato de uso mútuo", d.ContractNumber)}
+                      {Row("Responsável técnico", Join(" · ", c.Representative, c.Crea.Length > 0 ? "CREA " + c.Crea : ""))}
+                      {Row("ART", d.ArtNumber)}
                     </dl></div>
                     """) +
                 Section("2", "Objetivo", """
@@ -182,8 +226,7 @@ namespace FiberPlugin.Core
                     e seus subprodutos.</p>
                     """) +
                 Section("3", "Percurso da rede", $"""<div class="route">{E(d.Route)}</div>""") +
-                Section("4", "Cabo óptico", cables) +
-                Section("5", "Posteamento e cabos a serem utilizados", Kpis(d));
+                Section("4", "Cabo óptico", cables);
         }
 
         private static string NetworkPage(MemorialData d)
@@ -202,34 +245,109 @@ namespace FiberPlugin.Core
                       <thead><tr><th>Cabo óptico projetado</th><th>Nome curto</th><th class="num">Lances</th><th class="num">Metragem</th></tr></thead>
                       <tbody>{cableRows}<tr class="total"><td colspan="3">Total de cabo óptico</td><td class="num">{M(d.CableLength)}</td></tr></tbody>
                     </table>
-                    <div class="totals">
-                      <div><span>Total de postes para pagar aluguel à {E(Short(d.Company.Utility))}</span><b>{N(d.PoleCount)}</b></div>
+                    <div class="totals three">
+                      <div><span>Postes para aluguel à {E(Short(d.Company.Utility))}</span><b>{N(d.PoleCount)}</b></div>
+                      <div><span>Pontos de fixação a acrescentar</span><b>{N(d.FixationPoints)}</b></div>
                       <div><span>Total de cabo óptico</span><b>{M(d.CableLength)}</b></div>
                     </div>
-                    """) +
-                Section("6", "Detalhamento de instalação", """
-                    <p>Os cabos ópticos serão instalados de forma aérea, fixados aos postes, com o uso das ferragens adequadas,
-                    essenciais para uma boa organização no lançamento. A ordem do número de fibras segue o definido no projeto.</p>
-                    <p>As figuras a seguir apresentam os afastamentos e espaçamentos mínimos a serem respeitados na instalação.</p>
+                    <p class="muted note">Resumo de pontos de fixação: {N(d.FixationPoints)} a acrescentar (um por poste ocupado pelos cabos do
+                    projeto, NDU 009 item 17.5 i), nenhum retirado.</p>
                     """);
         }
 
-        private static string PlatePage(MemorialData d, string? assetsDir)
+        private static string CalculationPage(MemorialData d)
+        {
+            string cableRows = string.Concat(d.Cables.Select(k => $"""
+                <tr><td><b>{E(k.Name)}</b></td><td class="num">{(k.Fibers?.ToString(Br) ?? "—")}</td><td class="num">{k.WeightKgKm.ToString("0.#", Br)}</td>
+                <td class="num">{(k.DiameterMm?.ToString("0.#", Br) ?? "—")}</td><td class="num">{k.MaxSpan.ToString("N1", Br)} m</td>
+                <td class="num">{k.MaxTension.ToString("N1", Br)}</td><td>{E(k.TractionSource)}</td></tr>
+                """));
+
+            int ok = d.Efforts.Count(e => e.Result == "OK");
+            int exceeded = d.Efforts.Count(e => e.Result == "EXCEDIDO");
+            MemorialEffort? worst = d.Efforts.Where(e => e.Usage != null).OrderByDescending(e => e.Usage).FirstOrDefault();
+            string summary = d.Efforts.Count == 0
+                ? """<div class="callout warn">Nenhum esforço calculado no desenho: rode o Esforço no Percurso antes de gerar o memorial.</div>"""
+                : $"""
+                  <div class="totals four">
+                    <div><span>Postes calculados</span><b>{N(d.Efforts.Count)}</b></div>
+                    <div><span>Dentro do nominal</span><b>{N(ok)}</b></div>
+                    <div class="{(exceeded > 0 ? "bad" : "")}"><span>Acima do nominal</span><b>{N(exceeded)}</b></div>
+                    <div><span>Maior utilização</span><b>{(worst != null ? $"{worst.Usage:F0}%" : "—")}</b>{(worst != null ? $"<small>{E(worst.Pole)}</small>" : "")}</div>
+                  </div>
+                  """;
+
+            return Section("6", "Cálculo de esforços", $"""
+                <h3>6.1 Parâmetros de cálculo</h3>
+                <div class="card"><dl class="grid">
+                  {Row("Normas", "NDU 009 (Energisa), ABNT NBR 15688, 15992 e 16615")}
+                  {Row("Tração dos cabos", d.TractionMethod)}
+                  {Row("Flecha", "1% do vão (limite da NDU 009, item 7.2)")}
+                  {Row("Altura de fixação", $"{d.AttachHeightM.ToString("0.00", Br)} m do solo (faixa de ocupação de 5,20 a 5,70 m)")}
+                  {Row("Transferência", "Esforço referido a 20 cm do topo: Ft = F × hc / h, sendo h = L − e (altura útil) e e = L/10 + 0,60 m (engastamento), conforme Anexo A")}
+                  {Row("Esforço existente", "Somado ao do projeto na comparação com o nominal do poste (item 8.1)")}
+                  {Row("Coordenadas", d.CoordinateSystem)}
+                </dl></div>
+                <h3>6.2 Dados mecânicos dos cabos</h3>
+                <table class="small">
+                  <thead><tr><th>Cabo</th><th class="num">Fibras</th><th class="num">Peso (kg/km)</th><th class="num">Diâmetro (mm)</th>
+                  <th class="num">Maior vão</th><th class="num">Tração (kgf)</th><th>Origem da tração</th></tr></thead>
+                  <tbody>{cableRows}</tbody>
+                </table>
+                <p class="muted note">Tração de projeto no maior vão de cada cabo. Características completas no datasheet do fabricante.</p>
+                <h3>6.3 Resumo dos esforços</h3>
+                {summary}
+                """);
+        }
+
+        /// <summary>Tabela com a resultante em cada poste, repartida em quantas páginas forem precisas.</summary>
+        private static IEnumerable<string> EffortPages(MemorialData d)
+        {
+            for (int start = 0; start < d.Efforts.Count; start += EffortRowsPerPage)
+            {
+                string rows = string.Concat(d.Efforts.Skip(start).Take(EffortRowsPerPage).Select(e => $"""
+                    <tr><td><b>{E(e.Pole)}</b></td><td>{E(e.Structure)}</td><td>{E(e.Situation)}</td>
+                    <td class="num">{e.CableKgf.ToString("N2", Br)}</td><td class="num">{e.AngleDeg.ToString("0", Br)}°</td>
+                    <td class="num">{(e.TopKgf?.ToString("N2", Br) ?? "—")}</td><td class="num">{e.ExistingKgf.ToString("N2", Br)}</td>
+                    <td class="num"><b>{e.TotalKgf.ToString("N2", Br)}</b></td><td class="num">{(e.NominalKgf?.ToString("N0", Br) ?? "—")}</td>
+                    <td class="num">{(e.Usage != null ? e.Usage.Value.ToString("0", Br) + "%" : "—")}</td>
+                    <td><span class="badge {(e.Result == "OK" ? "ok" : e.Result == "EXCEDIDO" ? "bad" : "")}">{E(e.Result)}</span></td></tr>
+                    """));
+
+                string title = start == 0 ? "6.4 Esforço resultante por poste" : "6.4 Esforço resultante por poste (continuação)";
+                yield return $"""
+                    <h3 class="page-title">{title}</h3>
+                    <p class="muted fig-desc">Intensidade (kgf), direção (ângulo da resultante, anti-horário a partir do leste) e sentido
+                    indicados pela seta de cada poste no desenho. Esforço do projeto transferido a 20 cm do topo.</p>
+                    <table class="small">
+                      <thead><tr><th>Poste</th><th>Estrutura</th><th>Situação</th><th class="num">No cabo</th><th class="num">Âng.</th>
+                      <th class="num">Topo</th><th class="num">Exist.</th><th class="num">Total</th><th class="num">Nominal</th>
+                      <th class="num">Uso</th><th>Resultado</th></tr></thead>
+                      <tbody>{rows}</tbody>
+                    </table>
+                    """;
+            }
+        }
+
+        private static string PlatePage(MemorialData d, string? assetsDir, string logo)
         {
             CompanyInfo c = d.Company;
             string plate = $"""
                 <div class="plate">
                   <span class="hole l"></span><span class="hole r"></span>
-                  <div class="t1">{E(c.PlateName.Length > 0 ? c.PlateName : c.LegalName)}</div>
-                  <div class="t2">TIPO DE CABO: FIBRA ÓPTICA</div>
-                  <div class="t2">ROTA: {E(d.Route.ToUpper(Br))}</div>
-                  {(c.EmergencyPhone.Length > 0 ? $"""<div class="t2">EMERGÊNCIA: {E(c.EmergencyPhone)}</div>""" : "")}
+                  {(logo.Length > 0 ? $"""<img class="plate-logo" src="{logo}" alt="">""" : "")}
+                  <div>
+                    <div class="t1">{E(c.PlateName.Length > 0 ? c.PlateName : c.LegalName)}</div>
+                    <div class="t2">TIPO DE CABO: FIBRA ÓPTICA</div>
+                    <div class="t2">ROTA: {E(d.Route.ToUpper(Br))}</div>
+                    {(c.EmergencyPhone.Length > 0 ? $"""<div class="t2">EMERGÊNCIA: {E(c.EmergencyPhone)}</div>""" : "")}
+                  </div>
                 </div>
                 """;
 
-            return FigureTitle("6.2", "Figura B — Plaqueta de identificação de cabos",
-                       "Plaqueta instalada no cabo, junto ao poste, com os dados da ocupante.") +
-                   Figure(assetsDir, "fig-b-plaqueta.png", null, 88) + plate +
+            return FigureTitle("7.2", "Figura B — Plaqueta de identificação de cabos",
+                       "Plaqueta instalada no cabo, junto a cada poste, com logomarca, telefone e tipo do cabo da ocupante.") +
+                   Figure(assetsDir, "fig-b-plaqueta.png", null, 80) + plate +
                    """
                    <div class="specs">
                      <div><span>Fundo</span><b>Amarelo</b></div>
@@ -237,13 +355,44 @@ namespace FiberPlugin.Core
                      <div><span>Dimensões da placa</span><b>90 × 40 × 3 mm</b></div>
                      <div><span>Material</span><b>PVC acrílico</b></div>
                    </div>
-                   <div class="callout"><b>Obs.:</b> é obrigatória a colocação de uma plaqueta de identificação, presa no cabo
-                   com fio de espinar e fixada a 300 mm do poste.</div>
+                   <div class="callout"><b>Obs.:</b> é obrigatória a plaqueta de identificação em todos os postes (NDU 009, itens 8 b
+                   e 17.1), presa ao cabo com fio de espinar nas duas extremidades e fixada a 300 mm do poste (a norma admite
+                   de 200 a 400 mm).</div>
                    """;
         }
 
-        private static string FigurePage(string number, string title, string description, string figure) =>
-            FigureTitle(number, title, description) + figure;
+        private static string FigurePage(string number, string title, string description, string figure, string intro = "") =>
+            FigureTitle(number, title, description) + intro + figure;
+
+        private static string ClosingPage(MemorialData d)
+        {
+            CompanyInfo c = d.Company;
+            string schedule = d.StartDate.Length == 0 && d.Deadline.Length == 0
+                ? """
+                  <p>A obra será executada após a aprovação do projeto e a oficialização do contrato de uso mútuo, conforme
+                  cronograma acordado com a concessionária.</p>
+                  """
+                : $"""
+                  <div class="card"><dl class="grid">
+                    {Row("Início previsto", d.StartDate)}
+                    {Row("Prazo de execução", d.Deadline)}
+                  </dl></div>
+                  <p class="note muted">A execução começa após a aprovação do projeto e a oficialização do contrato de uso mútuo,
+                  conforme cronograma acordado com a concessionária.</p>
+                  """;
+
+            return Section("8", "Prazo e cronograma", schedule) +
+                   Section("9", "Endereço da obra", $"""<div class="card soft">{E(d.WorkAddress)}</div>""") +
+                   Section("10", "Responsável técnico", $"""
+                       <div class="card"><dl class="grid">
+                         {Row("Engenheiro", c.Representative)}
+                         {Row("CREA", c.Crea)}
+                         {Row("ART", d.ArtNumber)}
+                         {Row("Empresa", c.LegalName)}
+                       </dl></div>
+                       """) +
+                   Signature(d);
+        }
 
         // ---------- Blocos ----------
 
@@ -274,34 +423,28 @@ namespace FiberPlugin.Core
             """;
 
         private static string FigureTitle(string number, string title, string description) => $"""
-            <div class="eyebrow">6 · Detalhamento de instalação</div>
+            <div class="eyebrow">7 · Detalhamento de instalação</div>
             <h2 class="fig-title"><span class="tag">{number}</span>{E(title)}</h2>
             <p class="muted fig-desc">{E(description)}</p>
             """;
 
-        private static string Kpis(MemorialData d)
+        private static string Row(string label, string value) => value.Length == 0 ? "" : $"<dt>{label}</dt><dd>{E(value)}</dd>";
+
+        private static string Signature(MemorialData d)
         {
-            var tiles = new List<string>
-            {
-                $"""<div class="kpi"><div class="v">{N(d.PoleCount)}</div><div class="l">Postes a ocupar</div></div>""",
-                $"""<div class="kpi green"><div class="v">{M(d.CableLength)}</div><div class="l">Cabo óptico projetado</div></div>"""
-            };
-            if (d.CtoCount > 0) tiles.Add($"""<div class="kpi light"><div class="v">{N(d.CtoCount)}</div><div class="l">CTO</div></div>""");
-            if (d.CeoCount > 0) tiles.Add($"""<div class="kpi light"><div class="v">{N(d.CeoCount)}</div><div class="l">CEO</div></div>""");
+            CompanyInfo c = d.Company;
+            if (c.Representative.Length == 0) return "";
+            string title = Join(" · ", "Responsável técnico", c.Crea.Length > 0 ? "CREA " + c.Crea : "");
             return $"""
-                <div class="kpis" style="grid-template-columns: repeat({tiles.Count}, 1fr)">{string.Concat(tiles)}</div>
-                <p class="muted note">Quantidades levantadas do desenho do projeto. Detalhamento na página seguinte.</p>
+                <div class="signature">
+                  <div class="line"></div>
+                  <b>{E(c.Representative)}</b>
+                  <div>{E(title)}</div>
+                  {(d.ArtNumber.Length > 0 ? $"<div>ART {E(d.ArtNumber)}</div>" : "")}
+                  <div class="muted">{E(c.LegalName)}</div>
+                </div>
                 """;
         }
-
-        private static string Signature(CompanyInfo c) => c.Representative.Length == 0 ? "" : $"""
-            <div class="signature">
-              <div class="line"></div>
-              <b>{E(c.Representative)}</b>
-              <div>{E(c.Crea.Length > 0 ? "Responsável técnico · CREA " + c.Crea : "Responsável técnico")}</div>
-              <div class="muted">{E(c.LegalName)}</div>
-            </div>
-            """;
 
         /// <summary>Figura de Dados\Memorial embutida; sem o arquivo, um aviso no lugar.</summary>
         private static string Figure(string? assetsDir, string file, string? caption, int maxHeightMm)
@@ -376,12 +519,6 @@ namespace FiberPlugin.Core
             ul.cables li { display: flex; align-items: center; gap: 3mm; padding: 2.5mm 4mm; border: .3mm solid #E3E8EE;
                            border-radius: 2mm; margin-bottom: 2mm; }
             ul.cables .dot { width: 3mm; height: 3mm; border-radius: 50%; background: #1B6FA8; box-shadow: 0 0 0 1mm #DCEBF6; flex: none; }
-            .kpis { display: grid; gap: 4mm; }
-            .kpi { border-radius: 3mm; padding: 4.5mm 5mm; background: #0B4F75; color: #fff; }
-            .kpi.green { background: #12A04B; }
-            .kpi.light { background: #F4F7FA; color: #0B4F75; border: .3mm solid #E3E8EE; }
-            .kpi .v { font-size: 19pt; font-weight: 700; line-height: 1.15; }
-            .kpi .l { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .08em; opacity: .85; margin-top: 1mm; }
             .note { font-size: 8.5pt; margin-top: 3mm; }
 
             table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
@@ -406,8 +543,10 @@ namespace FiberPlugin.Core
             figcaption { margin-top: 3mm; font-size: 8.5pt; color: #6B7785; }
             .missing { padding: 20mm 0; color: #B4232C; }
 
-            .plate { width: 112mm; margin: 0 auto 6mm; background: #FFE500; border: .5mm solid #1A1A1A; border-radius: 1.5mm;
-                     padding: 7mm 6mm 6mm; text-align: center; position: relative; color: #111; font-weight: 700; line-height: 1.5; }
+            .plate { width: 130mm; margin: 0 auto 6mm; background: #FFE500; border: .5mm solid #1A1A1A; border-radius: 1.5mm;
+                     padding: 7mm 6mm 6mm; text-align: center; position: relative; color: #111; font-weight: 700; line-height: 1.5;
+                     display: flex; align-items: center; justify-content: center; gap: 5mm; }
+            .plate .plate-logo { height: 17mm; }
             .plate .hole { position: absolute; top: 2.5mm; width: 4.5mm; height: 4.5mm; border-radius: 50%; background: #fff; border: .3mm solid #333; }
             .plate .hole.l { left: 3mm; } .plate .hole.r { right: 3mm; }
             .plate .t1 { font-size: 15pt; margin-bottom: 1.5mm; }
@@ -415,6 +554,19 @@ namespace FiberPlugin.Core
             .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-bottom: 5mm; }
             .specs div { border: .3mm solid #E3E8EE; border-radius: 2mm; padding: 2.5mm 3mm; }
             .specs span { display: block; font-size: 7.5pt; color: #6B7785; text-transform: uppercase; letter-spacing: .04em; }
+            h3 { font-size: 11pt; color: #0B4F75; margin: 5mm 0 2.5mm; font-weight: 700; }
+            h3.page-title { font-size: 13pt; margin-top: 0; }
+            table.small { font-size: 8.2pt; }
+            table.small th { padding: 2mm 2mm; font-size: 6.8pt; }
+            table.small td { padding: 1.5mm 2mm; }
+            .badge { display: inline-block; padding: .3mm 2mm; border-radius: 1mm; font-size: 7.2pt; font-weight: 700; background: #EEF1F4; color: #6B7785; }
+            .badge.ok { background: #EAF6EF; color: #0B7A38; }
+            .badge.bad { background: #FDECEC; color: #B4232C; }
+            .totals.three { grid-template-columns: repeat(3, 1fr); }
+            .totals.four { grid-template-columns: repeat(4, 1fr); }
+            .totals div.bad { border-left-color: #B4232C; }
+            .totals small { display: block; font-size: 8pt; color: #6B7785; }
+            .callout.warn { border-left-color: #E8A33D; }
             .callout { border-left: 1.2mm solid #12A04B; background: #F4F7FA; padding: 3mm 4mm; border-radius: 0 2mm 2mm 0; font-size: 9.5pt; }
 
             .date { text-align: right; color: #6B7785; margin: 2mm 0 8mm; }

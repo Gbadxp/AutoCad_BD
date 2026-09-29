@@ -17,22 +17,17 @@ namespace FiberPlugin.Core
             string? browser = FindBrowser();
             if (browser == null) return "Microsoft Edge não encontrado neste computador.";
 
-            try
-            {
-                if (File.Exists(pdfPath)) File.Delete(pdfPath);
-            }
-            catch (IOException)
-            {
-                return $"Não foi possível substituir {Path.GetFileName(pdfPath)}. Se ele estiver aberto, feche-o e tente de novo.";
-            }
-
-            // Perfil temporário: não interfere no Edge que o usuário estiver usando
-            string profile = Path.Combine(Path.GetTempPath(), "FiberPlugin-pdf-" + Guid.NewGuid().ToString("N"));
+            // O navegador grava num arquivo temporário (perfil próprio, sem mexer no Edge do usuário);
+            // só no fim ele é copiado para o destino, que pode estar aberto num leitor de PDF
+            string work = Path.Combine(Path.GetTempPath(), "FiberPlugin-pdf-" + Guid.NewGuid().ToString("N"));
+            string profile = Path.Combine(work, "perfil");
+            string tempPdf = Path.Combine(work, "memorial.pdf");
+            Directory.CreateDirectory(work);
             var psi = new ProcessStartInfo(browser)
             {
                 Arguments = "--headless --disable-gpu --no-first-run --no-default-browser-check " +
                             "--no-pdf-header-footer --print-to-pdf-no-header " +
-                            $"--user-data-dir=\"{profile}\" --print-to-pdf=\"{pdfPath}\" \"{new Uri(htmlPath).AbsoluteUri}\"",
+                            $"--user-data-dir=\"{profile}\" --print-to-pdf=\"{tempPdf}\" \"{new Uri(htmlPath).AbsoluteUri}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -47,17 +42,23 @@ namespace FiberPlugin.Core
                         return "O navegador demorou demais para gerar o PDF.";
                     }
                 }
+                if (!File.Exists(tempPdf) || new FileInfo(tempPdf).Length == 0) return "O navegador não gerou o PDF.";
+
+                File.Copy(tempPdf, pdfPath, true);
+                return null;
             }
             catch (System.ComponentModel.Win32Exception ex)
             {
                 return $"Não foi possível abrir o navegador ({ex.Message}).";
             }
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return $"Não foi possível gravar {Path.GetFileName(pdfPath)}. Se ele estiver aberto, feche-o e tente de novo.";
+            }
             finally
             {
-                try { Directory.Delete(profile, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                try { Directory.Delete(work, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             }
-
-            return File.Exists(pdfPath) && new FileInfo(pdfPath).Length > 0 ? null : "O navegador não gerou o PDF.";
         }
 
         private static string? FindBrowser()
