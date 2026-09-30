@@ -106,17 +106,7 @@ namespace FiberPlugin.Commands
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
-
-                    BlockReference br = CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null, tag =>
-                    {
-                        if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return PoleData.NumberText(data.Number);
-                        if (CadHelpers.IsTag(tag, CadHelpers.NameTags)) return data.HeightEffort;
-                        return CadHelpers.CoordinateAttribute(tag, point, utm);
-                    });
-
-                    XDataTags.TagPole(tr, db, br, data);
-                    PoleLabels.Place(tr, db, space, br, data);
+                    PlacePole(tr, db, (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite), blockId, point, rotation, data, utm);
                     tr.Commit();
                 }
 
@@ -128,7 +118,22 @@ namespace FiberPlugin.Commands
             if (inserted > 0) ed.WriteMessage($"\n[INFO]: {inserted} poste(s) inserido(s).");
         }
 
-        private static PoleData? ChooseModel(List<PoleData> models)
+        /// <summary>Poste completo: bloco com atributos, dados gravados (XData) e texto de identificação.</summary>
+        internal static void PlacePole(Transaction tr, Database db, BlockTableRecord space, ObjectId blockId, Point3d point,
+            double rotation, PoleData data, UtmSettings? utm)
+        {
+            BlockReference br = CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null, tag =>
+            {
+                if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return PoleData.NumberText(data.Number);
+                if (CadHelpers.IsTag(tag, CadHelpers.NameTags)) return data.HeightEffort;
+                return CadHelpers.CoordinateAttribute(tag, point, utm);
+            });
+
+            XDataTags.TagPole(tr, db, br, data);
+            PoleLabels.Place(tr, db, space, br, data);
+        }
+
+        internal static PoleData? ChooseModel(List<PoleData> models)
         {
             using (var form = UI.Pickers.Pole(models, _lastModel))
             {
@@ -139,7 +144,7 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>Bloco DT ou CC do BLOCOS.dwg, já copiado para o desenho. ObjectId.Null se não houver.</summary>
-        private static ObjectId LoadBlock(Editor ed, Database db, string type)
+        internal static ObjectId LoadBlock(Editor ed, Database db, string type)
         {
             List<string> names = BlockCategories.Blocks(BlockCategories.Poles).Select(b => b.Name).ToList();
             string? blockName = PoleModels.BlockFor(type, names);

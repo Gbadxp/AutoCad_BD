@@ -245,6 +245,17 @@ namespace FiberPlugin.Core
             return res.Status == PromptStatus.None ? defaultValue : null;
         }
 
+        /// <summary>Pergunta qual arquivo abrir. Null se o usuário cancelar.</summary>
+        public static string? AskOpenPath(string title, string filter)
+        {
+            using (var ofd = new System.Windows.Forms.OpenFileDialog())
+            {
+                ofd.Filter = filter;
+                ofd.Title = title;
+                return ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK ? ofd.FileName : null;
+            }
+        }
+
         /// <summary>Pergunta onde salvar um arquivo. Null se o usuário cancelar.</summary>
         public static string? AskSavePath(string title, string defaultFileName, string filter)
         {

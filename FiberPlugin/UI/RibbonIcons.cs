@@ -84,6 +84,8 @@ namespace FiberPlugin.UI
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_ESCALA"] = PaintScale,
             ["FIBRA_ZONA_UTM"] = PaintUtm,
+            ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
+            ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
             ["FIBRA_ABRIR_PASTA"] = PaintFolder
         };
 
@@ -406,6 +408,31 @@ namespace FiberPlugin.UI
             dc.DrawLine(grid, new W.Point(3, 16), new W.Point(29, 16));
             dc.DrawLine(grid, new W.Point(4.5, 21), new W.Point(27.5, 21));
             dc.DrawRectangle(ink.Yellow, null, new W.Rect(16.8, 16.8, 5.2, 4.2)); // Zona destacada
+        }
+
+        /// <summary>Globo com marcador (Google Earth); a seta verde entra (importar) ou sai (exportar).</summary>
+        private static void PaintEarth(M.DrawingContext dc, Ink ink)
+        {
+            dc.DrawEllipse(ink.Blue, null, new W.Point(13, 17), 11, 11);
+            M.Pen grid = Ink.Pen(ink.White, 1.1);
+            dc.DrawEllipse(null, grid, new W.Point(13, 17), 4.5, 11);
+            dc.DrawLine(grid, new W.Point(2.5, 17), new W.Point(23.5, 17));
+            dc.DrawLine(grid, new W.Point(4, 11.5), new W.Point(22, 11.5));
+            dc.DrawLine(grid, new W.Point(4, 22.5), new W.Point(22, 22.5));
+            dc.DrawGeometry(ink.Red, Ink.Pen(ink.White, 0.8), G("M13,4 C9,4 8,7.5 9,9.5 L13,16 L17,9.5 C18,7.5 17,4 13,4 Z"));
+            dc.DrawEllipse(ink.White, null, new W.Point(13, 7.6), 1.5, 1.5);
+        }
+
+        private static void PaintKmlImport(M.DrawingContext dc, Ink ink)
+        {
+            PaintEarth(dc, ink);
+            Arrow(dc, ink.Green, 30, 4, 21.5, 12.5, 2.4);
+        }
+
+        private static void PaintKmlExport(M.DrawingContext dc, Ink ink)
+        {
+            PaintEarth(dc, ink);
+            Arrow(dc, ink.Green, 21.5, 12.5, 30, 4, 2.4);
         }
 
         private static void PaintFolder(M.DrawingContext dc, Ink ink)

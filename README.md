@@ -13,7 +13,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.15.msi`](Instalador/FiberPlugin-1.9.15.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.16.msi`](Instalador/FiberPlugin-1.9.16.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -174,6 +174,12 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
+### Google Earth
+| Botão | Comando | Função |
+|---|---|---|
+| Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
+| Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
+
 ### Fiber Plugin
 | Botão | Comando | Função |
 |---|---|---|
@@ -218,6 +224,22 @@ sem abrir janela.
   (`Documentos\Fiber Plugin\Dados\empresa.txt`, botão **Pasta de Dados**), nunca no repositório, que é público.
 - **Logo e figuras**: `Dados/Memorial/` (`logo.png`, `fig-a-...` a `fig-e-...`). Para trocar, substitua o
   arquivo mantendo o nome.
+
+## Google Earth (KML/KMZ)
+
+**Importar KML** lê arquivos do Google Earth ou de programas de GIS (KML ou KMZ, qualquer pasta, inclusive
+MultiGeometry) e converte latitude/longitude para a zona UTM do projeto (SIRGAS 2000/WGS84):
+- **Pontos**: como **Postes** (modelo escolhido na lista, numerados em sequência, com texto de identificação
+  e coordenadas; DT entra com rotação 0°), como **Pontos** (círculo com o nome) ou **Ignorar**.
+- **Linhas**: como **Cabos** (tipo escolhido na lista, com nome e metragem vão a vão, prontos para o cálculo de
+  esforço), como **Linhas** (polilinhas) ou **Ignorar**.
+- **Polígonos**: polilinhas fechadas.
+- Cada pasta do Google Earth vira uma layer (`KML-<pasta>`). Sem zona definida no desenho, a do primeiro ponto
+  do KML é gravada como zona do projeto. Coordenadas muito fora da zona geram aviso.
+
+**Exportar KML** gera um KMZ com as pastas **Postes** (modelo, tipo, ID Energisa, esforço, resultado e UTM;
+postes acima do nominal em vermelho), **CTO e CEO**, **Equipamentos Energisa** e **Cabos** (uma cor por tipo,
+com metragem e número de vãos). Precisa da zona UTM do projeto; se não houver, ela é perguntada.
 
 ## Folhas para impressão (PDF)
 

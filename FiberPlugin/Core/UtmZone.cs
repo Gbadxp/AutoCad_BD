@@ -95,9 +95,42 @@ namespace FiberPlugin.Core
             y.ToString("F2", CultureInfo.InvariantCulture) + (south ? " m S" : " m N");
 
         /// <summary>Latitude em graus a partir de E/N UTM (WGS84/SIRGAS2000, fórmulas de Snyder).</summary>
-        public static double Latitude(double easting, double northing, bool south)
+        public static double Latitude(double easting, double northing, bool south) => ToGeographic(easting, northing, 31, south).Lat;
+
+        // Elipsoide GRS80/WGS84 (SIRGAS 2000 e WGS84 coincidem na precisão do projeto)
+        private const double K0 = 0.9996, A = 6378137.0, F = 1 / 298.257223563;
+
+        /// <summary>Zona UTM de uma longitude (-63,9° → 20).</summary>
+        public static int ZoneFor(double lonDeg) => Math.Max(1, Math.Min(60, (int)Math.Floor((lonDeg + 180.0) / 6.0) + 1));
+
+        private static double CentralMeridian(int zone) => (zone * 6 - 183) * Math.PI / 180.0;
+
+        /// <summary>Latitude/longitude (graus) → E/N UTM na zona e hemisfério informados (Snyder, "Map Projections").</summary>
+        public static (double E, double N) FromGeographic(double latDeg, double lonDeg, int zone, bool south)
         {
-            const double k0 = 0.9996, a = 6378137.0, f = 1 / 298.257223563;
+            double e2 = F * (2 - F), ep2 = e2 / (1 - e2);
+            double phi = latDeg * Math.PI / 180.0;
+            double sin = Math.Sin(phi), cos = Math.Cos(phi), tan = Math.Tan(phi);
+
+            double n = A / Math.Sqrt(1 - e2 * sin * sin);
+            double t = tan * tan, c = ep2 * cos * cos;
+            double a = cos * (lonDeg * Math.PI / 180.0 - CentralMeridian(zone));
+            double m = A * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * Math.Pow(e2, 3) / 256) * phi
+                          - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * Math.Pow(e2, 3) / 1024) * Math.Sin(2 * phi)
+                          + (15 * e2 * e2 / 256 + 45 * Math.Pow(e2, 3) / 1024) * Math.Sin(4 * phi)
+                          - (35 * Math.Pow(e2, 3) / 3072) * Math.Sin(6 * phi));
+
+            double easting = K0 * n * (a + (1 - t + c) * Math.Pow(a, 3) / 6
+                                         + (5 - 18 * t + t * t + 72 * c - 58 * ep2) * Math.Pow(a, 5) / 120) + 500000.0;
+            double northing = K0 * (m + n * tan * (a * a / 2 + (5 - t + 9 * c + 4 * c * c) * Math.Pow(a, 4) / 24
+                                                   + (61 - 58 * t + t * t + 600 * c - 330 * ep2) * Math.Pow(a, 6) / 720));
+            return (easting, south ? northing + 10000000.0 : northing);
+        }
+
+        /// <summary>E/N UTM → latitude/longitude em graus (Snyder).</summary>
+        public static (double Lat, double Lon) ToGeographic(double easting, double northing, int zone, bool south)
+        {
+            const double k0 = K0, a = A, f = F;
             double e2 = f * (2 - f), ep2 = e2 / (1 - e2);
             double x = easting - 500000.0;
             double y = northing - (south ? 10000000.0 : 0.0);
@@ -119,7 +152,10 @@ namespace FiberPlugin.Core
             double lat = phi1 - (n1 * tan / r1) * (d * d / 2
                 - (5 + 3 * t1 + 10 * c1 - 4 * c1 * c1 - 9 * ep2) * Math.Pow(d, 4) / 24
                 + (61 + 90 * t1 + 298 * c1 + 45 * t1 * t1 - 252 * ep2 - 3 * c1 * c1) * Math.Pow(d, 6) / 720);
-            return lat * 180.0 / Math.PI;
+            double lon = CentralMeridian(zone) + (d
+                - (1 + 2 * t1 + c1) * Math.Pow(d, 3) / 6
+                + (5 - 2 * c1 + 28 * t1 - 3 * c1 * c1 + 8 * ep2 + 24 * t1 * t1) * Math.Pow(d, 5) / 120) / cos;
+            return (lat * 180.0 / Math.PI, lon * 180.0 / Math.PI);
         }
     }
 }

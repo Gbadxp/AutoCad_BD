@@ -64,6 +64,11 @@ namespace FiberPlugin.UI
             {
                 new Tool("FIBRA_GERAR_FOLHAS", "Gerar Folhas", "Divide a área em folhas A0 a A4 com viewports", "Gerar\nFolhas")
             }),
+            ("Google Earth", new[]
+            {
+                new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML"),
+                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML")
+            }),
             ("Fiber Plugin", new[]
             {
                 new Tool("FIBRA_ZONA_UTM", "Zona UTM", "Zona e hemisfério das coordenadas (ex.: 20 L)", "Zona UTM", largeOnRibbon: false),
