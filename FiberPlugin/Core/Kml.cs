@@ -15,6 +15,12 @@ namespace FiberPlugin.Core
         public string Folder { get; set; } = "";    // Pasta mais próxima no Google Earth ("" = raiz)
         public KmlKind Kind { get; set; }
         public List<(double Lon, double Lat)> Coords { get; } = new List<(double, double)>();
+
+        // Estilo do Google Earth (vazio/null se não houver)
+        public string IconHref { get; set; } = "";
+        public string? IconColor { get; set; }      // aabbggrr
+        public double IconScale { get; set; } = 1.0;
+        public string? LineColor { get; set; }      // aabbggrr
     }
 
     /// <summary>
@@ -46,10 +52,21 @@ namespace FiberPlugin.Core
                 doc = XDocument.Load(path);
             }
 
+            // Estilos por id (Style, StyleMap e gx:CascadingStyle do Google Earth web, que usa kml:id)
+            var styles = new Dictionary<string, XElement>();
+            foreach (XElement e in doc.Descendants())
+            {
+                XAttribute? id = e.Attributes().FirstOrDefault(a => a.Name.LocalName == "id");
+                if (id != null && !styles.ContainsKey(id.Value)) styles[id.Value] = e;
+            }
+
             var features = new List<KmlFeature>();
             foreach (XElement placemark in doc.Descendants().Where(e => e.Name.LocalName == "Placemark"))
             {
                 string name = Child(placemark, "name")?.Value.Trim() ?? "";
+                var style = new List<XElement>();
+                if (Child(placemark, "Style") is XElement inline) style.Add(inline);
+                if (ResolveStyle(styles, Child(placemark, "styleUrl")?.Value, 0) is XElement shared) style.Add(shared);
                 string folder = placemark.Ancestors().FirstOrDefault(a => a.Name.LocalName == "Folder") is XElement f
                     ? Child(f, "name")?.Value.Trim() ?? ""
                     : "";
@@ -72,7 +89,16 @@ namespace FiberPlugin.Core
                         : Child(geometry, "coordinates");
                     if (coordinates == null) continue;
 
-                    var feature = new KmlFeature { Name = name, Folder = folder, Kind = kind.Value };
+                    var feature = new KmlFeature
+                    {
+                        Name = name,
+                        Folder = folder,
+                        Kind = kind.Value,
+                        IconHref = StyleValue(style, "IconStyle", "Icon", "href") ?? "",
+                        IconColor = StyleValue(style, "IconStyle", "color"),
+                        IconScale = double.TryParse(StyleValue(style, "IconStyle", "scale"), NumberStyles.Float, CultureInfo.InvariantCulture, out double s) && s > 0 ? s : 1.0,
+                        LineColor = StyleValue(style, "LineStyle", "color")
+                    };
                     feature.Coords.AddRange(ParseCoordinates(coordinates.Value));
                     int minimum = kind == KmlKind.Point ? 1 : 2;
                     if (feature.Coords.Count >= minimum) features.Add(feature);
@@ -83,6 +109,42 @@ namespace FiberPlugin.Core
 
         private static XElement? Child(XElement parent, string localName) =>
             parent.Elements().FirstOrDefault(e => e.Name.LocalName == localName);
+
+        /// <summary>Estilo "normal" de um styleUrl ("#id" ou "arquivo.kml#id"), passando por StyleMap e gx:CascadingStyle.</summary>
+        private static XElement? ResolveStyle(Dictionary<string, XElement> styles, string? url, int depth)
+        {
+            if (string.IsNullOrWhiteSpace(url) || depth > 5) return null;
+            string id = url!.Trim();
+            int hash = id.LastIndexOf('#');
+            if (hash >= 0) id = id.Substring(hash + 1);
+            if (!styles.TryGetValue(id, out XElement? element)) return null;
+
+            switch (element.Name.LocalName)
+            {
+                case "StyleMap":
+                    XElement? pair = element.Elements().FirstOrDefault(p => p.Name.LocalName == "Pair" && Child(p, "key")?.Value.Trim() == "normal");
+                    return pair == null ? null : Child(pair, "Style") ?? ResolveStyle(styles, Child(pair, "styleUrl")?.Value, depth + 1);
+                case "CascadingStyle":
+                    return Child(element, "Style");
+                default:
+                    return element;
+            }
+        }
+
+        /// <summary>Primeiro valor do caminho (ex.: IconStyle/Icon/href) nos estilos, na ordem de prioridade.</summary>
+        private static string? StyleValue(List<XElement> styles, params string[] path)
+        {
+            foreach (XElement style in styles)
+            {
+                XElement? e = style;
+                foreach (string step in path)
+                {
+                    e = e == null ? null : Child(e, step);
+                }
+                if (e != null && e.Value.Trim().Length > 0) return e.Value.Trim();
+            }
+            return null;
+        }
 
         /// <summary>"lon,lat[,alt] lon,lat[,alt] ..." → pares (lon, lat).</summary>
         private static IEnumerable<(double, double)> ParseCoordinates(string text)

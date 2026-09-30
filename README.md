@@ -13,7 +13,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.16.msi`](Instalador/FiberPlugin-1.9.16.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.17.msi`](Instalador/FiberPlugin-1.9.17.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -229,13 +229,18 @@ sem abrir janela.
 
 **Importar KML** lê arquivos do Google Earth ou de programas de GIS (KML ou KMZ, qualquer pasta, inclusive
 MultiGeometry) e converte latitude/longitude para a zona UTM do projeto (SIRGAS 2000/WGS84):
-- **Pontos**: como **Postes** (modelo escolhido na lista, numerados em sequência, com texto de identificação
-  e coordenadas; DT entra com rotação 0°), como **Pontos** (círculo com o nome) ou **Ignorar**.
+- **Pontos**: como **Ícones** (o mesmo símbolo do Google Earth: triângulo, círculo, quadrado, alvo, losango,
+  hexágono, estrela, casa ou marcador, com a cor e o tamanho do KML), como **Postes** (modelo escolhido na lista,
+  numerados em sequência, com texto de identificação e coordenadas; DT entra com rotação 0°) ou **Ignorar**.
+  A forma vem do código do ícone do Google Earth web, do nome do arquivo do ícone ou, nos ícones embutidos
+  no KML/KMZ, da análise do desenho do ícone; o que não for reconhecido entra como ponto (círculo com cruz).
 - **Linhas**: como **Cabos** (tipo escolhido na lista, com nome e metragem vão a vão, prontos para o cálculo de
   esforço), como **Linhas** (polilinhas) ou **Ignorar**.
 - **Polígonos**: polilinhas fechadas.
-- Cada pasta do Google Earth vira uma layer (`KML-<pasta>`). Sem zona definida no desenho, a do primeiro ponto
-  do KML é gravada como zona do projeto. Coordenadas muito fora da zona geram aviso.
+- **Layers**: uma por forma de ícone (`KML-TRIANGULO`, `KML-CIRCULO`, `KML-QUADRADO`...), `KML-LINHAS` e
+  `KML-POLIGONOS`; linhas e polígonos levam a cor do KML. Os símbolos são blocos `KML_<FORMA>` criados no desenho.
+- Sem zona definida no desenho, a do primeiro ponto do KML é gravada como zona do projeto. Coordenadas muito fora
+  da zona geram aviso.
 
 **Exportar KML** gera um KMZ com as pastas **Postes** (modelo, tipo, ID Energisa, esforço, resultado e UTM;
 postes acima do nominal em vermelho), **CTO e CEO**, **Equipamentos Energisa** e **Cabos** (uma cor por tipo,

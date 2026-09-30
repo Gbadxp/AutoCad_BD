@@ -14,15 +14,24 @@ namespace FiberPlugin.Commands
     /// <summary>Troca de dados com o Google Earth (KML/KMZ), convertendo latitude/longitude para a zona UTM do projeto.</summary>
     public class KmlCommands
     {
-        private const string LayerPrefix = "KML";
-        private const double PointRadius = 0.8;   // m, na escala 1:1000
+        private const string LayerPrefix = "KML-";
+        private const double IconSize = 3.0;      // m, na escala 1:1000 (vezes a escala do ícone no KML)
+
+        /// <summary>Cor de cada layer de ícone, para os ícones sem cor no KML.</summary>
+        private static readonly Dictionary<string, short> ShapeColors = new Dictionary<string, short>
+        {
+            [IconShapes.Triangle] = 2, [IconShapes.Circle] = 4, [IconShapes.Square] = 5, [IconShapes.Diamond] = 6,
+            [IconShapes.Hexagon] = 30, [IconShapes.Star] = 40, [IconShapes.Target] = 1, [IconShapes.Marker] = 1,
+            [IconShapes.House] = 50, [IconShapes.Point] = 7
+        };
 
         // ---------- Importar ----------
 
         /// <summary>
         /// Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto. Pontos viram postes
-        /// numerados (modelo escolhido na lista) ou pontos simples com o nome; linhas viram cabos (com nome e metragem
-        /// vão a vão) ou polilinhas; polígonos viram polilinhas fechadas. Cada pasta do Google Earth vira uma layer.
+        /// numerados (modelo escolhido na lista) ou o mesmo ícone do Google Earth (triângulo, círculo, quadrado...),
+        /// com a cor do KML e uma layer por forma; linhas viram cabos (com nome e metragem vão a vão) ou polilinhas;
+        /// polígonos viram polilinhas fechadas. Linhas e polígonos levam a cor do KML.
         /// </summary>
         [CommandMethod("FIBRA_IMPORTAR_KML")]
         public void Import()
@@ -60,7 +69,7 @@ namespace FiberPlugin.Commands
 
             // O que fazer com cada tipo (perguntado antes de desenhar)
             string pointMode = points.Count == 0 ? "Ignorar"
-                : CadHelpers.AskKeyword(ed, $"\nPontos do KML ({points.Count}) como [Postes/Pontos/Ignorar] <Pontos>: ", "Postes Pontos Ignorar", "Pontos") ?? "";
+                : CadHelpers.AskKeyword(ed, $"\nPontos do KML ({points.Count}) como [Postes/Icones/Ignorar] <Icones>: ", "Postes Icones Ignorar", "Icones") ?? "";
             if (pointMode.Length == 0) return;
             string lineMode = lines.Count == 0 ? "Ignorar"
                 : CadHelpers.AskKeyword(ed, $"\nLinhas do KML ({lines.Count}) como [Cabos/Linhas/Ignorar] <Linhas>: ", "Cabos Linhas Ignorar", "Linhas") ?? "";
@@ -102,7 +111,8 @@ namespace FiberPlugin.Commands
                 return new Point3d(e, n, 0);
             }
 
-            int poles = 0, marks = 0, cables = 0, polylines = 0;
+            int poles = 0, cables = 0, polylines = 0;
+            var icons = new Dictionary<string, int>();
             double scale = DrawingScale.Factor(db);
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -119,16 +129,19 @@ namespace FiberPlugin.Commands
                         used.Add(number);
                         poles++;
                     }
-                    else if (pointMode == "Pontos")
+                    else if (pointMode == "Icones")
                     {
-                        string layer = Layer(tr, db, f.Folder);
-                        CadHelpers.Append(tr, modelSpace, new Circle(point, Vector3d.ZAxis, PointRadius * scale) { Layer = layer });
-                        if (f.Name.Length > 0)
+                        // Mesma forma do ícone do Google Earth, numa layer só por forma (KML-TRIANGULO, KML-CIRCULO...)
+                        string shape = IconShapes.Classify(f.IconHref, path);
+                        double size = IconSize * scale * Math.Max(0.5, Math.Min(2.0, f.IconScale));
+                        var icon = new BlockReference(point, KmlSymbols.Ensure(tr, db, shape))
                         {
-                            CadHelpers.AddText(tr, modelSpace, point + new Vector3d(PointRadius * 1.5 * scale, 0, 0), f.Name, 0,
-                                AttachmentPoint.MiddleLeft, layer);
-                        }
-                        marks++;
+                            Layer = Layer(tr, db, shape, ShapeColors[shape]),
+                            ScaleFactors = new Scale3d(size)
+                        };
+                        if (KmlColor(f.IconColor) is Autodesk.AutoCAD.Colors.Color color) icon.Color = color;
+                        CadHelpers.Append(tr, modelSpace, icon);
+                        icons[shape] = icons.TryGetValue(shape, out int n) ? n + 1 : 1;
                     }
                 }
 
@@ -146,7 +159,12 @@ namespace FiberPlugin.Commands
                     if (f.Kind == KmlKind.Polygon && vertices.Count > 2 && vertices[0].DistanceTo(vertices[vertices.Count - 1]) < 0.01)
                         vertices.RemoveAt(vertices.Count - 1);
 
-                    var poly = new Polyline { Layer = Layer(tr, db, f.Folder), Closed = f.Kind == KmlKind.Polygon };
+                    var poly = new Polyline
+                    {
+                        Layer = f.Kind == KmlKind.Polygon ? Layer(tr, db, "POLIGONOS", 6) : Layer(tr, db, "LINHAS", 30),
+                        Closed = f.Kind == KmlKind.Polygon
+                    };
+                    if (KmlColor(f.LineColor) is Autodesk.AutoCAD.Colors.Color lineColor) poly.Color = lineColor;
                     for (int i = 0; i < vertices.Count; i++) poly.AddVertexAt(i, new Point2d(vertices[i].X, vertices[i].Y), 0, 0, 0);
                     CadHelpers.Append(tr, modelSpace, poly);
                     polylines++;
@@ -158,7 +176,7 @@ namespace FiberPlugin.Commands
             ed.WriteMessage("\n[SUCESSO]: Importado: " + string.Join(", ", new[]
             {
                 poles > 0 ? $"{poles} poste(s)" : "",
-                marks > 0 ? $"{marks} ponto(s)" : "",
+                icons.Count > 0 ? $"{icons.Values.Sum()} ícone(s) (" + string.Join(", ", icons.OrderByDescending(i => i.Value).Select(i => $"{i.Value} {i.Key.ToLowerInvariant()}")) + ")" : "",
                 cables > 0 ? $"{cables} cabo(s)" : "",
                 polylines > 0 ? $"{polylines} polilinha(s)" : ""
             }.Where(s => s.Length > 0)) + ".");
@@ -194,13 +212,20 @@ namespace FiberPlugin.Commands
             }
         }
 
-        /// <summary>Layer da pasta do Google Earth: "KML-Postes levantados" (ou "KML" na raiz).</summary>
-        private static string Layer(Transaction tr, Database db, string folder)
+        /// <summary>Layer do tipo importado: KML-TRIANGULO, KML-LINHAS, KML-POLIGONOS...</summary>
+        private static string Layer(Transaction tr, Database db, string kind, short color)
         {
-            string name = folder.Length == 0 ? LayerPrefix : LayerPrefix + "-" + CadHelpers.SanitizeName(folder);
-            if (name.Length > 60) name = name.Substring(0, 60);
-            CadHelpers.EnsureLayer(tr, db, name, 30); // Laranja
+            string name = LayerPrefix + kind;
+            CadHelpers.EnsureLayer(tr, db, name, color);
             return name;
+        }
+
+        /// <summary>Cor do KML (aabbggrr) em cor verdadeira do AutoCAD; null se não houver ou for inválida.</summary>
+        private static Autodesk.AutoCAD.Colors.Color? KmlColor(string? kml)
+        {
+            if (kml == null || kml.Length != 8 || !uint.TryParse(kml, System.Globalization.NumberStyles.HexNumber, null, out uint v)) return null;
+            byte r = (byte)(v & 0xFF), g = (byte)((v >> 8) & 0xFF), b = (byte)((v >> 16) & 0xFF);
+            return Autodesk.AutoCAD.Colors.Color.FromRgb(r, g, b);
         }
 
         // ---------- Exportar ----------
