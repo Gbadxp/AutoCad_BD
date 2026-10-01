@@ -15,7 +15,7 @@ namespace FiberPlugin.Commands
 
         /// <summary>
         /// Amarra os postes selecionados: uma amarração em cada direção de cabo que sai do poste, sobre a linha do
-        /// cabo e logo depois da borda do poste. Passagem = uma de cada lado, derivação = uma por linha, fim de rede =
+        /// cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação = uma por linha, fim de rede =
         /// só uma. As amarrações que já estavam em volta do poste são trocadas. Enter sem selecionar insere uma
         /// amarração à mão (ponto e direção), para os casos sem cabo desenhado. Também funciona selecionando os
         /// postes antes de clicar no botão.
@@ -92,8 +92,11 @@ namespace FiberPlugin.Commands
         {
             var result = new AnchoringResult();
 
-            // Quanto o lado reto do bloco avança a partir do ponto base (o lado que fica virado para o poste)
-            double reach = Math.Max(0, BlockInsertHelpers.DefinitionExtents(tr, blockId)?.MaxPoint.X ?? 0) * scale;
+            // A parte redonda (em volta do ponto base) fica do lado do poste: o quanto ela avança para trás (-X)
+            // define a distância até a borda do poste. O comprimento todo serve para achar as amarrações antigas.
+            Extents3d? symbol = BlockInsertHelpers.DefinitionExtents(tr, blockId);
+            double reach = Math.Max(0, -(symbol?.MinPoint.X ?? 0)) * scale;
+            double length = symbol is Extents3d e ? (e.MaxPoint.X - e.MinPoint.X) * scale : 0;
 
             var cables = new List<IList<(double X, double Y)>>();
             var existing = new List<ObjectId>();
@@ -122,8 +125,8 @@ namespace FiberPlugin.Commands
                     continue;
                 }
 
-                // Refaz as amarrações deste poste: apaga as que já estavam em volta dele
-                double radius = placements.Max(p => Math.Sqrt(Math.Pow(p.X - pole.Position.X, 2) + Math.Pow(p.Y - pole.Position.Y, 2))) + reach;
+                // Refaz as amarrações deste poste: apaga as que já estavam em volta dele (inclusive as viradas ao contrário)
+                double radius = placements.Max(p => Math.Sqrt(Math.Pow(p.X - pole.Position.X, 2) + Math.Pow(p.Y - pole.Position.Y, 2))) + length;
                 foreach (ObjectId id in existing)
                 {
                     var old = (BlockReference)tr.GetObject(id, OpenMode.ForRead);

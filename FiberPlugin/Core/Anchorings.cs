@@ -19,8 +19,9 @@ namespace FiberPlugin.Core
     /// Onde vão as amarrações de um poste: uma em cada direção de vão que sai dele. O cabo que passa pelo poste dá
     /// duas direções (uma de cada lado), o que termina nele (fim de rede) dá uma só, e numa derivação cada linha dá a
     /// sua. Direções quase iguais (cabos lado a lado no mesmo vão) contam uma vez. Cada amarração fica sobre a linha
-    /// do cabo, logo depois da borda do poste, com o lado reto virado para ele (o bloco AMARRAÇÃO é desenhado com
-    /// a curva em volta do ponto base e o lado reto para +X). Coordenadas em metros.
+    /// do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo, para fora
+    /// do poste (o bloco AMARRAÇÃO é desenhado com a parte redonda em volta do ponto base e a aberta para +X).
+    /// Coordenadas em metros.
     /// </summary>
     public static class Anchorings
     {
@@ -30,7 +31,7 @@ namespace FiberPlugin.Core
         /// <param name="pole">Ponto de inserção do poste.</param>
         /// <param name="poleBox">Extensão do símbolo do poste (mín. e máx.), para a amarração ficar do lado de fora.</param>
         /// <param name="tolerance">Distância máxima entre o vértice do cabo e o poste (a mesma do cálculo de esforço).</param>
-        /// <param name="reach">Quanto o lado reto da amarração avança a partir do ponto base (já na escala do bloco).</param>
+        /// <param name="reach">Quanto a parte redonda avança do ponto base para trás, na direção do poste (já na escala do bloco).</param>
         /// <param name="gap">Folga entre a borda do poste e a amarração.</param>
         public static List<AnchoringPlacement> Place(IEnumerable<IList<(double X, double Y)>> cables, (double X, double Y) pole,
             ((double X, double Y) Min, (double X, double Y) Max) poleBox, double tolerance, double reach, double gap)
@@ -61,8 +62,8 @@ namespace FiberPlugin.Core
             {
                 double dx = Math.Cos(s.Angle), dy = Math.Sin(s.Angle);
                 double clear = ExitDistance(s.From, dx, dy, poleBox) + gap + reach;
-                // Lado reto (+X do bloco) virado para o poste: rotação = direção do vão + 180°
-                return new AnchoringPlacement(s.From.X + dx * clear, s.From.Y + dy * clear, Normalize(s.Angle + Math.PI));
+                // Parte aberta (+X do bloco) apontando para o cabo: rotação = direção do vão
+                return new AnchoringPlacement(s.From.X + dx * clear, s.From.Y + dy * clear, Normalize(s.Angle));
             }).ToList();
         }
 
