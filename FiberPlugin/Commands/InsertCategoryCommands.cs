@@ -9,18 +9,14 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Inserção por grupo de blocos do BLOCOS.dwg: itens elétricos e os demais blocos; a amarração usa a inserção
-    /// manual daqui quando não há poste selecionado. (Postes, CTO e CEO têm comandos próprios, com numeração e
-    /// identificação; a amarração automática fica no AnchoringCommand.)
+    /// Inserção por grupo de blocos do BLOCOS.dwg: itens elétricos; a amarração usa a inserção manual daqui quando
+    /// não há poste selecionado. (Postes, CTO e CEO têm comandos próprios, com numeração e identificação; a
+    /// amarração automática fica no AnchoringCommand.)
     /// </summary>
     public class InsertCategoryCommands
     {
         [CommandMethod("FIBRA_INSERIR_ELETRICOS")]
         public void InsertElectrical() => InsertFromCategory(BlockCategories.Electrical, "itens elétricos", "FIBRA_INSERIR_ELETRICOS", askRotation: false, fillCoordinates: true);
-
-        /// <summary>Blocos que não pertencem a nenhum grupo (para blocos novos acrescentados ao BLOCOS.dwg).</summary>
-        [CommandMethod("FIBRA_INSERIR_BLOCO")]
-        public void InsertOthers() => InsertFromCategory(BlockCategories.Others, "outros blocos", "FIBRA_INSERIR_BLOCO", askRotation: false, fillCoordinates: true);
 
         /// <param name="fillCoordinates">Preenche os atributos COORDENADA_X/Y e ZONA, se o bloco tiver.</param>
         internal static void InsertFromCategory(string category, string what, string command, bool askRotation, bool fillCoordinates)

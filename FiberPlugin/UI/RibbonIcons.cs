@@ -66,7 +66,6 @@ namespace FiberPlugin.UI
             ["FIBRA_LANCAR_CABO"] = PaintCable,
             ["FIBRA_ROTEAMENTO_AUTO"] = PaintRoute,
             ["FIBRA_INSERIR_POSTE"] = PaintPole,
-            ["FIBRA_INSERIR_BLOCO"] = PaintBlocks,
             ["FIBRA_INSERIR_CTO"] = PaintCto,
             ["FIBRA_INSERIR_CEO"] = PaintCeo,
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,

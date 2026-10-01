@@ -7,7 +7,7 @@ namespace FiberPlugin.Core
     /// <summary>
     /// Grupo de cada bloco do BLOCOS.dwg, pelo nome. Cada grupo tem o seu comando de inserir:
     /// Postes (POSTE DT-DUPLO T, POSTE CC-CIRCULAR), CTO, CEO (CEO_1, CEO_2), Elétrica (TRAFO, CHAVE FU,
-    /// PARA-RAIO...), Amarração e Outros (o que não se encaixar em nenhum grupo).
+    /// PARA-RAIO...) e Amarração. O que não se encaixar em nenhum grupo fica em Outros, sem comando de inserir.
     /// </summary>
     public static class BlockCategories
     {
