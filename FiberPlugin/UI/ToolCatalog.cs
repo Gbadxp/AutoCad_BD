@@ -42,7 +42,7 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_CTO", "Inserir CTO", "CTO-01, CTO-02... ligadas ao poste mais próximo", "CTO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CEO", "Inserir CEO", "CEO-01, CEO-02... ligadas ao poste mais próximo", "CEO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
-                new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Amarração com direção", "Amarração", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_BLOCO", "Outros Blocos", "Blocos do BLOCOS.dwg fora dos grupos", "Outros Blocos", largeOnRibbon: false),
                 new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false),
                 new Tool("FIBRA_TAMANHO_BLOCO", "Tamanho do Bloco", "Muda o tamanho dos blocos selecionados", "Tamanho", largeOnRibbon: false)
@@ -67,7 +67,8 @@ namespace FiberPlugin.UI
             ("Google Earth", new[]
             {
                 new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML"),
-                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML")
+                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML"),
+                new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
             }),
             ("Fiber Plugin", new[]
             {

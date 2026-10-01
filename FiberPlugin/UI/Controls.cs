@@ -231,6 +231,13 @@ namespace FiberPlugin.UI
         /// <summary>Texto digitado, sem espaços nas pontas.</summary>
         public string Query => Input.Text.Trim();
 
+        /// <summary>Texto de exemplo mostrado com o campo vazio.</summary>
+        public string Placeholder
+        {
+            get => _placeholder.Text;
+            set => _placeholder.Text = value;
+        }
+
         /// <summary>As setas ↑/↓ na busca mudam a seleção da lista sem tirar o cursor do campo.</summary>
         public void DriveList(ListBox list)
         {
@@ -283,6 +290,98 @@ namespace FiberPlugin.UI
             Theme.DrawRounded(g, Input.Focused ? Theme.Accent : _hover ? Theme.BorderHover : Theme.Border, r, radius);
 
             if (_searchIcon) Theme.DrawSearchIcon(g, new Rectangle(Theme.Scale(this, 6), 0, Theme.Scale(this, 18), Height), Theme.Muted);
+        }
+    }
+
+    /// <summary>Opções lado a lado em que só uma fica marcada (a marcada aparece no azul do botão principal).</summary>
+    internal class ChoiceBar : FlowLayoutPanel
+    {
+        private readonly List<ThemedButton> _buttons = new List<ThemedButton>();
+        private int _selected = -1;
+
+        public event EventHandler? SelectedChanged;
+
+        public ChoiceBar(params string[] options)
+        {
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            WrapContents = false;
+            Margin = new Padding(0, 3, 0, 3);
+            Padding = Padding.Empty;
+            BackColor = Theme.Background;
+            foreach (string option in options)
+            {
+                var button = new ThemedButton(option, false) { Margin = new Padding(0, 0, 4, 0) };
+                int index = _buttons.Count;
+                button.Click += (s, e) => SelectedIndex = index;
+                _buttons.Add(button);
+                Controls.Add(button);
+            }
+            SelectedIndex = 0;
+        }
+
+        public int SelectedIndex
+        {
+            get => _selected;
+            set
+            {
+                if (value == _selected || value < 0 || value >= _buttons.Count) return;
+                _selected = value;
+                for (int i = 0; i < _buttons.Count; i++)
+                {
+                    _buttons[i].Primary = i == value;
+                    _buttons[i].Invalidate();
+                }
+                SelectedChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    /// <summary>Campo de texto com o título em cima (em maiúsculas, como nas seções das janelas).</summary>
+    internal class LabeledInput : Panel
+    {
+        private readonly Label _title;
+
+        public InputBox Box { get; }
+
+        public LabeledInput(string title, string placeholder)
+        {
+            BackColor = Theme.Background;
+            Height = 50;
+            Margin = new Padding(4, 2, 4, 2);
+            Box = new InputBox(placeholder, searchIcon: false) { Dock = DockStyle.Top };
+            _title = new Label
+            {
+                Font = Theme.Section,
+                ForeColor = Theme.Muted,
+                AutoSize = false,
+                Height = 20,
+                Dock = DockStyle.Top,
+                TextAlign = ContentAlignment.BottomLeft,
+                AutoEllipsis = true
+            };
+            Title = title;
+            // O último adicionado encaixa primeiro: título em cima, campo embaixo
+            Controls.Add(Box);
+            Controls.Add(_title);
+        }
+
+        public string Title
+        {
+            get => _title.Text;
+            set => _title.Text = value.ToUpperInvariant();
+        }
+
+        public Color TitleColor
+        {
+            get => _title.ForeColor;
+            set => _title.ForeColor = value;
+        }
+
+        public string Value
+        {
+            get => Box.Query;
+            set => Box.Input.Text = value;
         }
     }
 

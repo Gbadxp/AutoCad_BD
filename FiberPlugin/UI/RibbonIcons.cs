@@ -86,6 +86,7 @@ namespace FiberPlugin.UI
             ["FIBRA_ZONA_UTM"] = PaintUtm,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
+            ["FIBRA_IMPORTAR_RUAS"] = PaintRoads,
             ["FIBRA_ABRIR_PASTA"] = PaintFolder
         };
 
@@ -433,6 +434,18 @@ namespace FiberPlugin.UI
         {
             PaintEarth(dc, ink);
             Arrow(dc, ink.Green, 21.5, 12.5, 30, 4, 2.4);
+        }
+
+        private static void PaintRoads(M.DrawingContext dc, Ink ink)
+        {
+            // Cruzamento de duas ruas (asfalto com faixa amarela) e a seta verde de importar
+            M.Pen asphalt = Ink.Pen(ink.Line, 7);
+            dc.DrawLine(asphalt, new W.Point(3, 21), new W.Point(29, 21));
+            dc.DrawLine(asphalt, new W.Point(11, 5), new W.Point(11, 29));
+            var lane = new M.Pen(ink.Yellow, 1.3) { DashStyle = new M.DashStyle(new[] { 1.6, 1.4 }, 0) };
+            dc.DrawLine(lane, new W.Point(15.5, 21), new W.Point(29, 21));
+            dc.DrawLine(lane, new W.Point(11, 5), new W.Point(11, 16.5));
+            Arrow(dc, ink.Green, 30, 3, 21.5, 11.5, 2.4);
         }
 
         private static void PaintFolder(M.DrawingContext dc, Ink ink)

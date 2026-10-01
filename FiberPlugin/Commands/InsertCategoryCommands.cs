@@ -9,24 +9,21 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Inserção por grupo de blocos do BLOCOS.dwg: itens elétricos, amarração e os demais blocos.
-    /// (Postes, CTO e CEO têm comandos próprios, com numeração e identificação.)
+    /// Inserção por grupo de blocos do BLOCOS.dwg: itens elétricos e os demais blocos; a amarração usa a inserção
+    /// manual daqui quando não há poste selecionado. (Postes, CTO e CEO têm comandos próprios, com numeração e
+    /// identificação; a amarração automática fica no AnchoringCommand.)
     /// </summary>
     public class InsertCategoryCommands
     {
         [CommandMethod("FIBRA_INSERIR_ELETRICOS")]
         public void InsertElectrical() => InsertFromCategory(BlockCategories.Electrical, "itens elétricos", "FIBRA_INSERIR_ELETRICOS", askRotation: false, fillCoordinates: true);
 
-        /// <summary>Amarração: depois do ponto, pede a direção (para onde a amarração aponta). Sem coordenadas.</summary>
-        [CommandMethod("FIBRA_INSERIR_AMARRACAO")]
-        public void InsertAnchoring() => InsertFromCategory(BlockCategories.Anchoring, "amarração", "FIBRA_INSERIR_AMARRACAO", askRotation: true, fillCoordinates: false);
-
         /// <summary>Blocos que não pertencem a nenhum grupo (para blocos novos acrescentados ao BLOCOS.dwg).</summary>
         [CommandMethod("FIBRA_INSERIR_BLOCO")]
         public void InsertOthers() => InsertFromCategory(BlockCategories.Others, "outros blocos", "FIBRA_INSERIR_BLOCO", askRotation: false, fillCoordinates: true);
 
         /// <param name="fillCoordinates">Preenche os atributos COORDENADA_X/Y e ZONA, se o bloco tiver.</param>
-        private static void InsertFromCategory(string category, string what, string command, bool askRotation, bool fillCoordinates)
+        internal static void InsertFromCategory(string category, string what, string command, bool askRotation, bool fillCoordinates)
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;

@@ -48,8 +48,11 @@ Write-Host '> Montando FiberPlugin.bundle...'
 if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $contents 'net48'), (Join-Path $contents 'net8') | Out-Null
 
-Copy-Item (Join-Path $pluginDir 'bin\Release\net48\FiberPlugin.dll') (Join-Path $contents 'net48')
-Copy-Item (Join-Path $pluginDir 'bin\Release\net8.0-windows\FiberPlugin.dll') (Join-Path $contents 'net8')
+# O plugin e as bibliotecas que ele usa (Clipper2Lib.dll: contorno das ruas)
+foreach ($dll in 'FiberPlugin.dll', 'Clipper2Lib.dll') {
+    Copy-Item (Join-Path $pluginDir "bin\Release\net48\$dll") (Join-Path $contents 'net48')
+    Copy-Item (Join-Path $pluginDir "bin\Release\net8.0-windows\$dll") (Join-Path $contents 'net8')
+}
 
 # Dados (com a subpasta Memorial) e Blocos, sem os temporários e backups que o AutoCAD cria ao salvar
 $temporarios = '.bak', '.dwl', '.dwl2', '.tmp', '.sv$'
@@ -75,7 +78,7 @@ if ($Certificado) {
         Sort-Object FullName -Descending | Select-Object -First 1
     if (-not $signtool) { throw 'signtool.exe não encontrado (instale o Windows SDK).' }
 
-    $dlls = Get-ChildItem $contents -Recurse -Filter 'FiberPlugin.dll' | ForEach-Object FullName
+    $dlls = Get-ChildItem $contents -Recurse -Filter '*.dll' | ForEach-Object FullName
     & $signtool.FullName sign /sha1 $Certificado /s My /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $dlls
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao assinar as DLLs.' }
 }

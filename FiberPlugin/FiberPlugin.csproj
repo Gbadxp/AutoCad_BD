@@ -14,7 +14,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
     <!-- Identificação da DLL (aparece em Propriedades > Detalhes e na mensagem de carregamento) -->
-    <Version>1.9.17</Version>
+    <Version>1.9.22</Version>
     <Product>Fiber Plugin</Product>
     <Company>Fiber Plugin</Company>
     <Authors>Fiber Plugin</Authors>
@@ -25,6 +25,11 @@
   <ItemGroup>
     <!-- System.Net.Http não existe no .NET Framework 4.8 sem referência extra e não é usado -->
     <Using Remove="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- União e recorte de polígonos (contorno das ruas sem sobreposição). Clipper2Lib.dll vai junto no pacote. -->
+    <PackageReference Include="Clipper2" Version="1.4.0" />
   </ItemGroup>
 
   <!-- AutoCAD 2022-2024. A API R24.1 (2022) também carrega no 2023 e 2024. -->

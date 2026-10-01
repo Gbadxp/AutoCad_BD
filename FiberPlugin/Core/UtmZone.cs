@@ -67,7 +67,8 @@ namespace FiberPlugin.Core
                 using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
                 {
                     var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForRead);
-                    Match m = Regex.Match(geo.CoordinateSystem ?? "", @"UTM\D{0,12}?(\d{1,2})\s*([NS])\b", RegexOptions.IgnoreCase);
+                    // "SIRGAS2000.UTM-20S", "UTM84-20S" (o 84 é o datum, não a zona), "WGS 84 / UTM zone 20S"...
+                    Match m = Regex.Match(geo.CoordinateSystem ?? "", @"UTM(?:27|83|84)?\D{0,12}?(\d{1,2})\s*([NS])\b", RegexOptions.IgnoreCase);
                     if (!m.Success) return null;
 
                     int zone = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -78,6 +79,60 @@ namespace FiberPlugin.Core
             catch
             {
                 return null; // Desenho sem geolocalização
+            }
+        }
+
+        /// <summary>
+        /// Grava a geolocalização do AutoCAD (comando GEOGRAPHICLOCATION) no sistema SIRGAS 2000 / UTM da zona do
+        /// projeto (ou WGS84 / UTM, se a biblioteca de sistemas do AutoCAD não tiver o SIRGAS), com o desenho em
+        /// metros e coordenadas de grade: as coordenadas do desenho já são as UTM. Não mexe numa geolocalização
+        /// existente. Retorna o código gravado; null se o desenho já era geolocalizado ou se o AutoCAD recusou.
+        /// </summary>
+        public static string? Georeference(Database db, UtmSettings utm, Point3d point)
+        {
+            if (HasGeoLocation(db)) return null;
+
+            string hemisphere = utm.South ? "S" : "N";
+            foreach (string code in new[] { $"SIRGAS2000.UTM-{utm.Zone}{hemisphere}", $"UTM84-{utm.Zone}{hemisphere}" })
+            {
+                try
+                {
+                    using (Transaction tr = db.TransactionManager.StartTransaction())
+                    {
+                        var geo = new GeoLocationData { BlockTableRecordId = SymbolUtilityServices.GetBlockModelSpaceId(db) };
+                        geo.PostToDb();
+                        tr.AddNewlyCreatedDBObject(geo, true);
+                        geo.CoordinateSystem = code; // Código fora da biblioteca: exceção e a transação desfaz tudo
+                        geo.TypeOfCoordinates = TypeOfCoordinates.CoordinateTypeGrid;
+                        geo.HorizontalUnits = UnitsValue.Meters;
+                        geo.VerticalUnits = UnitsValue.Meters;
+                        geo.DesignPoint = point;
+                        geo.ReferencePoint = point;
+                        geo.ScaleEstimationMethod = ScaleEstimationMethod.ScaleEstMethodUnity;
+                        geo.NorthDirectionVector = Vector2d.YAxis;
+                        geo.UpDirection = Vector3d.ZAxis;
+                        tr.Commit();
+                    }
+                    if (db.Insunits == UnitsValue.Undefined) db.Insunits = UnitsValue.Meters;
+                    return code;
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Tenta o próximo código
+                }
+            }
+            return null;
+        }
+
+        public static bool HasGeoLocation(Database db)
+        {
+            try
+            {
+                return !db.GeoDataObject.IsNull;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return false; // O AutoCAD lança eNotApplicable quando o desenho não tem geolocalização
             }
         }
 

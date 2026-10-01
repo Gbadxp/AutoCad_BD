@@ -42,26 +42,7 @@ namespace FiberPlugin.Commands
         {
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
-                var definition = (BlockTableRecord)tr.GetObject(blockId, OpenMode.ForRead);
-                bool any = false;
-                var extents = new Extents3d();
-
-                foreach (ObjectId id in definition)
-                {
-                    if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent || ent is AttributeDefinition) continue;
-                    try
-                    {
-                        Extents3d e = ent.GeometricExtents;
-                        if (any) extents.AddExtents(e); else extents = e;
-                        any = true;
-                    }
-                    catch (Autodesk.AutoCAD.Runtime.Exception)
-                    {
-                        // Entidade sem extensão
-                    }
-                }
-
-                if (!any) return (1.0, new Vector3d(0, 0, 0));
+                if (DefinitionExtents(tr, blockId) is not Extents3d extents) return (1.0, new Vector3d(0, 0, 0));
 
                 double longest = Math.Max(extents.MaxPoint.X - extents.MinPoint.X, extents.MaxPoint.Y - extents.MinPoint.Y);
                 if (longest < 1e-9) return (1.0, new Vector3d(0, 0, 0));
@@ -73,6 +54,44 @@ namespace FiberPlugin.Commands
                     0);
                 return (scale, center * scale);
             }
+        }
+
+        /// <summary>Extensão do desenho do bloco (sem os atributos), nas coordenadas do próprio bloco. Null se vazio.</summary>
+        public static Extents3d? DefinitionExtents(Transaction tr, ObjectId blockId)
+        {
+            var definition = (BlockTableRecord)tr.GetObject(blockId, OpenMode.ForRead);
+            Extents3d? extents = null;
+            foreach (ObjectId id in definition)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent || ent is AttributeDefinition) continue;
+                try
+                {
+                    Extents3d e = ent.GeometricExtents;
+                    if (extents is Extents3d sum) { sum.AddExtents(e); extents = sum; }
+                    else extents = e;
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Entidade sem extensão
+                }
+            }
+            return extents;
+        }
+
+        /// <summary>
+        /// Retângulo (no mundo) que contém o símbolo do bloco inserido, sem os atributos.
+        /// Sem desenho no bloco, um retângulo de tamanho zero no ponto de inserção.
+        /// </summary>
+        public static Extents3d SymbolBox(Transaction tr, BlockReference br)
+        {
+            var box = new Extents3d(br.Position, br.Position);
+            if (DefinitionExtents(tr, br.BlockTableRecord) is not Extents3d local) return box;
+
+            box = new Extents3d();
+            Point3d a = local.MinPoint, b = local.MaxPoint;
+            foreach (Point3d corner in new[] { a, new Point3d(b.X, a.Y, 0), b, new Point3d(a.X, b.Y, 0) })
+                box.AddPoint(corner.TransformBy(br.BlockTransform));
+            return box;
         }
 
         /// <summary>
