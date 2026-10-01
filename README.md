@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.24.msi`](Instalador/FiberPlugin-1.9.24.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.25.msi`](Instalador/FiberPlugin-1.9.25.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -163,13 +163,13 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 |---|---|---|
 | Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. |
 | Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Seta de esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo). Cada ponto é vinculado ao poste mais próximo (até 10 m) e guarda a situação (fim de rede, passagem ou ângulo). |
-| Parâmetros | `FIBRA_PARAMETROS` | Altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), tração pela **Tabela** 08 da norma ou pelo **Peso** do cabo, e altura mínima do cabo ao solo (Tabela 02: ruas 5,0 m). Gravados no DWG. |
+| Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
 | Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
 
 ### Documentos e Pranchas
 | Botão | Comando | Função |
 |---|---|---|
-| Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Veja abaixo. |
+| Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Os problemas do mesmo poste ficam num texto só, um embaixo do outro, com o número da lista da linha de comando; textos de postes vizinhos não se sobrepõem. Veja abaixo. |
 | Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, a 20 cm do topo, existente e total), **CTO e CEO**, **Esforços**, **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |

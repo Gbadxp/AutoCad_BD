@@ -43,16 +43,7 @@ namespace FiberPlugin.Commands
                 if (issues.Any(i => i.Point != Point3d.Origin))
                 {
                     CadHelpers.EnsureNonPlottingLayer(tr, db, Layer, 1);
-                    int n = 1;
-                    foreach (NormIssue issue in issues)
-                    {
-                        if (issue.Point == Point3d.Origin) continue;
-                        var circle = CadHelpers.Append(tr, modelSpace, new Circle(issue.Point, Vector3d.ZAxis, 4.0 * scale) { Layer = Layer });
-                        MText text = CadHelpers.AddText(tr, modelSpace, issue.Point + new Vector3d(4.5 * scale, 4.5 * scale, 0),
-                            $"{n++}. {issue.Message}", 0, AttachmentPoint.BottomLeft, Layer);
-                        XDataTags.TagCheck(tr, db, circle);
-                        XDataTags.TagCheck(tr, db, text);
-                    }
+                    Mark(tr, db, modelSpace, issues, scale);
                 }
                 tr.Commit();
             }
@@ -70,6 +61,56 @@ namespace FiberPlugin.Commands
             else ed.WriteMessage($"\n[INFO]: {errors} erro(s) e {warnings} aviso(s). Marcados no desenho na layer {Layer} (não imprime).");
             ed.WriteMessage("\n[INFO]: Não verificados pelo plugin: orientação dos postes DT, drops por vão e afastamentos da rede elétrica.");
             ed.Regen();
+        }
+
+        /// <summary>
+        /// Um círculo em cada lugar com problema e, ao lado, os problemas dali um embaixo do outro, com o mesmo
+        /// número da lista da linha de comando. Se o texto encostar no de outro lugar próximo, ele desce até ficar livre.
+        /// </summary>
+        private static void Mark(Transaction tr, Database db, BlockTableRecord space, List<NormIssue> issues, double scale)
+        {
+            double height = DrawingScale.TextHeight(db);
+            double lineStep = height * 1.7;   // Espaçamento entre linhas do MText (cerca de 1,67 × a altura)
+            double charWidth = height * 0.75; // Largura média de uma letra, para estimar o tamanho do texto
+
+            // Numerados na ordem da linha de comando; os do mesmo lugar (mesmo poste) ficam juntos
+            var groups = new List<(Point3d Point, List<string> Lines)>();
+            int n = 1;
+            foreach (NormIssue issue in issues.Where(i => i.Point != Point3d.Origin))
+            {
+                string line = $"{n++}. {issue.Message}";
+                int index = groups.FindIndex(g => g.Point.DistanceTo(issue.Point) < 0.5);
+                if (index >= 0) groups[index].Lines.Add(line);
+                else groups.Add((issue.Point, new List<string> { line }));
+            }
+
+            var taken = new List<Extents3d>();
+            foreach (var (point, lines) in groups)
+            {
+                var circle = CadHelpers.Append(tr, space, new Circle(point, Vector3d.ZAxis, 4.0 * scale) { Layer = Layer });
+                XDataTags.TagCheck(tr, db, circle);
+
+                // Canto de cima à esquerda do texto, junto ao círculo; o texto cresce para baixo
+                double left = point.X + 4.5 * scale, top = point.Y + 4.5 * scale;
+                double width = lines.Max(l => l.Length) * charWidth, blockHeight = lines.Count * lineStep;
+                for (bool moved = true; moved;)
+                {
+                    moved = false;
+                    foreach (Extents3d other in taken)
+                    {
+                        bool overlaps = left < other.MaxPoint.X && left + width > other.MinPoint.X &&
+                                        top > other.MinPoint.Y && top - blockHeight < other.MaxPoint.Y;
+                        if (!overlaps) continue;
+                        top = other.MinPoint.Y - height * 0.5;
+                        moved = true;
+                    }
+                }
+                taken.Add(new Extents3d(new Point3d(left, top - blockHeight, 0), new Point3d(left + width, top, 0)));
+
+                MText text = CadHelpers.AddText(tr, space, new Point3d(left, top, point.Z),
+                    string.Join("\\P", lines.Select(CadHelpers.MTextLiteral)), 0, AttachmentPoint.TopLeft, Layer);
+                XDataTags.TagCheck(tr, db, text);
+            }
         }
     }
 }

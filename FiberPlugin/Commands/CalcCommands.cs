@@ -10,15 +10,28 @@ namespace FiberPlugin.Commands
     /// <summary>Dados do cálculo de esforço: parâmetros do projeto e esforço que já existe nos postes.</summary>
     public class CalcCommands
     {
-        /// <summary>Altura de fixação do cabo e origem da tração (Tabela 08 da NDU 009 ou peso), gravadas no DWG.</summary>
+        /// <summary>
+        /// Janela com a altura de fixação do cabo, a origem da tração (Tabela 08 da NDU 009 ou peso) e a altura
+        /// mínima ao solo, já preenchida com os valores do desenho; o que for salvo fica gravado no DWG.
+        /// </summary>
         [CommandMethod("FIBRA_PARAMETROS")]
         public void SetParameters()
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
+            Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            CalcSettings? settings = CalcSettings.Ask(ed, doc.Database);
-            if (settings == null) return;
+            CalcSettings settings;
+            using (var form = new UI.ParametersForm(CalcSettings.Get(db)))
+            {
+                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Result == null) return;
+                settings = form.Result;
+            }
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                settings.Save(tr, db);
+                tr.Commit();
+            }
 
             ed.WriteMessage($"\n[SUCESSO]: Cabo a {settings.AttachHeightM:0.00} m do solo; tração: {settings.MethodText}; " +
                             $"altura mínima ao solo {settings.MinGroundClearanceM:0.0} m.");

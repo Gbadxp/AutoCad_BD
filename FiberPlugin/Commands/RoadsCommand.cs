@@ -151,7 +151,7 @@ namespace FiberPlugin.Commands
                             at += new Vector3d(-Math.Sin(label.Angle), Math.Cos(label.Angle), 0) * height * 0.25;
                             attachment = AttachmentPoint.BottomCenter;
                         }
-                        MText text = CadHelpers.AddText(tr, modelSpace, at, MTextLiteral(label.Text), label.Angle, attachment, NamesLayer);
+                        MText text = CadHelpers.AddText(tr, modelSpace, at, CadHelpers.MTextLiteral(label.Text), label.Angle, attachment, NamesLayer);
                         text.TextHeight = height;
                         names++;
                     }
@@ -190,9 +190,6 @@ namespace FiberPlugin.Commands
 
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
         }
-
-        /// <summary>Texto puro para o MText (barra invertida e chaves são códigos de formatação).</summary>
-        private static string MTextLiteral(string text) => text.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}");
 
         /// <summary>
         /// Botão "Marcar no desenho" da janela: esconde a janela enquanto o usuário clica os dois cantos (ou o centro)

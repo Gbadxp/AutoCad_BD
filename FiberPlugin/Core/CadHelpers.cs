@@ -198,6 +198,9 @@ namespace FiberPlugin.Core
             });
         }
 
+        /// <summary>Texto puro para o MText (barra invertida e chaves são códigos de formatação).</summary>
+        public static string MTextLiteral(string text) => text.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}");
+
         public static BlockTableRecord OpenModelSpace(Transaction tr, Database db, OpenMode mode)
         {
             var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);

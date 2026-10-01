@@ -1,6 +1,4 @@
-using System.Globalization;
 using Autodesk.AutoCAD.DatabaseServices;
-using Autodesk.AutoCAD.EditorInput;
 
 namespace FiberPlugin.Core
 {
@@ -47,51 +45,5 @@ namespace FiberPlugin.Core
                 new TypedValue((int)DxfCode.Real, AttachHeightM),
                 new TypedValue((int)DxfCode.Int32, UseNormTable ? 1 : 0),
                 new TypedValue((int)DxfCode.Real, MinGroundClearanceM));
-
-        /// <summary>Pergunta os parâmetros (sugerindo os atuais) e grava no DWG. Null se o usuário cancelar.</summary>
-        public static CalcSettings? Ask(Editor ed, Database db)
-        {
-            CalcSettings current = Get(db);
-            string suggested = current.AttachHeightM.ToString("0.00", CultureInfo.InvariantCulture);
-
-            var pdo = new PromptDoubleOptions(
-                $"\nAltura de fixação do cabo no poste, em m (NDU 009: {MinAttachHeight:0.00} a {MaxAttachHeight:0.00}) <{suggested}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false
-            };
-            PromptDoubleResult heightRes = ed.GetDouble(pdo);
-            if (heightRes.Status == PromptStatus.Cancel) return null;
-            double height = heightRes.Status == PromptStatus.OK ? heightRes.Value : current.AttachHeightM;
-            if (height < MinAttachHeight || height > MaxAttachHeight)
-            {
-                ed.WriteMessage($"\n[AVISO]: {height:0.00} m está fora da faixa de ocupação da NDU 009 ({MinAttachHeight:0.00} a {MaxAttachHeight:0.00} m).");
-            }
-
-            string method = current.UseNormTable ? "Tabela" : "Peso";
-            string? answer = CadHelpers.AskKeyword(ed, $"\nTração dos cabos [Tabela/Peso] <{method}>: ", "Tabela Peso", method);
-            if (answer == null) return null;
-
-            string clearanceHint = current.MinGroundClearanceM.ToString("0.0", CultureInfo.InvariantCulture);
-            var pco = new PromptDoubleOptions(
-                $"\nAltura mínima do cabo ao solo, em m (Tabela 02: ruas 5.0, área rural com veículos 4.5, pedestres 3.0) <{clearanceHint}>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false,
-                AllowZero = false
-            };
-            PromptDoubleResult clearanceRes = ed.GetDouble(pco);
-            if (clearanceRes.Status == PromptStatus.Cancel) return null;
-            double clearance = clearanceRes.Status == PromptStatus.OK ? clearanceRes.Value : current.MinGroundClearanceM;
-
-            var settings = new CalcSettings { AttachHeightM = height, UseNormTable = answer == "Tabela", MinGroundClearanceM = clearance };
-            using (Transaction tr = db.TransactionManager.StartTransaction())
-            {
-                settings.Save(tr, db);
-                tr.Commit();
-            }
-            return settings;
-        }
     }
 }

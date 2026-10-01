@@ -320,12 +320,13 @@ namespace FiberPlugin.UI
             SelectedIndex = 0;
         }
 
+        /// <summary>Opção marcada; -1 = nenhuma (usado quando as opções são atalhos para preencher um campo).</summary>
         public int SelectedIndex
         {
             get => _selected;
             set
             {
-                if (value == _selected || value < 0 || value >= _buttons.Count) return;
+                if (value == _selected || value < -1 || value >= _buttons.Count) return;
                 _selected = value;
                 for (int i = 0; i < _buttons.Count; i++)
                 {
