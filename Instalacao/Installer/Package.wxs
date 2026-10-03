@@ -19,6 +19,9 @@
     <MediaTemplate EmbedCab="yes" />
 
     <Property Id="ARPCOMMENTS" Value="Ferramentas para projetos de redes de fibra óptica (FTTH) no AutoCAD 2022-2026" />
+    <!-- Contato do autor em Configurações > Aplicativos (link de suporte) -->
+    <Property Id="ARPCONTACT" Value="georgegomes_aires@hotmail.com" />
+    <Property Id="ARPHELPLINK" Value="mailto:georgegomes_aires@hotmail.com" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="AutodeskFolder" Name="Autodesk">
@@ -39,6 +42,9 @@
 
     <!-- Assistente simples: boas-vindas + observações + progresso -->
     <WixVariable Id="WixUILicenseRtf" Value="Observacoes.rtf" />
+    <!-- Foto e contato do autor: faixa do topo (493 x 58) e painel da tela final (493 x 312) -->
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
     <ui:WixUI Id="WixUI_Minimal" />
 
   </Package>

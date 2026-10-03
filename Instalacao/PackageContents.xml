@@ -17,7 +17,7 @@
     SupportedLocales="Enu|Ptb"
     HelpFile="./Contents/README.md">
 
-  <CompanyDetails Name="Fiber Plugin" />
+  <CompanyDetails Name="Fiber Plugin" Email="georgegomes_aires@hotmail.com" />
 
   <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R24.1" SeriesMax="R25.1" />
 

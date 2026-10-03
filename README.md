@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.30.msi`](Instalador/FiberPlugin-1.9.30.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.31.msi`](Instalador/FiberPlugin-1.9.31.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
