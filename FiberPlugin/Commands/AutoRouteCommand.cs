@@ -52,7 +52,14 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                CadHelpers.WriteDrawingRecord(tr, db, SideKey, new TypedValue((int)DxfCode.Text, side));
+                try
+                {
+                    CadHelpers.WriteDrawingRecord(tr, db, SideKey, new TypedValue((int)DxfCode.Text, side));
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Só a lembrança do último lado: não impede o roteamento
+                }
 
                 var positions = new List<Point3d>();
                 var faces = new List<(Point3d At, Vector2d Face)>(); // Postes DT: eixo das faces

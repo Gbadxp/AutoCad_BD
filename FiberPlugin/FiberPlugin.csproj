@@ -14,7 +14,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
     <!-- Identificação da DLL (aparece em Propriedades > Detalhes e na mensagem de carregamento) -->
-    <Version>1.9.32</Version>
+    <Version>1.9.33</Version>
     <Product>Fiber Plugin</Product>
     <Company>Fiber Plugin</Company>
     <Authors>Fiber Plugin</Authors>

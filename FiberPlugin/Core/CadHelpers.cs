@@ -93,8 +93,8 @@ namespace FiberPlugin.Core
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
                 var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-                if (!nod.Contains(key)) return null;
-                using (ResultBuffer? data = ((Xrecord)tr.GetObject(nod.GetAt(key), OpenMode.ForRead)).Data)
+                if (OpenRecord(tr, nod, key, OpenMode.ForRead) is not Xrecord xrec) return null;
+                using (ResultBuffer? data = xrec.Data)
                 {
                     return data?.AsArray();
                 }
@@ -105,15 +105,35 @@ namespace FiberPlugin.Core
         {
             var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
             var data = new ResultBuffer(values);
-            if (nod.Contains(key))
+            if (OpenRecord(tr, nod, key, OpenMode.ForWrite) is Xrecord existing)
             {
-                ((Xrecord)tr.GetObject(nod.GetAt(key), OpenMode.ForWrite)).Data = data;
+                existing.Data = data;
                 return;
             }
             nod.UpgradeOpen();
+            if (nod.Contains(key)) nod.Remove(key); // Entrada quebrada ou que não é Xrecord: grava uma nova no lugar
             var xrec = new Xrecord { Data = data };
             nod.SetAt(key, xrec);
             tr.AddNewlyCreatedDBObject(xrec, true);
+        }
+
+        /// <summary>
+        /// Xrecord gravado na chave, ou null se não houver ou se a entrada estiver quebrada (ex.: desenho recuperado
+        /// depois de um crash, com a entrada apontando para um objeto que não chegou a ser salvo).
+        /// </summary>
+        private static Xrecord? OpenRecord(Transaction tr, DBDictionary nod, string key, OpenMode mode)
+        {
+            if (!nod.Contains(key)) return null;
+            ObjectId id = nod.GetAt(key);
+            if (id.IsNull || !id.IsValid || id.IsErased) return null;
+            try
+            {
+                return tr.GetObject(id, mode) as Xrecord;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null;
+            }
         }
 
         /// <summary>Valor do primeiro atributo cuja tag está na lista (null se não houver).</summary>
