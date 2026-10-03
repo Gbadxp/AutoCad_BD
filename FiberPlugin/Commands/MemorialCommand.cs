@@ -12,19 +12,49 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Documentos em PDF para a concessionária, com os dados do projeto digitados na janela (gravados no DWG para a
-    /// próxima vez e compartilhados entre os três):
+    /// Documentos em PDF para a concessionária, com os dados do projeto digitados na janela ou no Dados do Projeto
+    /// (gravados no DWG e em Documentos\Fiber Plugin\projeto.txt, e compartilhados entre os três):
     /// - Memorial Descritivo (conteúdo do item 16.2 da NDU 009): capa, ofício, dados da empresa e do contrato, cabos,
     ///   postes e pontos de fixação, cálculo de esforços e figuras;
     /// - Memorial de Esforço Mecânico: só o cálculo de esforços, com a resultante em cada poste;
-    /// - Coordenadas dos Postes: a lista dos postes com as coordenadas UTM e latitude/longitude.
+    /// - Coordenadas dos Postes: a lista dos postes com as coordenadas UTM.
     /// </summary>
     public class MemorialCommand
     {
-        private const string DictionaryKey = "FIBRA_PLUGIN_MEMORIAL";
         private static readonly CultureInfo Br = new CultureInfo("pt-BR");
 
         private enum Kind { Descriptive, Effort, Coordinates }
+
+        /// <summary>
+        /// Janela só para preencher e salvar os dados do projeto, sem gerar documento. Eles ficam no desenho e em
+        /// Documentos\Fiber Plugin\projeto.txt, e os três documentos já abrem com eles preenchidos.
+        /// </summary>
+        [CommandMethod("FIBRA_DADOS_PROJETO")]
+        public void EditProjectData()
+        {
+            Document doc = AcApp.DocumentManager.MdiActiveDocument;
+            Database db = doc.Database;
+            Editor ed = doc.Editor;
+
+            ProjectInfo info = ProjectInfo.Load(db);
+            using (var form = new UI.MemorialForm("Usados no Memorial Descritivo, no de Esforço e nas Coordenadas dos Postes",
+                       info.Route, info.WorkAddress, "", info.ContractNumber, info.ArtNumber, info.StartDate, info.Deadline,
+                       "Dados do Projeto", "FIBRA_DADOS_PROJETO", UI.MemorialFields.All & ~UI.MemorialFields.PlaceDate,
+                       okText: "Salvar", requireRoute: false, hint: "Também ficam salvos para os próximos desenhos"))
+            {
+                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
+                info = new ProjectInfo
+                {
+                    Route = form.Route, WorkAddress = form.WorkAddress, ContractNumber = form.ContractNumber,
+                    ArtNumber = form.ArtNumber, StartDate = form.StartDate, Deadline = form.Deadline
+                };
+            }
+
+            string? error = info.Save(db);
+            ed.WriteMessage("\n[SUCESSO]: Dados do projeto salvos. O Memorial Descritivo, o de Esforço e as Coordenadas já abrem com eles preenchidos.");
+            if (error == null) ed.WriteMessage($"\n[INFO]: Também ficam em {ProjectInfo.FilePath}, para os próximos desenhos.");
+            else ed.WriteMessage($"\n[AVISO]: Salvos só neste desenho; não foi possível gravar {ProjectInfo.FilePath} ({error}).");
+        }
 
         [CommandMethod("FIBRA_MEMORIAL")]
         public void Generate() => Run(Kind.Descriptive);
@@ -49,10 +79,10 @@ namespace FiberPlugin.Commands
                 return;
             }
 
-            // Latitude e longitude dependem da zona UTM: nas coordenadas, pergunta se o desenho ainda não tiver
+            // A zona faz parte da coordenada UTM: nas coordenadas, pergunta se o desenho ainda não tiver
             if (kind == Kind.Coordinates && UtmZone.Get(db) == null)
             {
-                ed.WriteMessage("\n[INFO]: Defina a zona UTM do projeto para calcular a latitude e a longitude dos postes.");
+                ed.WriteMessage("\n[INFO]: Defina a zona UTM do projeto, que vai junto com as coordenadas dos postes.");
                 if (UtmZone.Ask(ed, db, null) == null) return;
             }
 
@@ -73,8 +103,8 @@ namespace FiberPlugin.Commands
                 if (data.Efforts.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum esforço calculado: rode o Esforço no Percurso antes, para o memorial trazer a tabela de esforços.");
             }
 
-            // Dados do projeto (sugere os da última vez neste desenho); cada documento mostra só os campos que usa
-            string[] saved = ReadSaved(db);
+            // Dados do projeto (os deste desenho, completados com os últimos salvos); cada documento mostra só os campos que usa
+            ProjectInfo saved = ProjectInfo.Load(db);
             string placeDate = Join(", ", company.City, DateTime.Today.ToString("d 'de' MMMM 'de' yyyy", Br));
             var (heading, command, fields) = kind switch
             {
@@ -87,8 +117,8 @@ namespace FiberPlugin.Commands
             string summary = kind == Kind.Coordinates
                 ? Join(" · ", $"{data.Poles.Count} poste(s)", data.CoordinateSystem)
                 : Summary(data);
-            using (var form = new UI.MemorialForm(summary, saved[0], saved[1], placeDate, saved[2], saved[3], saved[4], saved[5],
-                       heading, command, fields))
+            using (var form = new UI.MemorialForm(summary, saved.Route, saved.WorkAddress, placeDate, saved.ContractNumber,
+                       saved.ArtNumber, saved.StartDate, saved.Deadline, heading, command, fields))
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
                 data.Route = form.Route;
@@ -102,13 +132,11 @@ namespace FiberPlugin.Commands
             if (kind != Kind.Coordinates && data.ContractNumber.Length == 0)
                 ed.WriteMessage("\n[AVISO]: Sem o número do contrato de uso mútuo, que a NDU 009 exige no memorial (item 16.2 a).");
 
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            new ProjectInfo
             {
-                CadHelpers.WriteDrawingRecord(tr, db, DictionaryKey,
-                    new[] { data.Route, data.WorkAddress, data.ContractNumber, data.ArtNumber, data.StartDate, data.Deadline }
-                        .Select(v => new TypedValue((int)DxfCode.Text, v)).ToArray());
-                tr.Commit();
-            }
+                Route = data.Route, WorkAddress = data.WorkAddress, ContractNumber = data.ContractNumber,
+                ArtNumber = data.ArtNumber, StartDate = data.StartDate, Deadline = data.Deadline
+            }.Save(db);
 
             string folder = Path.GetDirectoryName(doc.Name) is string dir && dir.Length > 0
                 ? dir
@@ -212,20 +240,14 @@ namespace FiberPlugin.Commands
                 // Em ordem de número (P-01, P-02...); postes sem número no fim, na ordem do desenho
                 Poles = project.PoleList
                     .OrderBy(p => Poles.ParseNumber(p.Number) ?? int.MaxValue)
-                    .Select(p =>
+                    .Select(p => new MemorialPole
                     {
-                        var (lat, lon) = utm != null ? UtmZone.ToGeographic(p.Position.X, p.Position.Y, utm.Zone, utm.South) : (0.0, 0.0);
-                        return new MemorialPole
-                        {
-                            Number = p.Number,
-                            Structure = p.Data?.Designation ?? p.Name,
-                            EnergisaId = p.Data?.EnergisaId ?? "",
-                            Zone = utm != null ? UtmZone.ZoneText(p.Position, utm) : "",
-                            Easting = p.Position.X,
-                            Northing = p.Position.Y,
-                            Latitude = utm != null ? lat : (double?)null,
-                            Longitude = utm != null ? lon : (double?)null
-                        };
+                        Number = p.Number,
+                        Structure = p.Data?.Designation ?? p.Name,
+                        EnergisaId = p.Data?.EnergisaId ?? "",
+                        Zone = utm != null ? UtmZone.ZoneText(p.Position, utm) : "",
+                        Easting = p.Position.X,
+                        Northing = p.Position.Y
                     })
                     .ToList(),
                 AttachHeightM = traction.Settings.AttachHeightM,
@@ -234,15 +256,6 @@ namespace FiberPlugin.Commands
                     ? $"UTM SIRGAS 2000, zona {utm.Zone} {(utm.South ? "Sul" : "Norte")}"
                     : "UTM SIRGAS 2000 (zona não definida no desenho)"
             };
-        }
-
-        /// <summary>Percurso, endereço, contrato, ART, início e prazo gravados da última vez (vazios se não houver).</summary>
-        private static string[] ReadSaved(Database db)
-        {
-            TypedValue[]? values = CadHelpers.ReadDrawingRecord(db, DictionaryKey);
-            var saved = new string[6];
-            for (int i = 0; i < saved.Length; i++) saved[i] = values != null && values.Length > i ? values[i].Value as string ?? "" : "";
-            return saved;
         }
 
         /// <summary>"223 postes · 8.999 m de cabo · 18 CTO · 2 CEO" para o cabeçalho da janela.</summary>

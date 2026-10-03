@@ -82,6 +82,7 @@ namespace FiberPlugin.UI
             ["FIBRA_MEMORIAL"] = PaintMemorial,
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
+            ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_ESCALA"] = PaintScale,
             ["FIBRA_ZONA_UTM"] = PaintUtm,
@@ -402,6 +403,21 @@ namespace FiberPlugin.UI
             dc.DrawLine(grid, new W.Point(12.5, 15.5), new W.Point(12.5, 25.5));
             dc.DrawGeometry(ink.Red, Ink.Pen(ink.Paper, 1.0), G("M25,15 C21,15 20,18.5 21,20.5 L25,28 L29,20.5 C30,18.5 29,15 25,15 Z"));
             dc.DrawEllipse(ink.White, null, new W.Point(25, 19), 1.6, 1.6);
+        }
+
+        private static void PaintProjectData(M.DrawingContext dc, Ink ink)
+        {
+            // Prancheta com os campos preenchidos e o lápis
+            dc.DrawRoundedRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(4, 4, 20, 25), 2, 2);
+            dc.DrawRectangle(ink.Line, null, new W.Rect(9, 2, 10, 4));
+            M.Pen label = Ink.Pen(ink.Line, 1.1), value = Ink.Pen(ink.Blue, 1.8);
+            for (int i = 0; i < 3; i++)
+            {
+                dc.DrawLine(label, new W.Point(7.5, 10 + i * 6), new W.Point(11, 10 + i * 6));
+                dc.DrawLine(value, new W.Point(13, 10 + i * 6), new W.Point(20.5, 10 + i * 6));
+            }
+            dc.DrawGeometry(ink.Yellow, Ink.Pen(ink.YellowDark, 0.9), G("M29.5,15.5 L32,18 L22,28 L18.6,29 L19.5,25.5 Z"));
+            dc.DrawGeometry(ink.Red, null, G("M29.5,15.5 L32,18 L30.6,19.4 L28.1,16.9 Z"));
         }
 
         private static void PaintSheets(M.DrawingContext dc, Ink ink)

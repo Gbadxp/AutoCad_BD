@@ -79,7 +79,7 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>Nome do campo sem acentos, espaços e maiúsculas ("Endereço" → "endereco").</summary>
-        private static string Key(string name)
+        internal static string Key(string name)
         {
             var sb = new StringBuilder();
             foreach (char c in name.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD))

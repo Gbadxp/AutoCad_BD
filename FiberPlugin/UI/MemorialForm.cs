@@ -44,9 +44,13 @@ namespace FiberPlugin.UI
         /// <param name="summary">Resumo do desenho, ex.: "223 postes · 8.999 m de cabo · 18 CTO".</param>
         /// <param name="heading">Nome do documento (título da janela e do cabeçalho).</param>
         /// <param name="iconCommand">Comando cujo ícone aparece no cabeçalho.</param>
+        /// <param name="okText">Texto do botão principal.</param>
+        /// <param name="requireRoute">Sem percurso, o botão principal fica desabilitado (ele vai no título dos documentos).</param>
+        /// <param name="hint">Dica no rodapé.</param>
         public MemorialForm(string summary, string route, string address, string placeAndDate,
             string contract, string art, string start, string deadline,
-            string heading = "Memorial Descritivo", string iconCommand = "FIBRA_MEMORIAL", MemorialFields fields = MemorialFields.All)
+            string heading = "Memorial Descritivo", string iconCommand = "FIBRA_MEMORIAL", MemorialFields fields = MemorialFields.All,
+            string okText = "Gerar PDF", bool requireRoute = true, string hint = "Empresa: Pasta de Dados > empresa.txt")
         {
             _initial = new[] { route, address, placeAndDate, contract, art, start, deadline };
             bool Has(MemorialFields f) => (fields & f) != 0;
@@ -83,8 +87,8 @@ namespace FiberPlugin.UI
                 _deadline = Field("Prazo de execução", "Ex.: 60 dias", deadline, 1, 1);
             }
 
-            var footer = new FooterPanel { Hint = "Empresa: Pasta de Dados > empresa.txt" };
-            _ok = new ThemedButton("Gerar PDF", true);
+            var footer = new FooterPanel { Hint = hint };
+            _ok = new ThemedButton(okText, true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             footer.AddButton(_ok);
             footer.AddButton(cancel);
@@ -95,9 +99,12 @@ namespace FiberPlugin.UI
             AcceptButton = _ok;
             CancelButton = cancel;
 
-            // O percurso é obrigatório: aparece no título, no cabeçalho de todas as folhas e na plaqueta
-            if (_route != null) _route.Input.TextChanged += (s, e) => _ok.Enabled = Route.Length > 0;
-            _ok.Enabled = Route.Length > 0;
+            // Nos documentos o percurso é obrigatório: aparece no título, no cabeçalho de todas as folhas e na plaqueta
+            if (requireRoute)
+            {
+                if (_route != null) _route.Input.TextChanged += (s, e) => _ok.Enabled = Route.Length > 0;
+                _ok.Enabled = Route.Length > 0;
+            }
             _ok.Click += (s, e) => { DialogResult = DialogResult.OK; Close(); };
             Shown += (s, e) => (_route ?? _placeDate ?? _contract)?.Input.Focus();
         }

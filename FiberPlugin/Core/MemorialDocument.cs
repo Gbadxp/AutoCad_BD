@@ -37,7 +37,7 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>Dados do projeto para o Memorial Descritivo (valores prontos, sem objetos do AutoCAD).</summary>
-    /// <summary>Um poste na lista de coordenadas: UTM do desenho e latitude/longitude (null sem zona UTM).</summary>
+    /// <summary>Um poste na lista de coordenadas, com as coordenadas UTM do desenho.</summary>
     public sealed class MemorialPole
     {
         public string Number { get; set; } = "";
@@ -46,8 +46,6 @@ namespace FiberPlugin.Core
         public string Zone { get; set; } = "";           // "20 L"; vazio sem zona UTM no desenho
         public double Easting { get; set; }
         public double Northing { get; set; }
-        public double? Latitude { get; set; }
-        public double? Longitude { get; set; }
     }
 
     public sealed class MemorialData
@@ -170,22 +168,21 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Lista dos postes do projeto com as coordenadas: UTM (SIRGAS 2000) e latitude/longitude em graus decimais,
-        /// em ordem de número, repartida em quantas folhas forem precisas.
+        /// Lista dos postes do projeto com as coordenadas UTM (SIRGAS 2000), em ordem de número, repartida em quantas
+        /// folhas forem precisas.
         /// </summary>
         public static string CoordinatesHtml(MemorialData d, string? assetsDir)
         {
             string logo = Image(assetsDir, "logo.png");
-            bool geographic = d.Poles.Any(p => p.Latitude != null);
 
             string Table(IEnumerable<MemorialPole> poles) => $"""
                 <table class="small">
-                  <thead><tr><th>Poste</th><th>Estrutura</th><th>ID Energisa</th><th>Zona</th><th class="num">E (m)</th>
-                  <th class="num">N (m)</th><th class="num">Latitude</th><th class="num">Longitude</th></tr></thead>
+                  <thead><tr><th>Poste</th><th>Estrutura</th><th>ID Energisa</th><th>Zona</th>
+                  <th class="num">E (m)</th><th class="num">N (m)</th></tr></thead>
                   <tbody>{string.Concat(poles.Select(p => $"""
                     <tr><td><b>{E(p.Number)}</b></td><td>{E(p.Structure)}</td><td>{(p.EnergisaId.Length > 0 ? E(p.EnergisaId) : "—")}</td>
                     <td>{(p.Zone.Length > 0 ? E(p.Zone) : "—")}</td><td class="num">{p.Easting.ToString("N2", Br)}</td>
-                    <td class="num">{p.Northing.ToString("N2", Br)}</td><td class="num">{Degrees(p.Latitude)}</td><td class="num">{Degrees(p.Longitude)}</td></tr>
+                    <td class="num">{p.Northing.ToString("N2", Br)}</td></tr>
                     """))}</tbody>
                 </table>
                 """;
@@ -195,8 +192,7 @@ namespace FiberPlugin.Core
                 """<h1 class="doc-title">Coordenadas dos Postes</h1>""" +
                 Section("1", "Identificação do projeto", ProjectCard(d, withContract: false,
                     ("Total de postes", N(d.Poles.Count)),
-                    ("Sistema de coordenadas", d.CoordinateSystem + (geographic ? " · latitude e longitude em graus decimais" : "")))) +
-                (geographic ? "" : """<div class="callout warn">Zona UTM não definida no desenho: latitude e longitude ficam em branco (botão Zona UTM).</div>""") +
+                    ("Sistema de coordenadas", d.CoordinateSystem))) +
                 Section("2", "Postes", Table(d.Poles.Take(PoleRowsFirstPage)))
             };
             for (int start = PoleRowsFirstPage; start < d.Poles.Count; start += PoleRowsPerPage)
@@ -251,8 +247,6 @@ namespace FiberPlugin.Core
                 </dl></div>
                 """;
         }
-
-        private static string Degrees(double? value) => value?.ToString("0.000000", Br) ?? "—";
 
         // ---------- Páginas ----------
 
