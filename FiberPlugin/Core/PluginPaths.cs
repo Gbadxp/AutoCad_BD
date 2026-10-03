@@ -12,7 +12,7 @@ namespace FiberPlugin.Core
     /// Instalado (pacote .bundle em ApplicationPlugins):
     ///  - Dados: Documentos\Fiber Plugin\Dados, editável pelo usuário. Arquivos que faltarem lá são
     ///    copiados do pacote (nunca sobrescreve o que o usuário editou).
-    ///  - Blocos: o BLOCOS.dwg escolhido no botão Atualizar Blocos (ex.: o da pasta do projeto) ou,
+    ///  - Blocos: o BLOCOS.dwg escolhido no Atualizar Blocos (ex.: o da pasta do projeto) ou,
     ///    sem ele, a cópia que vem dentro do pacote.
     /// </summary>
     public static class PluginPaths
@@ -48,7 +48,7 @@ namespace FiberPlugin.Core
         /// <summary>Pasta Blocos: a do código-fonte (desenvolvimento) ou a do pacote instalado.</summary>
         public static string? BlocksDir => FindUpwards(BlocksFolderName);
 
-        // Arquivo que guarda o BLOCOS.dwg escolhido no botão Atualizar Blocos
+        // Arquivo que guarda o BLOCOS.dwg escolhido no Atualizar Blocos
         private static string SettingsFile => Path.Combine(UserRoot, "biblioteca.txt");
         private static string? _customLibrary;
         private static bool _customLibraryLoaded;

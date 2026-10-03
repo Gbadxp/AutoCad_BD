@@ -26,6 +26,17 @@ namespace FiberPlugin.Core
         public string StartDate { get; set; } = "";
         public string Deadline { get; set; } = "";
 
+        /// <summary>
+        /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
+        /// janela Dados do Projeto, que também atualiza os postes). Null se nenhum dos dois tiver.
+        /// </summary>
+        public UtmSettings? Zone { get; set; }
+
+        /// <summary>True quando a zona veio do projeto.txt (o desenho ainda não tem zona).</summary>
+        public bool ZoneFromFile { get; private set; }
+
+        private const string ZoneLabel = "Zona UTM";
+
         /// <summary>Documentos\Fiber Plugin\projeto.txt.</summary>
         public static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
 
@@ -40,8 +51,26 @@ namespace FiberPlugin.Core
         public static ProjectInfo Load(Database db)
         {
             string[] drawing = ReadDrawing(db);
-            string[] file = ReadFile();
-            return From(drawing.Select((value, i) => value.Length > 0 ? value : file[i]).ToArray());
+            Dictionary<string, string> file = ReadFile();
+            string FromFile(string label) => file.TryGetValue(CompanyInfo.Key(label), out string? value) ? value : "";
+
+            ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(Labels[i])).ToArray());
+            info.Zone = UtmZone.Get(db);
+            if (info.Zone == null && ParseZone(FromFile(ZoneLabel)) is UtmSettings saved)
+            {
+                info.Zone = saved;
+                info.ZoneFromFile = true;
+            }
+            return info;
+        }
+
+        /// <summary>"20 Sul", "20S", "23 Norte" → zona e hemisfério. Null se não for uma zona válida.</summary>
+        private static UtmSettings? ParseZone(string text)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(text, @"^\s*(\d{1,2})\s*(S|N|Sul|Norte)?\s*$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success || !int.TryParse(m.Groups[1].Value, out int zone) || zone < 1 || zone > 60) return null;
+            return new UtmSettings { Zone = zone, South = !m.Groups[2].Value.StartsWith("N", StringComparison.OrdinalIgnoreCase) };
         }
 
         /// <summary>
@@ -61,6 +90,11 @@ namespace FiberPlugin.Core
                 text.AppendLine("# Dados do projeto do Fiber Plugin (os últimos salvos). Preenchem a janela dos documentos");
                 text.AppendLine("# nos desenhos que ainda não têm esses dados. Pode editar aqui, um campo por linha.");
                 for (int i = 0; i < Labels.Length; i++) text.AppendLine($"{Labels[i]}: {Values[i]}");
+                // Sem zona informada (ex.: salvo por um documento), mantém a que já estava no arquivo
+                string zone = Zone != null
+                    ? $"{Zone.Zone} {(Zone.South ? "Sul" : "Norte")}"
+                    : ReadFile().TryGetValue(CompanyInfo.Key(ZoneLabel), out string? kept) ? kept : "";
+                text.AppendLine($"{ZoneLabel}: {zone}");
                 Directory.CreateDirectory(PluginPaths.UserRoot);
                 File.WriteAllText(FilePath, text.ToString(), new UTF8Encoding(true));
                 return null;
@@ -77,8 +111,8 @@ namespace FiberPlugin.Core
             return Labels.Select((_, i) => values != null && values.Length > i ? values[i].Value as string ?? "" : "").ToArray();
         }
 
-        /// <summary>Campos do projeto.txt ("Campo: valor"); vazios se o arquivo não existir.</summary>
-        private static string[] ReadFile()
+        /// <summary>Campos do projeto.txt ("Campo: valor"), pelo nome sem acentos; vazio se o arquivo não existir.</summary>
+        private static Dictionary<string, string> ReadFile()
         {
             var fields = new Dictionary<string, string>();
             try
@@ -98,7 +132,7 @@ namespace FiberPlugin.Core
             {
                 // Sem o arquivo, a janela só não vem preenchida
             }
-            return Labels.Select(label => fields.TryGetValue(CompanyInfo.Key(label), out string? value) ? value : "").ToArray();
+            return fields;
         }
     }
 }

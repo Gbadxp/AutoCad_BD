@@ -32,7 +32,15 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[INFO]: Escala mantida em 1:{current}.");
                 return;
             }
+            Apply(ed, db, current, scale);
+        }
 
+        /// <summary>
+        /// Grava a escala nova e pergunta se ajusta as anotações já desenhadas (de <paramref name="current"/> para
+        /// <paramref name="scale"/>). Usado também pela janela Dados do Projeto.
+        /// </summary>
+        internal static void Apply(Editor ed, Database db, int current, int scale)
+        {
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 DrawingScale.Set(tr, db, scale);

@@ -11,7 +11,7 @@ namespace FiberPlugin.Core
 
     /// <summary>
     /// Biblioteca de blocos: um único arquivo BLOCOS.dwg, com as definições de todos os blocos do projeto
-    /// (o escolhido no botão Atualizar Blocos ou, sem ele, o da pasta Blocos).
+    /// (o escolhido no Atualizar Blocos ou, sem ele, o da pasta Blocos).
     /// O plugin só oferece os blocos definidos na biblioteca. Quando um deles é usado e ainda não existe
     /// no desenho, a definição é copiada automaticamente, sem precisar de template.
     /// O grupo de cada bloco (e o comando que o insere) vem do nome: veja BlockCategories.
@@ -48,7 +48,7 @@ namespace FiberPlugin.Core
             string? file = LibraryFile;
             if (file == null || !File.Exists(file))
             {
-                LastError = $"{LibraryFileName} não encontrado ({file ?? "pasta Blocos"}). Use o botão Atualizar Blocos para escolher o arquivo.";
+                LastError = $"{LibraryFileName} não encontrado ({file ?? "pasta Blocos"}). Use Dados do Projeto > Atualizar Blocos para escolher o arquivo.";
                 return new List<BlockEntry>();
             }
 
@@ -137,10 +137,10 @@ namespace FiberPlugin.Core
             // O BLOCOS.dwg do pacote fica em Arquivos de Programas e não pode ser alterado
             if (PluginPaths.IsInstalled && PluginPaths.CustomLibrary == null)
             {
-                return (0, 0, 0, $"Escolha o seu {LibraryFileName} no botão Atualizar Blocos antes de exportar.");
+                return (0, 0, 0, $"Escolha o seu {LibraryFileName} em Dados do Projeto > Atualizar Blocos antes de exportar.");
             }
             string? path = LibraryFile;
-            if (path == null) return (0, 0, 0, $"{LibraryFileName} não encontrado. Use o botão Atualizar Blocos para escolher o arquivo.");
+            if (path == null) return (0, 0, 0, $"{LibraryFileName} não encontrado. Use Dados do Projeto > Atualizar Blocos para escolher o arquivo.");
 
             int added = 0, replaced = 0, kept = 0;
             var toCopy = new ObjectIdCollection();

@@ -18,16 +18,20 @@ namespace FiberPlugin.Commands
         public void OpenDataFolder()
         {
             Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+            string? dir = ShowDataFolder();
+            ed.WriteMessage(dir == null ? "\n[AVISO]: Pasta de dados do plugin não encontrada." : $"\n[INFO]: {dir}");
+        }
 
+        /// <summary>
+        /// Abre no Explorer a pasta com as planilhas e o empresa.txt (Documentos\Fiber Plugin na instalação normal).
+        /// Retorna a pasta, ou null se ela não existir. Usado também pela janela Dados do Projeto.
+        /// </summary>
+        internal static string? ShowDataFolder()
+        {
             string? dir = PluginPaths.IsInstalled ? PluginPaths.UserRoot : Path.GetDirectoryName(PluginPaths.DataDir ?? "");
-            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
-            {
-                ed.WriteMessage("\n[AVISO]: Pasta de dados do plugin não encontrada.");
-                return;
-            }
-
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
-            ed.WriteMessage($"\n[INFO]: {dir}");
+            return dir;
         }
 
         /// <summary>

@@ -34,11 +34,11 @@ namespace FiberPlugin.Commands
             ObjectId blockId = LoadBlock(ed, db, model.Type);
             if (blockId.IsNull) return;
 
-            // Zona UTM definida pelo botão Zona UTM (sem ela, o texto sai sem a linha "20 L")
+            // Zona UTM definida em Dados do Projeto (sem ela, o texto sai sem a linha "20 L")
             UtmSettings? utm = UtmZone.Get(db);
             if (utm == null)
             {
-                ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Use o botão Zona UTM para incluir a zona (ex.: 20 L) nos textos.");
+                ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Defina em Dados do Projeto para incluir a zona (ex.: 20 L) nos textos.");
             }
 
             HashSet<int> used;

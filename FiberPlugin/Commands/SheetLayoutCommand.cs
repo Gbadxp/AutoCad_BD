@@ -84,7 +84,7 @@ namespace FiberPlugin.Commands
             int drawingScale = DrawingScale.Get(db);
             if (drawingScale != plan.Scale)
             {
-                ed.WriteMessage($"\n[AVISO]: As anotações do desenho estão em 1:{drawingScale}. Para textos proporcionais a 1:{plan.Scale}, rode FIBRA_ESCALA.");
+                ed.WriteMessage($"\n[AVISO]: As anotações do desenho estão em 1:{drawingScale}. Para textos proporcionais a 1:{plan.Scale}, ajuste a escala em Dados do Projeto.");
             }
 
             LayoutManager lm = LayoutManager.Current;

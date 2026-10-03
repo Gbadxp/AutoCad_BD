@@ -26,8 +26,10 @@ namespace FiberPlugin.Commands
         private enum Kind { Descriptive, Effort, Coordinates }
 
         /// <summary>
-        /// Janela só para preencher e salvar os dados do projeto, sem gerar documento. Eles ficam no desenho e em
-        /// Documentos\Fiber Plugin\projeto.txt, e os três documentos já abrem com eles preenchidos.
+        /// Janela com os dados do projeto num lugar só: percurso, endereço, contrato, ART, início e prazo (ficam no
+        /// desenho e em Documentos\Fiber Plugin\projeto.txt, e os documentos já abrem com eles preenchidos), zona UTM e
+        /// escala do desenho (com a mesma atualização dos postes e das anotações dos comandos FIBRA_ZONA_UTM e
+        /// FIBRA_ESCALA), e os atalhos para a pasta de dados e o Atualizar Blocos.
         /// </summary>
         [CommandMethod("FIBRA_DADOS_PROJETO")]
         public void EditProjectData()
@@ -37,23 +39,39 @@ namespace FiberPlugin.Commands
             Editor ed = doc.Editor;
 
             ProjectInfo info = ProjectInfo.Load(db);
-            using (var form = new UI.MemorialForm("Usados no Memorial Descritivo, no de Esforço e nas Coordenadas dos Postes",
-                       info.Route, info.WorkAddress, "", info.ContractNumber, info.ArtNumber, info.StartDate, info.Deadline,
-                       "Dados do Projeto", "FIBRA_DADOS_PROJETO", UI.MemorialFields.All & ~UI.MemorialFields.PlaceDate,
-                       okText: "Salvar", requireRoute: false, hint: "Também ficam salvos para os próximos desenhos"))
+            UtmSettings? currentZone = UtmZone.Get(db);
+            int currentScale = DrawingScale.Get(db);
+            int scale;
+            bool updateBlocks;
+            using (var form = new UI.ProjectForm(info, currentScale, currentZone != null) { OpenDataFolder = PluginCommands.ShowDataFolder })
             {
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
-                info = new ProjectInfo
-                {
-                    Route = form.Route, WorkAddress = form.WorkAddress, ContractNumber = form.ContractNumber,
-                    ArtNumber = form.ArtNumber, StartDate = form.StartDate, Deadline = form.Deadline
-                };
+                info = form.Info;
+                scale = form.ScaleDenominator;
+                updateBlocks = form.UpdateBlocksAfter;
             }
 
             string? error = info.Save(db);
             ed.WriteMessage("\n[SUCESSO]: Dados do projeto salvos. O Memorial Descritivo, o de Esforço e as Coordenadas já abrem com eles preenchidos.");
-            if (error == null) ed.WriteMessage($"\n[INFO]: Também ficam em {ProjectInfo.FilePath}, para os próximos desenhos.");
-            else ed.WriteMessage($"\n[AVISO]: Salvos só neste desenho; não foi possível gravar {ProjectInfo.FilePath} ({error}).");
+            if (error != null) ed.WriteMessage($"\n[AVISO]: Salvos só neste desenho; não foi possível gravar {ProjectInfo.FilePath} ({error}).");
+
+            // Zona nova (ou definida agora): grava no desenho e oferece atualizar as coordenadas dos postes
+            UtmSettings? zone = info.Zone;
+            if (zone != null && (currentZone == null || currentZone.Zone != zone.Zone || currentZone.South != zone.South))
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    UtmZone.Set(tr, db, zone);
+                    tr.Commit();
+                }
+                ed.WriteMessage($"\n[SUCESSO]: Zona UTM do projeto: {zone.Zone}, hemisfério {(zone.South ? "Sul" : "Norte")}.");
+                UtmZoneCommand.UpdatePoles(ed, db, zone);
+            }
+
+            // Escala nova: grava e oferece ajustar as anotações já desenhadas
+            if (scale != currentScale) ScaleCommand.Apply(ed, db, currentScale, scale);
+
+            if (updateBlocks) doc.SendStringToExecute("FIBRA_ATUALIZAR_BLOCOS ", true, false, false);
         }
 
         [CommandMethod("FIBRA_MEMORIAL")]
@@ -75,7 +93,7 @@ namespace FiberPlugin.Commands
             if (company == null)
             {
                 ed.WriteMessage($"\n[ERRO]: {error}");
-                ed.WriteMessage("\n[DICA]: Use o botão Pasta de Dados e confira o arquivo empresa.txt.");
+                ed.WriteMessage("\n[DICA]: Use Dados do Projeto > Pasta de Dados e confira o arquivo empresa.txt.");
                 return;
             }
 

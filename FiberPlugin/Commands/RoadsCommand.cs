@@ -53,7 +53,7 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
             if (projectZone == null)
-                ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (botão Zona UTM para trocar).");
+                ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Dados do Projeto).");
 
             double minX = area.MinX, minY = area.MinY, maxX = area.MaxX, maxY = area.MaxY;
             bool outline = settings.Style != "Eixo", axes = settings.Style != "Contorno";

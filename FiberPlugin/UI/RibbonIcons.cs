@@ -71,7 +71,6 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
-            ["FIBRA_ATUALIZAR_BLOCOS"] = PaintUpdateBlocks,
             ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
@@ -84,12 +83,9 @@ namespace FiberPlugin.UI
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
             ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
-            ["FIBRA_ESCALA"] = PaintScale,
-            ["FIBRA_ZONA_UTM"] = PaintUtm,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
-            ["FIBRA_IMPORTAR_RUAS"] = PaintRoads,
-            ["FIBRA_ABRIR_PASTA"] = PaintFolder
+            ["FIBRA_IMPORTAR_RUAS"] = PaintRoads
         };
 
         private static readonly Dictionary<string, object> Cache = new Dictionary<string, object>();
@@ -282,15 +278,6 @@ namespace FiberPlugin.UI
             Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
         }
 
-        private static void PaintUpdateBlocks(M.DrawingContext dc, Ink ink)
-        {
-            // Blocos com a seta circular verde de "recarregar"
-            dc.DrawRectangle(null, Ink.Pen(ink.Line, 1.6), new W.Rect(3, 3, 13, 13));
-            dc.DrawRectangle(ink.Blue, Ink.Pen(ink.Paper, 1.2), new W.Rect(8.5, 8.5, 13, 13));
-            dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.4), G("M27,19 A5.5,5.5 0 1 1 19.8,27"));
-            Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
-        }
-
         private static void PaintBlockSize(M.DrawingContext dc, Ink ink)
         {
             // Bloco pequeno, contorno do tamanho novo e seta diagonal de ampliar
@@ -429,31 +416,6 @@ namespace FiberPlugin.UI
             dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 17.5, 9, 6.5));
         }
 
-        private static void PaintScale(M.DrawingContext dc, Ink ink)
-        {
-            dc.DrawGeometry(ink.Yellow, Ink.Pen(ink.YellowDark, 1.0), G("M3,22 L22,3 L29,10 L10,29 Z"));
-            M.Pen tick = Ink.Pen(ink.YellowDark, 1.2);
-            for (int i = 1; i <= 6; i++)
-            {
-                double t = i / 7.0;
-                double x = 3 + 19 * t, y = 22 - 19 * t;
-                double len = i % 2 == 0 ? 5.0 : 3.0;
-                dc.DrawLine(tick, new W.Point(x, y), new W.Point(x + len * 0.707, y + len * 0.707));
-            }
-        }
-
-        private static void PaintUtm(M.DrawingContext dc, Ink ink)
-        {
-            dc.DrawEllipse(ink.Blue, null, new W.Point(16, 16), 13, 13);
-            M.Pen grid = Ink.Pen(ink.White, 1.3);
-            dc.DrawEllipse(null, grid, new W.Point(16, 16), 5.5, 13);        // Meridianos
-            dc.DrawLine(grid, new W.Point(16, 3), new W.Point(16, 29));
-            dc.DrawLine(grid, new W.Point(4.5, 11), new W.Point(27.5, 11));   // Paralelos
-            dc.DrawLine(grid, new W.Point(3, 16), new W.Point(29, 16));
-            dc.DrawLine(grid, new W.Point(4.5, 21), new W.Point(27.5, 21));
-            dc.DrawRectangle(ink.Yellow, null, new W.Rect(16.8, 16.8, 5.2, 4.2)); // Zona destacada
-        }
-
         /// <summary>Globo com marcador (Google Earth); a seta verde entra (importar) ou sai (exportar).</summary>
         private static void PaintEarth(M.DrawingContext dc, Ink ink)
         {
@@ -489,12 +451,6 @@ namespace FiberPlugin.UI
             dc.DrawLine(lane, new W.Point(15.5, 21), new W.Point(29, 21));
             dc.DrawLine(lane, new W.Point(11, 5), new W.Point(11, 16.5));
             Arrow(dc, ink.Green, 30, 3, 21.5, 11.5, 2.4);
-        }
-
-        private static void PaintFolder(M.DrawingContext dc, Ink ink)
-        {
-            dc.DrawGeometry(ink.YellowDark, null, G("M3,8 H12 L15,11 H29 V27 H3 Z"));
-            dc.DrawGeometry(ink.Yellow, null, G("M3,14 H29 V27 H3 Z"));
         }
     }
 }

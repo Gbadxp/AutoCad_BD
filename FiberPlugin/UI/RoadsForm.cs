@@ -158,13 +158,13 @@ namespace FiberPlugin.UI
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
             if (projectZone != null)
             {
-                // A zona do projeto vale para o desenho todo: troca só pelo botão Zona UTM
+                // A zona do projeto vale para o desenho todo: troca só em Dados do Projeto
                 _zone.Visible = false;
                 _hemisphere.Visible = false;
                 _zoneHint.Margin = new Padding(0, 9, 0, 0);
                 _zoneHint.Width = 480;
                 _zoneHint.ForeColor = Theme.Text;
-                _zoneHint.Text = $"{projectZone.Zone} {(projectZone.South ? "Sul" : "Norte")}  ·  zona do projeto (botão Zona UTM para trocar)";
+                _zoneHint.Text = $"{projectZone.Zone} {(projectZone.South ? "Sul" : "Norte")}  ·  zona do projeto (troca em Dados do Projeto)";
             }
             else
             {

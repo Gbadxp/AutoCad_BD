@@ -49,7 +49,7 @@ namespace FiberPlugin.Models
             if (path == null || !File.Exists(path))
             {
                 ed?.WriteMessage($"\n[ERRO]: Planilha de cabos não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}). " +
-                                 "Use FIBRA_ABRIR_PASTA para abrir a pasta de dados.");
+                                 "Use Dados do Projeto > Pasta de Dados para abrir a pasta.");
                 return new List<CableModel>();
             }
 

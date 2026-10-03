@@ -24,7 +24,15 @@ namespace FiberPlugin.Commands
             if (utm == null) return;
 
             ed.WriteMessage($"\n[SUCESSO]: Zona UTM do projeto: {utm.Zone}, hemisfério {(utm.South ? "Sul" : "Norte")}.");
+            UpdatePoles(ed, db, utm);
+        }
 
+        /// <summary>
+        /// Depois de trocar a zona: pergunta se atualiza os textos e atributos de coordenada dos postes já inseridos.
+        /// Usado também pela janela Dados do Projeto.
+        /// </summary>
+        internal static void UpdatePoles(Editor ed, Database db, UtmSettings utm)
+        {
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 List<PoleInfo> poles = Poles.Collect(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead))

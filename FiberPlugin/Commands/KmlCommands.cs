@@ -197,7 +197,7 @@ namespace FiberPlugin.Commands
                 UtmZone.Set(tr, db, utm);
                 tr.Commit();
             }
-            ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (botão Zona UTM para trocar).");
+            ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Dados do Projeto).");
             return utm;
         }
 

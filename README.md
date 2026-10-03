@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.27.msi`](Instalador/FiberPlugin-1.9.27.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.28.msi`](Instalador/FiberPlugin-1.9.28.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -28,8 +28,8 @@ Opcionalmente confere também as ferramentas para compilar (.NET SDK 8 e Git).
 
 ### Primeiro uso num PC novo
 1. Rode `Verificacao/Verificar.bat` (ou instale o `.msi` da pasta `Instalador`).
-2. No AutoCAD, clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
-3. Em cada desenho, defina a **Zona UTM**, a **Escala** e os **Parâmetros** de cálculo.
+2. No AutoCAD, abra **Dados do Projeto**, clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
+3. Em cada desenho, defina a **Zona UTM** e a **Escala** (em **Dados do Projeto**) e os **Parâmetros** de cálculo.
 
 ### Gerar um instalador novo
 1. Altere `<Version>` em `FiberPlugin/FiberPlugin.csproj`.
@@ -60,7 +60,7 @@ FiberPlugin.bundle/
 - **As planilhas ficam em `Documentos\Fiber Plugin\Dados`**, editáveis sem permissão de
   administrador. Arquivos que faltarem são copiados do pacote na abertura do AutoCAD, sem sobrescrever
   os existentes. Atualizar ou desinstalar o plugin não apaga nada dessa pasta.
-- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no botão **Atualizar Blocos** (ex.: o da pasta
+- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (janela Dados do Projeto; ex.: o da pasta
   do projeto) ou, sem ele, a cópia que vem no pacote. Com o arquivo escolhido, um bloco novo aparece só
   de salvar o `BLOCOS.dwg`, sem reinstalar.
 
@@ -120,7 +120,7 @@ AutoCad_BD/
 Aceita CSV salvo pelo Excel em português (separador `;`, vírgula decimal).
 
 **Blocos**: o plugin usa **somente** os blocos do `BLOCOS.dwg`. Para acrescentar, alterar ou remover um
-bloco, edite esse arquivo, salve e clique em **Atualizar Blocos**. Ao inserir, a definição é copiada do
+bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (na janela Dados do Projeto). Ao inserir, a definição é copiada do
 `BLOCOS.dwg` automaticamente, sem template; se o desenho já tiver um bloco com o mesmo nome, ele é
 substituído pela versão do `BLOCOS.dwg`. O grupo de cada bloco vem do nome e define o comando que o insere:
 POSTE/DT/CC → Postes, CTO → CTO, CEO → CEO, TRAFO/CHAVE/PARA-RAIO/ATERRAMENTO → Elétricos,
@@ -174,7 +174,6 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
-| Dados do Projeto | `FIBRA_DADOS_PROJETO` | Janela para preencher e salvar percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo, sem gerar documento. Os três documentos acima já abrem com eles preenchidos (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
@@ -184,13 +183,16 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
 | Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto (veja abaixo). |
 
-### Fiber Plugin
-| Botão | Comando | Função |
-|---|---|---|
-| Zona UTM | `FIBRA_ZONA_UTM` | Zona UTM e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Oferece atualizar os textos dos postes já inseridos. |
-| Escala | `FIBRA_ESCALA` | Escala do desenho (1:500, 1:1000, 1:2000...): textos, setas de esforço e CTO/CEO novas saem no tamanho certo, e as anotações existentes podem ser ajustadas. |
-| Pasta de Dados | `FIBRA_ABRIR_PASTA` | Abre a pasta com as planilhas de cabos e postes e os dados do memorial (empresa.txt, logo e figuras). |
-| Atualizar Blocos | `FIBRA_ATUALIZAR_BLOCOS` | Na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
+### Projeto
+O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o que é do projeto:
+
+| Parte da janela | Função |
+|---|---|
+| Percurso, endereço, contrato, ART, início e prazo | Dados dos documentos (Memorial Descritivo, de Esforço e Coordenadas), que já abrem com eles preenchidos (veja abaixo). |
+| Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Ao trocar, oferece atualizar os textos dos postes já inseridos. Num desenho sem zona, a janela sugere a do último projeto. |
+| Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. |
+| Pasta de Dados | Abre a pasta com as planilhas de cabos e postes e os dados do memorial (empresa.txt, logo e figuras). |
+| Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
 ### Só pela linha de comando
 | Comando | Função |
@@ -198,6 +200,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | `FIBRA` | Menu com todas as ferramentas, com busca. |
 | `FIBRA_CALCULAR_ESFORCO` | Esforço de um único cabo numa sequência de postes clicados. |
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg` escolhido no Atualizar Blocos. |
+| `FIBRA_ZONA_UTM`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da janela Dados do Projeto, pela linha de comando. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
 | `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID. Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
@@ -235,7 +238,7 @@ dia. Esse arquivo fica fora do repositório, então os dados do projeto nunca v�
 
 - **Dados da empresa**: `Dados/empresa.txt`, um campo por linha (`Campo: valor`); campo vazio não aparece.
   RG, CPF e endereço do representante são dados pessoais: preencha só na cópia local
-  (`Documentos\Fiber Plugin\Dados\empresa.txt`, botão **Pasta de Dados**), nunca no repositório, que é público.
+  (`Documentos\Fiber Plugin\Dados\empresa.txt`, **Dados do Projeto > Pasta de Dados**), nunca no repositório, que é público.
 - **Logo e figuras**: `Dados/Memorial/` (`logo.png`, `fig-a-...` a `fig-e-...`). Para trocar, substitua o
   arquivo mantendo o nome.
 
@@ -310,7 +313,7 @@ executivo, confira com a base oficial do município.
 `FIBRA_GERAR_FOLHAS` monta o jogo de pranchas a partir do Model:
 
 1. Marque a área com dois cliques (retângulo em volta do trecho do projeto).
-2. Escolha a folha (A0 a A4), a escala (padrão: a do `FIBRA_ESCALA`), a sobreposição entre folhas
+2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, em Dados do Projeto), a sobreposição entre folhas
    vizinhas (padrão 5%) e o prefixo dos nomes (padrão `FL`).
 3. O plugin divide a área numa grade de folhas, escolhe a orientação (paisagem ou retrato) que usa
    menos folhas e descarta os pedaços sem nenhum elemento do desenho.
@@ -328,7 +331,7 @@ Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve
 ## Escala das anotações
 
 Os textos dos vãos, os textos de identificação, a seta de esforço e o símbolo da CTO/CEO têm tamanho
-definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Com `FIBRA_ESCALA` você informa a
+definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** da janela Dados do Projeto você informa a
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
 

@@ -59,8 +59,7 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório"),
                 new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo"),
                 new Tool("FIBRA_MEMORIAL_ESFORCO", "Memorial de Esforço", "PDF só com o cálculo de esforço mecânico dos postes", "Memorial de Esforço", largeOnRibbon: false),
-                new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", largeOnRibbon: false),
-                new Tool("FIBRA_DADOS_PROJETO", "Dados do Projeto", "Percurso, contrato, ART... salvos para os documentos já abrirem preenchidos", "Dados do Projeto", largeOnRibbon: false)
+                new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", largeOnRibbon: false)
             }),
             ("Pranchas", new[]
             {
@@ -72,12 +71,11 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML"),
                 new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
             }),
-            ("Fiber Plugin", new[]
+            // Zona UTM, escala, pasta de dados e Atualizar Blocos ficam dentro da janela Dados do Projeto
+            ("Projeto", new[]
             {
-                new Tool("FIBRA_ZONA_UTM", "Zona UTM", "Zona e hemisfério das coordenadas (ex.: 20 L)", "Zona UTM", largeOnRibbon: false),
-                new Tool("FIBRA_ESCALA", "Escala do Desenho", "Tamanho dos textos: 1:500, 1:1000, 1:2000...", "Escala", largeOnRibbon: false),
-                new Tool("FIBRA_ABRIR_PASTA", "Pasta de Dados", "Planilha de cabos e biblioteca de blocos", "Pasta de Dados", largeOnRibbon: false),
-                new Tool("FIBRA_ATUALIZAR_BLOCOS", "Atualizar Blocos", "Lê os blocos novos do seu BLOCOS.dwg, sem reinstalar", "Atualizar Blocos", largeOnRibbon: false)
+                new Tool("FIBRA_DADOS_PROJETO", "Dados do Projeto",
+                    "Percurso, contrato, ART, zona UTM, escala, pasta de dados e Atualizar Blocos", "Dados do\nProjeto")
             })
         };
     }
