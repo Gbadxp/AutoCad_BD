@@ -28,6 +28,13 @@ namespace FiberPlugin.Commands
             CableModel? cable = CadHelpers.SelectCable(ed, "Lançar");
             if (cable == null) return;
 
+            // De que lado dos postes o cabo passa (o último escolhido neste desenho é o padrão). Perguntado antes da
+            // seleção: um prompt entre a seleção e a leitura dela invalida a seleção e derruba o AutoCAD.
+            string last = CadHelpers.ReadDrawingRecord(db, SideKey)?.FirstOrDefault().Value as string is string saved && RouteSides.All.Contains(saved)
+                ? saved : RouteSides.Up;
+            string? side = CadHelpers.AskKeyword(ed, $"\nLado do cabo em relação aos postes [Cima/Baixo/Esquerda/Direita] <{last}>: ", Sides, last);
+            if (side == null) return;
+
             // Solicitar seleção de blocos (postes, caixas, etc.)
             var pso = new PromptSelectionOptions
             {
@@ -41,12 +48,7 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage("\n[AVISO]: Selecione pelo menos 2 elementos para criar um roteamento.");
                 return;
             }
-
-            // De que lado dos postes o cabo passa (o último escolhido neste desenho é o padrão)
-            string last = CadHelpers.ReadDrawingRecord(db, SideKey)?.FirstOrDefault().Value as string is string saved && Sides.Split(' ').Contains(saved)
-                ? saved : "Cima";
-            string? side = CadHelpers.AskKeyword(ed, $"\nLado do cabo em relação aos postes [Cima/Baixo/Esquerda/Direita] <{last}>: ", Sides, last);
-            if (side == null) return;
+            ObjectId[] selected = psr.Value.GetObjectIds();
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -54,9 +56,9 @@ namespace FiberPlugin.Commands
 
                 var positions = new List<Point3d>();
                 var faces = new List<(Point3d At, Vector2d Face)>(); // Postes DT: eixo das faces
-                foreach (SelectedObject so in psr.Value)
+                foreach (ObjectId id in selected)
                 {
-                    if (tr.GetObject(so.ObjectId, OpenMode.ForRead) is not BlockReference br) continue;
+                    if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
                     positions.Add(br.Position);
                     if (DoubleTFace(tr, br) is Vector2d face) faces.Add((br.Position, face));
                 }
