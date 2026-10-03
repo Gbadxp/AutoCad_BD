@@ -52,33 +52,22 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Desloca cada vértice exatamente <paramref name="distance"/> do ponto original, na direção da
-        /// bissetriz. Diferente do Offset do AutoCAD, os cantos não se afastam mais que a distância pedida,
-        /// então o vértice continua dentro do raio de busca do poste nos cálculos de esforço.
+        /// Desloca cada vértice exatamente <paramref name="distance"/> do ponto original, do lado escolhido
+        /// (Cima, Baixo, Esquerda ou Direita; veja RouteSides), na face dos postes DT. Diferente do Offset do
+        /// AutoCAD, os cantos não se afastam mais que a distância pedida, então o vértice continua dentro do raio
+        /// de busca do poste nos cálculos de esforço.
         /// </summary>
-        public static List<Point3d> OffsetPath(IList<Point3d> path, double distance)
+        /// <param name="faces">Eixo das faces do poste DT em cada vértice (null nos outros).</param>
+        /// <param name="sideways">Recebe os índices dos DT girados de lado (faces na direção do cabo), onde a face não foi usada.</param>
+        public static List<Point3d> OffsetPath(IList<Point3d> path, double distance, string side, IList<Vector2d?>? faces = null,
+            List<int>? sideways = null)
         {
-            var result = new List<Point3d>(path.Count);
-            for (int i = 0; i < path.Count; i++)
-            {
-                Vector2d? prev = i > 0 ? LeftNormal(path[i - 1], path[i]) : null;
-                Vector2d? next = i < path.Count - 1 ? LeftNormal(path[i], path[i + 1]) : null;
-
-                Vector2d dir = (prev ?? new Vector2d(0, 0)) + (next ?? new Vector2d(0, 0));
-                if (dir.Length < 1e-6) dir = prev ?? next ?? new Vector2d(0, 1); // Retorno de 180°
-                dir = dir.GetNormal();
-
-                result.Add(new Point3d(path[i].X + dir.X * distance, path[i].Y + dir.Y * distance, 0));
-            }
-            return result;
-        }
-
-        private static Vector2d? LeftNormal(Point3d a, Point3d b)
-        {
-            var v = new Vector2d(b.X - a.X, b.Y - a.Y);
-            if (v.Length < 1e-9) return null;
-            v = v.GetNormal();
-            return new Vector2d(-v.Y, v.X);
+            List<(double X, double Y)> directions = RouteSides.OffsetDirections(
+                path.Select(p => (p.X, p.Y)).ToList(),
+                RouteSides.Direction(side),
+                faces?.Select(f => f is Vector2d v ? (v.X, v.Y) : ((double X, double Y)?)null).ToList(),
+                sideways);
+            return path.Select((p, i) => new Point3d(p.X + directions[i].X * distance, p.Y + directions[i].Y * distance, 0)).ToList();
         }
 
         private static List<Point3d> NearestNeighbor(IList<Point3d> points, int start)
