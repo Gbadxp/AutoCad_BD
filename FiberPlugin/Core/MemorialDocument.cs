@@ -37,6 +37,19 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>Dados do projeto para o Memorial Descritivo (valores prontos, sem objetos do AutoCAD).</summary>
+    /// <summary>Um poste na lista de coordenadas: UTM do desenho e latitude/longitude (null sem zona UTM).</summary>
+    public sealed class MemorialPole
+    {
+        public string Number { get; set; } = "";
+        public string Structure { get; set; } = "";
+        public string EnergisaId { get; set; } = "";
+        public string Zone { get; set; } = "";           // "20 L"; vazio sem zona UTM no desenho
+        public double Easting { get; set; }
+        public double Northing { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+    }
+
     public sealed class MemorialData
     {
         public CompanyInfo Company { get; set; } = null!;
@@ -55,6 +68,7 @@ namespace FiberPlugin.Core
         public int FixationPoints { get; set; }          // Um por poste ocupado pelos cabos do projeto
         public List<MemorialCable> Cables { get; set; } = new List<MemorialCable>();
         public List<MemorialEffort> Efforts { get; set; } = new List<MemorialEffort>();
+        public List<MemorialPole> Poles { get; set; } = new List<MemorialPole>();
 
         public double AttachHeightM { get; set; }
         public string TractionMethod { get; set; } = "";
@@ -74,14 +88,17 @@ namespace FiberPlugin.Core
         public const string AssetsFolder = "Memorial";
 
         private const int EffortRowsPerPage = 24;
+        private const int PoleRowsFirstPage = 14;  // A primeira folha das coordenadas também tem a identificação
+        private const int PoleRowsPerPage = 28;
+        private const int EffortRowsWithConclusion = 14; // Até aqui a conclusão cabe na última folha da tabela
         private static readonly CultureInfo Br = new CultureInfo("pt-BR");
 
         public static string Html(MemorialData d, string? assetsDir)
         {
             string logo = Image(assetsDir, "logo.png");
 
-            var pages = new List<string> { CoverPage(d, logo), LetterPage(d), GeneralPage(d), NetworkPage(d), CalculationPage(d) };
-            pages.AddRange(EffortPages(d));
+            var pages = new List<string> { CoverPage(d, logo), LetterPage(d), GeneralPage(d), NetworkPage(d), CalculationPage(d, "6") };
+            pages.AddRange(EffortPages(d, "6"));
             pages.Add(FigurePage("7.1", "Figura A — Afastamentos mínimos",
                           "Afastamentos mínimos entre condutores da rede de telecomunicações e da rede de distribuição de energia elétrica ao longo do vão.",
                           Figure(assetsDir, "fig-a-afastamentos.png", "Figura A — Afastamentos mínimos ao longo do vão", 140),
@@ -102,20 +119,140 @@ namespace FiberPlugin.Core
                           Figure(assetsDir, "fig-e-aterramento.jpg", "Figura E — Aterramento dos equipamentos", 175)));
             pages.Add(ClosingPage(d));
 
+            // A capa não tem cabeçalho nem rodapé
+            return Assemble("Memorial Descritivo", pages, d, logo, withCover: true);
+        }
+
+        /// <summary>
+        /// Memorial de cálculo de esforço mecânico, separado do descritivo: identificação do projeto, parâmetros,
+        /// dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura.
+        /// </summary>
+        public static string EffortHtml(MemorialData d, string? assetsDir)
+        {
+            string logo = Image(assetsDir, "logo.png");
+            int ok = d.Efforts.Count(e => e.Result == "OK");
+            int exceeded = d.Efforts.Count(e => e.Result == "EXCEDIDO");
+            int unknown = d.Efforts.Count - ok - exceeded;
+
+            var pages = new List<string>
+            {
+                """<h1 class="doc-title">Memorial de Cálculo de Esforço Mecânico</h1>""" +
+                Section("1", "Identificação do projeto", ProjectCard(d, withContract: true,
+                    ("Postes calculados", N(d.Efforts.Count)),
+                    ("Cabos", string.Join(", ", d.Cables.Select(k => k.Name))))) +
+                Section("", "Objetivo", """
+                    <p>Apresentar o cálculo do esforço mecânico que os cabos ópticos do projeto exercem em cada poste ocupado,
+                    para comparação com o esforço nominal do poste, conforme a NDU 009 da Energisa (Anexo A).</p>
+                    """),
+                CalculationPage(d, "2")
+            };
+            pages.AddRange(EffortPages(d, "2"));
+
+            string conclusion = d.Efforts.Count == 0
+                ? """<div class="callout warn">Nenhum esforço calculado no desenho: rode o Esforço no Percurso antes de gerar o memorial.</div>"""
+                : exceeded == 0 && unknown == 0
+                    ? $"<p>Todos os {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal, já somado o esforço existente.</p>"
+                    : $"""
+                      <p>{N(ok)} de {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal.
+                      {(exceeded == 1 ? "<b>1 poste fica acima do nominal</b> e precisa de reforço ou troca antes da ocupação. "
+                        : exceeded > 1 ? $"<b>{N(exceeded)} postes ficam acima do nominal</b> e precisam de reforço ou troca antes da ocupação. " : "")}
+                      {(unknown == 1 ? "1 poste está sem esforço nominal informado no desenho."
+                        : unknown > 1 ? $"{N(unknown)} postes estão sem esforço nominal informado no desenho." : "")}</p>
+                      """;
+
+            // Conclusão e assinatura no fim da última folha da tabela, se couberem; senão, numa folha própria
+            string closing = Section("3", "Conclusão", conclusion) + Signature(d);
+            int lastRows = d.Efforts.Count == 0 ? 0 : (d.Efforts.Count - 1) % EffortRowsPerPage + 1;
+            if (lastRows <= EffortRowsWithConclusion) pages[pages.Count - 1] += """<div style="height:8mm"></div>""" + closing;
+            else pages.Add(closing);
+
+            return Assemble("Memorial de Esforço Mecânico", pages, d, logo, withCover: false);
+        }
+
+        /// <summary>
+        /// Lista dos postes do projeto com as coordenadas: UTM (SIRGAS 2000) e latitude/longitude em graus decimais,
+        /// em ordem de número, repartida em quantas folhas forem precisas.
+        /// </summary>
+        public static string CoordinatesHtml(MemorialData d, string? assetsDir)
+        {
+            string logo = Image(assetsDir, "logo.png");
+            bool geographic = d.Poles.Any(p => p.Latitude != null);
+
+            string Table(IEnumerable<MemorialPole> poles) => $"""
+                <table class="small">
+                  <thead><tr><th>Poste</th><th>Estrutura</th><th>ID Energisa</th><th>Zona</th><th class="num">E (m)</th>
+                  <th class="num">N (m)</th><th class="num">Latitude</th><th class="num">Longitude</th></tr></thead>
+                  <tbody>{string.Concat(poles.Select(p => $"""
+                    <tr><td><b>{E(p.Number)}</b></td><td>{E(p.Structure)}</td><td>{(p.EnergisaId.Length > 0 ? E(p.EnergisaId) : "—")}</td>
+                    <td>{(p.Zone.Length > 0 ? E(p.Zone) : "—")}</td><td class="num">{p.Easting.ToString("N2", Br)}</td>
+                    <td class="num">{p.Northing.ToString("N2", Br)}</td><td class="num">{Degrees(p.Latitude)}</td><td class="num">{Degrees(p.Longitude)}</td></tr>
+                    """))}</tbody>
+                </table>
+                """;
+
+            var pages = new List<string>
+            {
+                """<h1 class="doc-title">Coordenadas dos Postes</h1>""" +
+                Section("1", "Identificação do projeto", ProjectCard(d, withContract: false,
+                    ("Total de postes", N(d.Poles.Count)),
+                    ("Sistema de coordenadas", d.CoordinateSystem + (geographic ? " · latitude e longitude em graus decimais" : "")))) +
+                (geographic ? "" : """<div class="callout warn">Zona UTM não definida no desenho: latitude e longitude ficam em branco (botão Zona UTM).</div>""") +
+                Section("2", "Postes", Table(d.Poles.Take(PoleRowsFirstPage)))
+            };
+            for (int start = PoleRowsFirstPage; start < d.Poles.Count; start += PoleRowsPerPage)
+            {
+                pages.Add("""<h3 class="page-title">2 Postes (continuação)</h3>""" + Table(d.Poles.Skip(start).Take(PoleRowsPerPage)));
+            }
+
+            // A assinatura vai no fim da última folha, ou numa folha própria se a tabela já ocupar quase tudo
+            int lastRows = d.Poles.Count <= PoleRowsFirstPage ? d.Poles.Count : (d.Poles.Count - PoleRowsFirstPage - 1) % PoleRowsPerPage + 1;
+            int room = d.Poles.Count <= PoleRowsFirstPage ? PoleRowsFirstPage : PoleRowsPerPage;
+            if (room - lastRows >= 8) pages[pages.Count - 1] += Signature(d);
+            else pages.Add(Signature(d));
+
+            return Assemble("Coordenadas dos Postes", pages, d, logo, withCover: false);
+        }
+
+        /// <summary>Folhas A4 do documento: a capa (se houver) sem cabeçalho e rodapé; as demais numeradas.</summary>
+        private static string Assemble(string title, List<string> pages, MemorialData d, string logo, bool withCover)
+        {
             var html = new StringBuilder();
             html.Append($$"""
                 <!DOCTYPE html>
-                <html lang="pt-BR"><head><meta charset="utf-8"><title>Memorial Descritivo - {{E(d.Route)}}</title>
+                <html lang="pt-BR"><head><meta charset="utf-8"><title>{{E(title)}} - {{E(d.Route)}}</title>
                 <style>{{Css}}</style></head><body>
                 """);
             for (int i = 0; i < pages.Count; i++)
             {
-                // A capa não tem cabeçalho nem rodapé; as demais levam o número da página
-                html.Append(i == 0 ? pages[i] : Page(pages[i], d, logo, i + 1, pages.Count));
+                html.Append(withCover && i == 0 ? pages[i] : Page(pages[i], d, logo, title.ToUpper(Br), i + 1, pages.Count));
             }
             html.Append("</body></html>");
             return html.ToString();
         }
+
+        /// <summary>
+        /// Dados do projeto comuns aos documentos (os vazios ficam de fora), mais as linhas extras. Sem
+        /// <paramref name="withContract"/>, ficam de fora contrato, responsável técnico e ART (que vão na assinatura).
+        /// </summary>
+        private static string ProjectCard(MemorialData d, bool withContract, params (string Label, string Value)[] extra)
+        {
+            CompanyInfo c = d.Company;
+            return $"""
+                <div class="card"><dl class="grid">
+                  {Row("Percurso", d.Route)}
+                  {Row("Endereço da obra", d.WorkAddress)}
+                  {Row("Solicitante", Join(" · CNPJ ", c.LegalName, c.Cnpj))}
+                  {Row("Concessionária", c.Utility)}
+                  {(withContract ? Row("Contrato de uso mútuo", d.ContractNumber) : "")}
+                  {(withContract ? Row("Responsável técnico", Join(" · ", c.Representative, c.Crea.Length > 0 ? "CREA " + c.Crea : "")) : "")}
+                  {(withContract ? Row("ART", d.ArtNumber) : "")}
+                  {Row("Local e data", d.PlaceAndDate)}
+                  {string.Concat(extra.Select(x => Row(x.Label, x.Value)))}
+                </dl></div>
+                """;
+        }
+
+        private static string Degrees(double? value) => value?.ToString("0.000000", Br) ?? "—";
 
         // ---------- Páginas ----------
 
@@ -255,7 +392,8 @@ namespace FiberPlugin.Core
                     """);
         }
 
-        private static string CalculationPage(MemorialData d)
+        /// <param name="number">Número da seção no documento (6 no memorial completo, 2 no de esforço).</param>
+        private static string CalculationPage(MemorialData d, string number)
         {
             string cableRows = string.Concat(d.Cables.Select(k => $"""
                 <tr><td><b>{E(k.Name)}</b></td><td class="num">{(k.Fibers?.ToString(Br) ?? "—")}</td><td class="num">{k.WeightKgKm.ToString("0.#", Br)}</td>
@@ -277,8 +415,8 @@ namespace FiberPlugin.Core
                   </div>
                   """;
 
-            return Section("6", "Cálculo de esforços", $"""
-                <h3>6.1 Parâmetros de cálculo</h3>
+            return Section(number, "Cálculo de esforços", $"""
+                <h3>{number}.1 Parâmetros de cálculo</h3>
                 <div class="card"><dl class="grid">
                   {Row("Normas", "NDU 009 (Energisa), ABNT NBR 15688, 15992 e 16615")}
                   {Row("Tração dos cabos", d.TractionMethod)}
@@ -288,20 +426,20 @@ namespace FiberPlugin.Core
                   {Row("Esforço existente", "Somado ao do projeto na comparação com o nominal do poste (item 8.1)")}
                   {Row("Coordenadas", d.CoordinateSystem)}
                 </dl></div>
-                <h3>6.2 Dados mecânicos dos cabos</h3>
+                <h3>{number}.2 Dados mecânicos dos cabos</h3>
                 <table class="small">
                   <thead><tr><th>Cabo</th><th class="num">Fibras</th><th class="num">Peso (kg/km)</th><th class="num">Diâmetro (mm)</th>
                   <th class="num">Maior vão</th><th class="num">Tração (kgf)</th><th>Origem da tração</th></tr></thead>
                   <tbody>{cableRows}</tbody>
                 </table>
                 <p class="muted note">Tração de projeto no maior vão de cada cabo. Características completas no datasheet do fabricante.</p>
-                <h3>6.3 Resumo dos esforços</h3>
+                <h3>{number}.3 Resumo dos esforços</h3>
                 {summary}
                 """);
         }
 
         /// <summary>Tabela com a resultante em cada poste, repartida em quantas páginas forem precisas.</summary>
-        private static IEnumerable<string> EffortPages(MemorialData d)
+        private static IEnumerable<string> EffortPages(MemorialData d, string number)
         {
             for (int start = 0; start < d.Efforts.Count; start += EffortRowsPerPage)
             {
@@ -314,7 +452,7 @@ namespace FiberPlugin.Core
                     <td><span class="badge {(e.Result == "OK" ? "ok" : e.Result == "EXCEDIDO" ? "bad" : "")}">{E(e.Result)}</span></td></tr>
                     """));
 
-                string title = start == 0 ? "6.4 Esforço resultante por poste" : "6.4 Esforço resultante por poste (continuação)";
+                string title = $"{number}.4 Esforço resultante por poste" + (start == 0 ? "" : " (continuação)");
                 yield return $"""
                     <h3 class="page-title">{title}</h3>
                     <p class="muted fig-desc">Intensidade (kgf), direção (ângulo da resultante, anti-horário a partir do leste) e sentido
@@ -396,7 +534,8 @@ namespace FiberPlugin.Core
 
         // ---------- Blocos ----------
 
-        private static string Page(string body, MemorialData d, string logo, int number, int total)
+        /// <param name="heading">Nome do documento no cabeçalho, em maiúsculas.</param>
+        private static string Page(string body, MemorialData d, string logo, string heading, int number, int total)
         {
             CompanyInfo c = d.Company;
             return $$"""
@@ -404,7 +543,7 @@ namespace FiberPlugin.Core
                   <div class="topbar"></div>
                   <div class="header">
                     {{(logo.Length > 0 ? $"""<img src="{logo}" alt="">""" : $"<b>{E(c.LegalName)}</b>")}}
-                    <div class="doc"><b>MEMORIAL DESCRITIVO</b>{{E(d.Route)}}</div>
+                    <div class="doc"><b>{{E(heading)}}</b>{{E(d.Route)}}</div>
                   </div>
                   <div class="body">{{body}}</div>
                   <div class="footer">
@@ -415,9 +554,10 @@ namespace FiberPlugin.Core
                 """;
         }
 
+        /// <summary>Seção com título; sem número, o título sai sem o selo numerado.</summary>
         private static string Section(string number, string title, string content) => $"""
             <section class="block">
-              <h2><span class="n">{number}</span>{E(title)}</h2>
+              <h2>{(number.Length > 0 ? $"""<span class="n">{number}</span>""" : "")}{E(title)}</h2>
               {content}
             </section>
             """;

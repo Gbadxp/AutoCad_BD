@@ -80,6 +80,8 @@ namespace FiberPlugin.UI
             ["FIBRA_RELATORIO"] = PaintReport,
             ["FIBRA_VERIFICAR"] = PaintCheck,
             ["FIBRA_MEMORIAL"] = PaintMemorial,
+            ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
+            ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_ESCALA"] = PaintScale,
             ["FIBRA_ZONA_UTM"] = PaintUtm,
@@ -374,6 +376,32 @@ namespace FiberPlugin.UI
             dc.DrawLine(text, new W.Point(8, 21), new W.Point(17, 21));
             dc.DrawEllipse(ink.Green, Ink.Pen(ink.Paper, 1.2), new W.Point(24, 24.5), 6, 6);
             dc.DrawGeometry(null, Ink.Pen(ink.White, 1.8), G("M21,24.6 L23.2,26.8 L27,22.6"));
+        }
+
+        private static void PaintEffortMemorial(M.DrawingContext dc, Ink ink)
+        {
+            // Documento com o poste visto de cima e a seta vermelha do esforço
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.3), G("M5,3 H19 L25,9 V29 H5 Z"));
+            dc.DrawGeometry(null, Ink.Pen(ink.Line, 1.1), G("M19,3 V9 H25"));
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(8, 11, 13, 3));
+            M.Pen text = Ink.Pen(ink.Line, 1.2);
+            dc.DrawLine(text, new W.Point(8, 17.5), new W.Point(16, 17.5));
+            dc.DrawLine(text, new W.Point(8, 21), new W.Point(14, 21));
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(17, 25), 3.2, 3.2);
+            Arrow(dc, ink.Red, 19, 23, 30, 12, 2.2);
+        }
+
+        private static void PaintPoleCoordinates(M.DrawingContext dc, Ink ink)
+        {
+            // Documento com a tabela de coordenadas e o marcador de mapa
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.3), G("M5,3 H19 L25,9 V29 H5 Z"));
+            dc.DrawGeometry(null, Ink.Pen(ink.Line, 1.1), G("M19,3 V9 H25"));
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(8, 11, 13, 3));
+            M.Pen grid = Ink.Pen(ink.Line, 1.1);
+            for (int i = 0; i < 3; i++) dc.DrawLine(grid, new W.Point(8, 17.5 + i * 3.5), new W.Point(21, 17.5 + i * 3.5));
+            dc.DrawLine(grid, new W.Point(12.5, 15.5), new W.Point(12.5, 25.5));
+            dc.DrawGeometry(ink.Red, Ink.Pen(ink.Paper, 1.0), G("M25,15 C21,15 20,18.5 21,20.5 L25,28 L29,20.5 C30,18.5 29,15 25,15 Z"));
+            dc.DrawEllipse(ink.White, null, new W.Point(25, 19), 1.6, 1.6);
         }
 
         private static void PaintSheets(M.DrawingContext dc, Ink ink)

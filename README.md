@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.25.msi`](Instalador/FiberPlugin-1.9.25.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.26.msi`](Instalador/FiberPlugin-1.9.26.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -172,6 +172,8 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Os problemas do mesmo poste ficam num texto só, um embaixo do outro, com o número da lista da linha de comando; textos de postes vizinhos não se sobrepõem. Veja abaixo. |
 | Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, a 20 cm do topo, existente e total), **CTO e CEO**, **Esforços**, **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
+| Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
+| Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona, E e N (UTM SIRGAS 2000) e latitude/longitude em graus decimais. Pede a Zona UTM se o desenho não tiver. |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
@@ -219,6 +221,10 @@ O botão **Memorial Descritivo** gera o PDF que acompanha o pedido de ocupação
 da obra, local e data, **contrato de uso mútuo** (obrigatório na norma), **ART**, início e prazo da obra; esses
 dados ficam gravados no DWG para a próxima vez. O PDF é gerado pelo Microsoft Edge (já vem no Windows),
 sem abrir janela.
+
+O **Memorial de Esforço** e as **Coordenadas dos Postes** são PDFs separados, com o mesmo visual (logo,
+cabeçalho com o nome do documento, rodapé numerado) e a mesma janela de dados, que mostra só os campos usados
+por cada um. Os dados são os mesmos do Memorial Descritivo: o que for digitado num vale para os outros.
 
 - **Dados da empresa**: `Dados/empresa.txt`, um campo por linha (`Campo: valor`); campo vazio não aparece.
   RG, CPF e endereço do representante são dados pessoais: preencha só na cópia local
