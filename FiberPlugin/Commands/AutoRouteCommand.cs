@@ -11,8 +11,12 @@ namespace FiberPlugin.Commands
 {
     public class AutoRouteCommand
     {
-        private const string SideKey = "FIBRA_PLUGIN_ROTA"; // Último lado escolhido, gravado no desenho
         private static readonly string Sides = string.Join(" ", RouteSides.All);
+
+        // Último lado escolhido, lembrado enquanto o AutoCAD estiver aberto. Não vai para o desenho: a entrada
+        // FIBRA_PLUGIN_ROTA gravada pelas versões 1.9.30-1.9.33 ficou quebrada num desenho recuperado de um crash, e
+        // abrir essa entrada derruba o AutoCAD. Não volte a ler essa chave.
+        private static string lastSide = RouteSides.Up;
 
         /// <summary>
         /// Rota mais curta entre os blocos selecionados, afastada 1,8 m dos postes do lado escolhido (cima, baixo,
@@ -28,12 +32,11 @@ namespace FiberPlugin.Commands
             CableModel? cable = CadHelpers.SelectCable(ed, "Lançar");
             if (cable == null) return;
 
-            // De que lado dos postes o cabo passa (o último escolhido neste desenho é o padrão). Perguntado antes da
-            // seleção: um prompt entre a seleção e a leitura dela invalida a seleção e derruba o AutoCAD.
-            string last = CadHelpers.ReadDrawingRecord(db, SideKey)?.FirstOrDefault().Value as string is string saved && RouteSides.All.Contains(saved)
-                ? saved : RouteSides.Up;
-            string? side = CadHelpers.AskKeyword(ed, $"\nLado do cabo em relação aos postes [Cima/Baixo/Esquerda/Direita] <{last}>: ", Sides, last);
+            // De que lado dos postes o cabo passa (o último escolhido é o padrão). Perguntado antes da seleção, que é
+            // lida logo depois de selecionar.
+            string? side = CadHelpers.AskKeyword(ed, $"\nLado do cabo em relação aos postes [Cima/Baixo/Esquerda/Direita] <{lastSide}>: ", Sides, lastSide);
             if (side == null) return;
+            lastSide = side;
 
             // Solicitar seleção de blocos (postes, caixas, etc.)
             var pso = new PromptSelectionOptions
@@ -52,15 +55,6 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                try
-                {
-                    CadHelpers.WriteDrawingRecord(tr, db, SideKey, new TypedValue((int)DxfCode.Text, side));
-                }
-                catch (Autodesk.AutoCAD.Runtime.Exception)
-                {
-                    // Só a lembrança do último lado: não impede o roteamento
-                }
-
                 var positions = new List<Point3d>();
                 var faces = new List<(Point3d At, Vector2d Face)>(); // Postes DT: eixo das faces
                 foreach (ObjectId id in selected)

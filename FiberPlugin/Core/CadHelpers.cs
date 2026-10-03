@@ -119,7 +119,8 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Xrecord gravado na chave, ou null se não houver ou se a entrada estiver quebrada (ex.: desenho recuperado
-        /// depois de um crash, com a entrada apontando para um objeto que não chegou a ser salvo).
+        /// depois de um crash, com a entrada apontando para um objeto que não chegou a ser salvo). Só protege quando
+        /// o AutoCAD recusa a abertura com erro (eInvalidObjectId); às vezes ele mesmo cai ao abrir a entrada.
         /// </summary>
         private static Xrecord? OpenRecord(Transaction tr, DBDictionary nod, string key, OpenMode mode)
         {
