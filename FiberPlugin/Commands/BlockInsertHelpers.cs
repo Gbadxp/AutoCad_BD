@@ -84,13 +84,14 @@ namespace FiberPlugin.Commands
         /// </summary>
         public static Extents3d SymbolBox(Transaction tr, BlockReference br)
         {
-            var box = new Extents3d(br.Position, br.Position);
-            if (DefinitionExtents(tr, br.BlockTableRecord) is not Extents3d local) return box;
+            if (DefinitionExtents(tr, br.BlockTableRecord) is not Extents3d local) return new Extents3d(br.Position, br.Position);
 
-            box = new Extents3d();
+            // Começa no primeiro canto: um Extents3d vazio vale (0,0,0) e AddPoint incluiria a origem do desenho
             Point3d a = local.MinPoint, b = local.MaxPoint;
-            foreach (Point3d corner in new[] { a, new Point3d(b.X, a.Y, 0), b, new Point3d(a.X, b.Y, 0) })
-                box.AddPoint(corner.TransformBy(br.BlockTransform));
+            Point3d[] corners = new[] { a, new Point3d(b.X, a.Y, 0), b, new Point3d(a.X, b.Y, 0) }
+                .Select(c => c.TransformBy(br.BlockTransform)).ToArray();
+            var box = new Extents3d(corners[0], corners[0]);
+            foreach (Point3d corner in corners.Skip(1)) box.AddPoint(corner);
             return box;
         }
 

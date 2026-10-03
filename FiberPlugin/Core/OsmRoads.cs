@@ -76,9 +76,11 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Vias dentro do retângulo geográfico (graus). Tenta os servidores Overpass um a um;
-        /// IOException com o erro de cada servidor se nenhum responder.
+        /// IOException com o erro de cada servidor se nenhum responder. <paramref name="cancel"/> interrompe na hora,
+        /// inclusive no meio de uma consulta (OperationCanceledException).
         /// </summary>
-        public static List<OsmRoad> Download(double south, double west, double north, double east, bool onlyVehicles)
+        public static List<OsmRoad> Download(double south, double west, double north, double east, bool onlyVehicles,
+            CancellationToken cancel = default)
         {
             string filter = onlyVehicles ? "[\"highway\"~\"^(" + string.Join("|", VehicleHighways) + ")$\"]" : "[\"highway\"]";
             string query = "[out:xml][timeout:90];way" + filter +
@@ -91,9 +93,10 @@ namespace FiberPlugin.Core
                 string error = "";
                 for (int attempt = 1; attempt <= attempts; attempt++)
                 {
+                    cancel.ThrowIfCancellationRequested();
                     try
                     {
-                        XDocument doc = Post(server, body);
+                        XDocument doc = Post(server, body, cancel);
                         // O Overpass responde 200 com um <remark> quando estoura tempo ou memória
                         string? remark = doc.Root?.Element("remark")?.Value;
                         if (remark != null && remark.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -102,8 +105,10 @@ namespace FiberPlugin.Core
                     }
                     catch (System.Exception ex) when (ex is WebException || ex is IOException || ex is XmlException)
                     {
+                        cancel.ThrowIfCancellationRequested(); // Consulta abortada pelo cancelamento
                         error = ex.Message;
-                        if (attempt < attempts) Thread.Sleep(attempt * 3000);
+                        // Pausa antes de tentar de novo, interrompida se o usuário cancelar
+                        if (attempt < attempts && cancel.WaitHandle.WaitOne(attempt * 3000)) cancel.ThrowIfCancellationRequested();
                     }
                 }
                 errors.Add($"{new Uri(server).Host}: {error}");
@@ -111,7 +116,7 @@ namespace FiberPlugin.Core
             throw new IOException(string.Join("; ", errors));
         }
 
-        private static XDocument Post(string url, byte[] body)
+        private static XDocument Post(string url, byte[] body, CancellationToken cancel)
         {
 #pragma warning disable SYSLIB0014 // WebRequest existe nas duas compilações (net48 não tem HttpClient sem referência extra)
             var request = (HttpWebRequest)WebRequest.Create(url);
@@ -123,11 +128,15 @@ namespace FiberPlugin.Core
             request.Timeout = 100000;
             request.ReadWriteTimeout = 120000;
 
-            using (Stream stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
-            using (WebResponse response = request.GetResponse())
-            using (Stream stream = response.GetResponseStream())
+            // Cancelar aborta a conexão: a espera pela resposta termina na hora com WebException
+            using (cancel.Register(request.Abort))
             {
-                return XDocument.Load(stream);
+                using (Stream stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
+                using (WebResponse response = request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                {
+                    return XDocument.Load(stream);
+                }
             }
         }
 
@@ -219,7 +228,7 @@ namespace FiberPlugin.Core
                 }
 
                 (double X, double Y) start = (a.X + t0 * dx, a.Y + t0 * dy), end = (a.X + t1 * dx, a.Y + t1 * dy);
-                if (run == null || Distance(run[run.Count - 1], start) > 1e-6)
+                if (run == null || PlanarMath.Distance(run[run.Count - 1], start) > 1e-6)
                 {
                     run = new List<(double X, double Y)> { start };
                     runs.Add(run);
@@ -278,8 +287,5 @@ namespace FiberPlugin.Core
             offset.Execute(delta, result);
             return result;
         }
-
-        private static double Distance((double X, double Y) a, (double X, double Y) b) =>
-            Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
     }
 }

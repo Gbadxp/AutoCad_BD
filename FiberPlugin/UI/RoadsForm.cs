@@ -27,7 +27,7 @@ namespace FiberPlugin.UI
         private readonly ChoiceBar _style;
         private readonly ChoiceBar _paths;
         private readonly ChoiceBar _names;
-        private readonly Label _status;
+        private readonly StatusLabel _status;
         private readonly ThemedButton _ok;
         private bool _loading;
         private bool _wasRectangle, _wasGeographic;
@@ -96,14 +96,7 @@ namespace FiberPlugin.UI
             areaPanel.Controls.Add(_centerPanel);
 
             var pick = new ThemedButton("Marcar no desenho", false) { Margin = new Padding(4, 2, 0, 2) };
-            _status = new Label
-            {
-                Dock = DockStyle.Fill,
-                AutoSize = false,
-                ForeColor = Theme.Muted,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Margin = new Padding(10, 0, 0, 0)
-            };
+            _status = new StatusLabel { Dock = DockStyle.Fill, Margin = new Padding(10, 0, 0, 0) };
             var statusRow = new TableLayoutPanel { ColumnCount = 2, RowCount = 1, Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Theme.Background };
             statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             statusRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -120,7 +113,7 @@ namespace FiberPlugin.UI
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in new (Control, float)[]
             {
-                (Section("Área"), 26), (options, 108), (areaPanel, 248), (statusRow, 44), (Section("Desenho"), 30), (drawing, 108)
+                (new SectionLabel("Área"), 26), (options, 108), (areaPanel, 248), (statusRow, 44), (new SectionLabel("Desenho"), 30), (drawing, 108)
             })
             {
                 body.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -337,7 +330,7 @@ namespace FiberPlugin.UI
                 zone = new UtmSettings { Zone = z, South = _hemisphere.SelectedIndex == 0 };
             if (zone == null)
             {
-                ShowStatus("Informe a zona UTM do desenho para usar os pontos marcados.", error: true);
+                _status.Set("Informe a zona UTM do desenho para usar os pontos marcados.", StatusKind.Error);
                 return;
             }
 
@@ -365,32 +358,16 @@ namespace FiberPlugin.UI
 
             if (Area == null)
             {
-                ShowStatus(message, error: !incomplete);
+                _status.Set(message, incomplete ? StatusKind.Hint : StatusKind.Error);
                 return;
             }
             string zone = $"UTM {Area.Utm.Zone} {(Area.Utm.South ? "Sul" : "Norte")}" + (Area.ZoneFromCoordinates ? " (calculada)" : "");
-            ShowStatus($"Área de {Area.Width:N0} × {Area.Height:N0} m  ·  {zone}" + (message.Length > 0 ? "  ·  " + message : ""),
-                error: false, ok: message.Length == 0);
+            // Com aviso (área grande, perto da borda da zona) o resumo fica em cinza
+            _status.Set($"Área de {Area.Width:N0} × {Area.Height:N0} m  ·  {zone}" + (message.Length > 0 ? "  ·  " + message : ""),
+                message.Length == 0 ? StatusKind.Ok : StatusKind.Hint);
         }
-
-        private void ShowStatus(string text, bool error, bool ok = false)
-        {
-            _status.Text = text;
-            _status.ForeColor = error ? ErrorColor : ok ? Theme.Text : Theme.Muted;
-        }
-
-        private static Color ErrorColor => Theme.Current.IsDark ? Color.FromArgb(0xEE, 0x5A, 0x43) : Color.FromArgb(0xD2, 0x3B, 0x24);
 
         // ---------- Montagem ----------
-
-        private static Label Section(string text) => new Label
-        {
-            Text = text.ToUpperInvariant(),
-            Font = Theme.Section,
-            ForeColor = Theme.Muted,
-            TextAlign = ContentAlignment.BottomLeft,
-            Margin = Padding.Empty
-        };
 
         /// <summary>Linhas "rótulo | opções" alinhadas.</summary>
         private static TableLayoutPanel OptionGrid(params (string Label, Control Control)[] rows)

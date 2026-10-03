@@ -63,17 +63,30 @@ namespace FiberPlugin.Commands
             var corners = new[] { (minX, minY), (minX, maxY), (maxX, minY), (maxX, maxY) }
                 .Select(c => UtmZone.ToGeographic(c.Item1, c.Item2, utm.Zone, utm.South)).ToList();
 
-            ed.WriteMessage("\nConsultando o OpenStreetMap (pode levar até um minuto)...");
-            System.Windows.Forms.Application.DoEvents();
+            // O download roda em segundo plano: o AutoCAD continua respondendo e o Esc cancela
+            ed.WriteMessage("\nConsultando o OpenStreetMap (pode levar até um minuto; Esc cancela)...");
             List<OsmRoad> roads;
+            var cancel = new CancellationTokenSource();
+            Task<List<OsmRoad>> download = Task.Run(() => OsmRoads.Download(corners.Min(c => c.Lat), corners.Min(c => c.Lon),
+                corners.Max(c => c.Lat), corners.Max(c => c.Lon), onlyVehicles, cancel.Token));
+            // Quando o download terminar (inclusive depois de cancelado), descarta o cancelamento e o erro dele
+            download.ContinueWith(t => { _ = t.Exception; cancel.Dispose(); }, TaskScheduler.Default);
+            while (!download.Wait(100))
+            {
+                System.Windows.Forms.Application.DoEvents();
+                if (!HostApplicationServices.Current.UserBreak()) continue;
+                // Devolve o AutoCAD na hora: a conexão é abortada e o download termina sozinho em segundo plano
+                try { cancel.Cancel(); } catch (ObjectDisposedException) { } // Terminou no mesmo instante do Esc
+                ed.WriteMessage("\n[INFO]: Importar Ruas cancelado.");
+                return;
+            }
             try
             {
-                roads = OsmRoads.Download(corners.Min(c => c.Lat), corners.Min(c => c.Lon),
-                    corners.Max(c => c.Lat), corners.Max(c => c.Lon), onlyVehicles);
+                roads = download.Result;
             }
-            catch (IOException ex)
+            catch (AggregateException ex) when (ex.InnerException is IOException io)
             {
-                ed.WriteMessage($"\n[ERRO]: Não foi possível consultar o OpenStreetMap ({ex.Message}). Confira a internet e tente de novo.");
+                ed.WriteMessage($"\n[ERRO]: Não foi possível consultar o OpenStreetMap ({io.Message}). Confira a internet e tente de novo.");
                 return;
             }
 

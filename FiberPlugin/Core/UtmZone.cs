@@ -95,6 +95,7 @@ namespace FiberPlugin.Core
             string hemisphere = utm.South ? "S" : "N";
             foreach (string code in new[] { $"SIRGAS2000.UTM-{utm.Zone}{hemisphere}", $"UTM84-{utm.Zone}{hemisphere}" })
             {
+                if (HasGeoLocation(db)) return null; // Uma tentativa recusada deixou a geolocalização para trás: não insiste
                 try
                 {
                     using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -116,9 +117,10 @@ namespace FiberPlugin.Core
                     if (db.Insunits == UnitsValue.Undefined) db.Insunits = UnitsValue.Meters;
                     return code;
                 }
-                catch (Autodesk.AutoCAD.Runtime.Exception)
+                catch (System.Exception)
                 {
-                    // Tenta o próximo código
+                    // Código recusado (o AutoCAD pode lançar a exceção dele ou uma do .NET): a transação desfaz o
+                    // que foi criado e tenta o próximo. A geolocalização é um extra; nunca derruba o comando.
                 }
             }
             return null;

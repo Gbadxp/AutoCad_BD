@@ -17,7 +17,7 @@ namespace FiberPlugin.UI
         private readonly Label _methodHint;
         private readonly LabeledInput _clearance;
         private readonly ChoiceBar _presets;
-        private readonly Label _status;
+        private readonly StatusLabel _status;
         private readonly ThemedButton _ok;
         private bool _syncing;
 
@@ -42,17 +42,17 @@ namespace FiberPlugin.UI
             _methodHint = Hint("");
             _clearance = new LabeledInput("Altura mínima ao solo (m)", "ex.: 5.0") { Anchor = AnchorStyles.Left, Width = 300 };
             _presets = new ChoiceBar("Ruas e avenidas · 5,0 m", "Rural com veículos · 4,5 m", "Só pedestres · 3,0 m");
-            _status = new Label { Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Theme.Muted };
+            _status = new StatusLabel { Dock = DockStyle.Fill };
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 6), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, rowHeight) in new (Control, float)[]
             {
-                (Section("Fixação no poste"), 26), (_height, 56),
+                (new SectionLabel("Fixação no poste"), 26), (_height, 56),
                 (Hint($"NDU 009, item 8 a: de {Format(CalcSettings.MinAttachHeight, "0.00")} a {Format(CalcSettings.MaxAttachHeight, "0.00")} m do solo. " +
                       "Padrão 5,40 m: 3ª posição, a primeira para fibra óptica (Tabela 03)."), 40),
-                (Section("Tração dos cabos"), 30), (_method, 38), (_methodHint, 40),
-                (Section("Altura do cabo ao solo"), 30), (_clearance, 56), (_presets, 38),
+                (new SectionLabel("Tração dos cabos"), 30), (_method, 38), (_methodHint, 40),
+                (new SectionLabel("Altura do cabo ao solo"), 30), (_clearance, 56), (_presets, 38),
                 (Hint("Tabela 02 da NDU 009. O Verificar Projeto avisa os vãos em que, com flecha de 1%, o cabo fica abaixo disso."), 40),
                 (_status, 46)
             })
@@ -132,11 +132,11 @@ namespace FiberPlugin.UI
 
             if (height == null || height < 1 || height > 30)
             {
-                ShowStatus("Informe a altura de fixação em metros, ex.: 5.40.", error: true);
+                _status.Set("Informe a altura de fixação em metros, ex.: 5.40.", StatusKind.Error);
             }
             else if (clearance == null || clearance <= 0 || clearance > 30)
             {
-                ShowStatus("Informe a altura mínima ao solo em metros, ex.: 5.0.", error: true);
+                _status.Set("Informe a altura mínima ao solo em metros, ex.: 5.0.", StatusKind.Error);
             }
             else
             {
@@ -144,32 +144,17 @@ namespace FiberPlugin.UI
                 string summary = $"Cabo a {Format(height.Value, "0.00")} m · tração {(Result.UseNormTable ? "pela Tabela 08" : "pelo peso do cabo")} · " +
                                  $"mínimo de {Format(clearance.Value, "0.0")} m ao solo";
                 if (height < CalcSettings.MinAttachHeight || height > CalcSettings.MaxAttachHeight)
-                    ShowStatus(summary + $"  ·  fora da faixa da NDU 009 ({Format(CalcSettings.MinAttachHeight, "0.00")} a {Format(CalcSettings.MaxAttachHeight, "0.00")} m)", error: true);
+                    _status.Set(summary + $"  ·  fora da faixa da NDU 009 ({Format(CalcSettings.MinAttachHeight, "0.00")} a {Format(CalcSettings.MaxAttachHeight, "0.00")} m)", StatusKind.Error);
                 else if (clearance >= height)
-                    ShowStatus(summary + "  ·  o mínimo ao solo é maior que a altura de fixação: todos os vãos ficarão abaixo", error: true);
+                    _status.Set(summary + "  ·  o mínimo ao solo é maior que a altura de fixação: todos os vãos ficarão abaixo", StatusKind.Error);
                 else
-                    ShowStatus(summary, error: false);
+                    _status.Set(summary, StatusKind.Ok);
             }
             _ok.Enabled = Result != null;
         }
 
-        private void ShowStatus(string text, bool error)
-        {
-            _status.Text = text;
-            _status.ForeColor = error ? (Theme.Current.IsDark ? Color.FromArgb(0xEE, 0x5A, 0x43) : Color.FromArgb(0xD2, 0x3B, 0x24)) : Theme.Text;
-        }
-
         /// <summary>Número com vírgula, como no resto da janela ("5,40").</summary>
         private static string Format(double value, string format) => value.ToString(format, CultureInfo.GetCultureInfo("pt-BR"));
-
-        private static Label Section(string text) => new Label
-        {
-            Text = text.ToUpperInvariant(),
-            Font = Theme.Section,
-            ForeColor = Theme.Muted,
-            TextAlign = ContentAlignment.BottomLeft,
-            Margin = Padding.Empty
-        };
 
         private static Label Hint(string text) => new Label
         {

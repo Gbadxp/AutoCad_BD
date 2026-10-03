@@ -47,12 +47,12 @@ namespace FiberPlugin.Core
                     {
                         double s = Math.Max(textLength / 2, Math.Min(length - textLength / 2, (i + 0.5) * length / count));
                         var p = PointAt(chain, s);
-                        if (placed.Any(q => Distance(q, p) < minGap)) continue;
+                        if (placed.Any(q => PlanarMath.Distance(q, p) < minGap)) continue;
 
                         // Direção da corda que o texto ocupa: acompanha a rua mesmo em curva
                         var a = PointAt(chain, s - textLength / 2);
                         var b = PointAt(chain, s + textLength / 2);
-                        labels.Add(new StreetLabel(street.Key, p.X, p.Y, Upright(Math.Atan2(b.Y - a.Y, b.X - a.X))));
+                        labels.Add(new StreetLabel(street.Key, p.X, p.Y, PlanarMath.ReadableAngle(Math.Atan2(b.Y - a.Y, b.X - a.X))));
                         placed.Add(p);
                     }
                 }
@@ -84,10 +84,10 @@ namespace FiberPlugin.Core
                         var otherStart = other[0];
                         var otherEnd = other[other.Count - 1];
 
-                        if (Distance(end, otherStart) < JoinTolerance) chain.AddRange(other.Skip(1));
-                        else if (Distance(end, otherEnd) < JoinTolerance) chain.AddRange(Enumerable.Reverse(other).Skip(1));
-                        else if (Distance(start, otherEnd) < JoinTolerance) chain.InsertRange(0, other.Take(other.Count - 1));
-                        else if (Distance(start, otherStart) < JoinTolerance) chain.InsertRange(0, Enumerable.Reverse(other).Take(other.Count - 1));
+                        if (PlanarMath.Distance(end, otherStart) < JoinTolerance) chain.AddRange(other.Skip(1));
+                        else if (PlanarMath.Distance(end, otherEnd) < JoinTolerance) chain.AddRange(Enumerable.Reverse(other).Skip(1));
+                        else if (PlanarMath.Distance(start, otherEnd) < JoinTolerance) chain.InsertRange(0, other.Take(other.Count - 1));
+                        else if (PlanarMath.Distance(start, otherStart) < JoinTolerance) chain.InsertRange(0, Enumerable.Reverse(other).Take(other.Count - 1));
                         else continue;
 
                         pending.RemoveAt(i);
@@ -102,7 +102,7 @@ namespace FiberPlugin.Core
         private static double Length(List<(double X, double Y)> line)
         {
             double length = 0;
-            for (int i = 0; i + 1 < line.Count; i++) length += Distance(line[i], line[i + 1]);
+            for (int i = 0; i + 1 < line.Count; i++) length += PlanarMath.Distance(line[i], line[i + 1]);
             return length;
         }
 
@@ -112,7 +112,7 @@ namespace FiberPlugin.Core
             if (s <= 0) return line[0];
             for (int i = 0; i + 1 < line.Count; i++)
             {
-                double segment = Distance(line[i], line[i + 1]);
+                double segment = PlanarMath.Distance(line[i], line[i + 1]);
                 if (s <= segment && segment > 0)
                 {
                     double t = s / segment;
@@ -122,20 +122,5 @@ namespace FiberPlugin.Core
             }
             return line[line.Count - 1];
         }
-
-        /// <summary>
-        /// Ângulo entre -90° e 90°, para o texto nunca ficar de cabeça para baixo (a mesma conta de
-        /// CadHelpers.ReadableAngle, aqui sem depender da API do AutoCAD).
-        /// </summary>
-        private static double Upright(double angle)
-        {
-            angle = Math.IEEERemainder(angle, 2.0 * Math.PI);
-            if (angle > Math.PI / 2.0 + 0.001) angle -= Math.PI;
-            else if (angle < -Math.PI / 2.0 - 0.001) angle += Math.PI;
-            return angle;
-        }
-
-        private static double Distance((double X, double Y) a, (double X, double Y) b) =>
-            Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
     }
 }

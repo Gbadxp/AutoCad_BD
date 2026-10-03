@@ -70,13 +70,7 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>Normaliza o ângulo para que o texto nunca fique de cabeça para baixo.</summary>
-        public static double ReadableAngle(double angle)
-        {
-            angle = Math.IEEERemainder(angle, 2.0 * Math.PI); // [-π, π]
-            if (angle > Math.PI / 2.0 + 0.001) angle -= Math.PI;
-            else if (angle < -Math.PI / 2.0 - 0.001) angle += Math.PI;
-            return angle;
-        }
+        public static double ReadableAngle(double angle) => PlanarMath.ReadableAngle(angle);
 
         /// <summary>Nome real do bloco (resolve blocos dinâmicos, que internamente viram *U...).</summary>
         public static string GetBlockName(Transaction tr, BlockReference br)

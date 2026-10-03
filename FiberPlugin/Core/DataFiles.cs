@@ -62,6 +62,34 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <summary>
+        /// Arquivo de campos, uma linha por campo no formato "Campo: valor" (empresa.txt, projeto.txt). Ignora linhas
+        /// vazias e comentários (#). A chave é o nome do campo sem acentos, espaços e maiúsculas (veja FieldKey).
+        /// </summary>
+        public static Dictionary<string, string> ReadFields(string path)
+        {
+            var fields = new Dictionary<string, string>();
+            foreach (string raw in ReadAllLines(path))
+            {
+                string line = raw.Trim();
+                int colon = line.IndexOf(':');
+                if (line.Length == 0 || line.StartsWith("#") || colon <= 0) continue;
+                fields[FieldKey(line.Substring(0, colon))] = line.Substring(colon + 1).Trim();
+            }
+            return fields;
+        }
+
+        /// <summary>Nome do campo sem acentos, espaços e maiúsculas ("Endereço da obra" → "enderecodaobra").</summary>
+        public static string FieldKey(string name)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in name.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD))
+            {
+                if (char.IsLetterOrDigit(c) && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark) sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
         /// <summary>Converte número aceitando vírgula ou ponto como separador decimal.</summary>
         public static bool TryParseNumber(string text, out double value)
         {

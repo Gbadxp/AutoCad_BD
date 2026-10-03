@@ -44,14 +44,14 @@ namespace FiberPlugin.Core
                 double bestDistance = tolerance;
                 for (int i = 0; i < cable.Count; i++)
                 {
-                    double d = Distance(cable[i], pole);
+                    double d = PlanarMath.Distance(cable[i], pole);
                     if (d <= bestDistance) { bestDistance = d; best = i; }
                 }
                 if (best < 0) continue;
 
                 foreach (int neighbor in new[] { best - 1, best + 1 })
                 {
-                    if (neighbor < 0 || neighbor >= cable.Count || Distance(cable[neighbor], cable[best]) < 1e-6) continue;
+                    if (neighbor < 0 || neighbor >= cable.Count || PlanarMath.Distance(cable[neighbor], cable[best]) < 1e-6) continue;
                     double angle = Math.Atan2(cable[neighbor].Y - cable[best].Y, cable[neighbor].X - cable[best].X);
                     if (spans.Any(s => AngleBetween(s.Angle, angle) < SameDirectionDeg * Math.PI / 180)) continue;
                     spans.Add((cable[best], angle));
@@ -83,8 +83,5 @@ namespace FiberPlugin.Core
             angle %= 2 * Math.PI;
             return angle < 0 ? angle + 2 * Math.PI : angle;
         }
-
-        private static double Distance((double X, double Y) a, (double X, double Y) b) =>
-            Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
     }
 }

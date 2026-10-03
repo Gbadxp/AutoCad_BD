@@ -34,8 +34,10 @@ namespace FiberPlugin.Commands
                 return;
             }
 
+            // Sem filtro na seleção: Enter sem selecionar nada é o modo manual, e uma seleção sem poste
+            // (ex.: só os cabos) cai no aviso "Nenhum poste na seleção" lá embaixo, em vez de virar modo manual
             var pso = new PromptSelectionOptions { MessageForAdding = "\nSelecione os postes a amarrar (Enter = inserir uma amarração à mão): " };
-            PromptSelectionResult selection = ed.GetSelection(pso, new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "INSERT") }));
+            PromptSelectionResult selection = ed.GetSelection(pso);
             if (selection.Status == PromptStatus.Cancel) return;
             if (selection.Status != PromptStatus.OK)
             {
@@ -98,8 +100,9 @@ namespace FiberPlugin.Commands
             double reach = Math.Max(0, -(symbol?.MinPoint.X ?? 0)) * scale;
             double length = symbol is Extents3d e ? (e.MaxPoint.X - e.MinPoint.X) * scale : 0;
 
+            List<PoleInfo> poles = Poles.Collect(tr, space);
             var cables = new List<IList<(double X, double Y)>>();
-            var existing = new List<ObjectId>();
+            var existing = new List<(ObjectId Id, ObjectId Pole)>(); // Amarração já desenhada e o poste mais perto dela
             foreach (ObjectId id in space)
             {
                 DBObject obj = tr.GetObject(id, OpenMode.ForRead);
@@ -109,11 +112,11 @@ namespace FiberPlugin.Commands
                 }
                 else if (obj is BlockReference br && BlockCategories.Of(CadHelpers.GetBlockName(tr, br)) == BlockCategories.Anchoring)
                 {
-                    existing.Add(id);
+                    existing.Add((id, Poles.Nearest(poles, br.Position, double.MaxValue)?.Id ?? ObjectId.Null));
                 }
             }
 
-            foreach (PoleInfo pole in Poles.Collect(tr, space).Where(p => selected.Contains(p.Id)))
+            foreach (PoleInfo pole in poles.Where(p => selected.Contains(p.Id)))
             {
                 Extents3d box = BlockInsertHelpers.SymbolBox(tr, (BlockReference)tr.GetObject(pole.Id, OpenMode.ForRead));
                 List<AnchoringPlacement> placements = Anchorings.Place(cables, (pole.Position.X, pole.Position.Y),
@@ -125,10 +128,12 @@ namespace FiberPlugin.Commands
                     continue;
                 }
 
-                // Refaz as amarrações deste poste: apaga as que já estavam em volta dele (inclusive as viradas ao contrário)
+                // Refaz as amarrações deste poste: apaga as que já estavam em volta dele (inclusive as viradas ao
+                // contrário), só as que têm este poste como o mais perto, para não levar as de um poste vizinho
                 double radius = placements.Max(p => Math.Sqrt(Math.Pow(p.X - pole.Position.X, 2) + Math.Pow(p.Y - pole.Position.Y, 2))) + length;
-                foreach (ObjectId id in existing)
+                foreach (var (id, nearestPole) in existing)
                 {
+                    if (nearestPole != pole.Id) continue;
                     var old = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
                     if (old.IsErased || old.Position.DistanceTo(pole.Position) > radius) continue;
                     old.UpgradeOpen();

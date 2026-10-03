@@ -338,6 +338,43 @@ namespace FiberPlugin.UI
         }
     }
 
+    /// <summary>Título de seção das janelas: maiúsculas, em cinza, encostado na parte de baixo da linha.</summary>
+    internal class SectionLabel : Label
+    {
+        public SectionLabel(string text)
+        {
+            Text = text.ToUpperInvariant();
+            Font = Theme.Section;
+            ForeColor = Theme.Muted;
+            TextAlign = ContentAlignment.BottomLeft;
+            Margin = Padding.Empty;
+        }
+    }
+
+    internal enum StatusKind
+    {
+        Hint,   // Orientação (cinza): falta preencher algo
+        Ok,     // Resumo do que foi digitado
+        Error   // Valor errado (vermelho)
+    }
+
+    /// <summary>Linha de status das janelas que conferem enquanto o usuário digita.</summary>
+    internal class StatusLabel : Label
+    {
+        public StatusLabel()
+        {
+            AutoSize = false;
+            TextAlign = ContentAlignment.MiddleLeft;
+            ForeColor = Theme.Muted;
+        }
+
+        public void Set(string text, StatusKind kind)
+        {
+            Text = text;
+            ForeColor = kind == StatusKind.Error ? Theme.Error : kind == StatusKind.Ok ? Theme.Text : Theme.Muted;
+        }
+    }
+
     /// <summary>Campo de texto com o título em cima (em maiúsculas, como nas seções das janelas).</summary>
     internal class LabeledInput : Panel
     {

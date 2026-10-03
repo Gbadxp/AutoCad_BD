@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.28.msi`](Instalador/FiberPlugin-1.9.28.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.29.msi`](Instalador/FiberPlugin-1.9.29.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -275,7 +275,8 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   - **Centro e raio**: o quadrado em volta do ponto. Colar `-3.1019, -60.0250` (Google Maps) no campo da latitude
     preenche os dois campos.
   - **Marcar no desenho**: esconde a janela, você clica os dois cantos (ou o centro) e os campos se preenchem.
-- **Coordenadas**: **Lat/Long** em graus decimais (`-3.1019`, `-3,1019`, `3.1019 S`, `60.025 W`) ou **UTM** em
+- **Coordenadas**: **Lat/Long** em graus decimais (`-3.1019`, `-3,1019`, `3.1019 S`, `3.1019 Sul`, `60.025 W`,
+  `60.025 O`, `60.025 Oeste`) ou **UTM** em
   metros (`830710.50`, `9.656.678,58` e o formato dos textos do plugin, `405110.92 m E`). Trocar entre os dois
   converte o que já foi digitado.
 - **Zona UTM**: a do projeto; sem ela, a digitada na janela (em lat/long pode ficar vazia: vem da longitude), que
@@ -303,7 +304,8 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   AutoCAD (`SIRGAS2000.UTM-<zona>`, ou `UTM84-<zona>` se a biblioteca do AutoCAD não tiver o SIRGAS), em metros.
   Uma geolocalização que o desenho já tenha não é alterada (só avisa se a zona for outra).
 - O servidor público do Overpass às vezes recusa por excesso de uso; o plugin tenta de novo e usa servidores
-  reservas. Áreas com mais de 5 km de lado podem demorar.
+  reservas. Áreas com mais de 5 km de lado podem demorar. Durante o download o AutoCAD continua respondendo e
+  **Esc** cancela na hora.
 
 Os dados são dos colaboradores do OpenStreetMap (licença ODbL) e a largura das ruas é aproximada: para projeto
 executivo, confira com a base oficial do município.

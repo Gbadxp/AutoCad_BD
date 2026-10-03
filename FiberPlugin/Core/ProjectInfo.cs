@@ -52,11 +52,10 @@ namespace FiberPlugin.Core
         {
             string[] drawing = ReadDrawing(db);
             Dictionary<string, string> file = ReadFile();
-            string FromFile(string label) => file.TryGetValue(CompanyInfo.Key(label), out string? value) ? value : "";
 
-            ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(Labels[i])).ToArray());
+            ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(file, Labels[i])).ToArray());
             info.Zone = UtmZone.Get(db);
-            if (info.Zone == null && ParseZone(FromFile(ZoneLabel)) is UtmSettings saved)
+            if (info.Zone == null && ParseZone(FromFile(file, ZoneLabel)) is UtmSettings saved)
             {
                 info.Zone = saved;
                 info.ZoneFromFile = true;
@@ -91,15 +90,13 @@ namespace FiberPlugin.Core
                 text.AppendLine("# nos desenhos que ainda não têm esses dados. Pode editar aqui, um campo por linha.");
                 for (int i = 0; i < Labels.Length; i++) text.AppendLine($"{Labels[i]}: {Values[i]}");
                 // Sem zona informada (ex.: salvo por um documento), mantém a que já estava no arquivo
-                string zone = Zone != null
-                    ? $"{Zone.Zone} {(Zone.South ? "Sul" : "Norte")}"
-                    : ReadFile().TryGetValue(CompanyInfo.Key(ZoneLabel), out string? kept) ? kept : "";
+                string zone = Zone != null ? $"{Zone.Zone} {(Zone.South ? "Sul" : "Norte")}" : FromFile(ReadFile(), ZoneLabel);
                 text.AppendLine($"{ZoneLabel}: {zone}");
                 Directory.CreateDirectory(PluginPaths.UserRoot);
                 File.WriteAllText(FilePath, text.ToString(), new UTF8Encoding(true));
                 return null;
             }
-            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException)
             {
                 return ex.Message;
             }
@@ -114,25 +111,18 @@ namespace FiberPlugin.Core
         /// <summary>Campos do projeto.txt ("Campo: valor"), pelo nome sem acentos; vazio se o arquivo não existir.</summary>
         private static Dictionary<string, string> ReadFile()
         {
-            var fields = new Dictionary<string, string>();
             try
             {
-                if (File.Exists(FilePath))
-                {
-                    foreach (string raw in DataFiles.ReadAllLines(FilePath))
-                    {
-                        string line = raw.Trim();
-                        int colon = line.IndexOf(':');
-                        if (line.Length == 0 || line.StartsWith("#") || colon <= 0) continue;
-                        fields[CompanyInfo.Key(line.Substring(0, colon))] = line.Substring(colon + 1).Trim();
-                    }
-                }
+                if (File.Exists(FilePath)) return DataFiles.ReadFields(FilePath);
             }
-            catch (IOException)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Security.SecurityException)
             {
-                // Sem o arquivo, a janela só não vem preenchida
+                // Arquivo inacessível (permissão, sincronização da pasta): a janela só não vem preenchida
             }
-            return fields;
+            return new Dictionary<string, string>();
         }
+
+        private static string FromFile(Dictionary<string, string> file, string label) =>
+            file.TryGetValue(DataFiles.FieldKey(label), out string? value) ? value : "";
     }
 }

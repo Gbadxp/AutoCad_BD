@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.IO;
-using System.Text;
 
 namespace FiberPlugin.Core
 {
@@ -44,16 +42,8 @@ namespace FiberPlugin.Core
                 return null;
             }
 
-            var fields = new Dictionary<string, string>();
-            foreach (string raw in DataFiles.ReadAllLines(path))
-            {
-                string line = raw.Trim();
-                int colon = line.IndexOf(':');
-                if (line.Length == 0 || line.StartsWith("#") || colon <= 0) continue;
-                fields[Key(line.Substring(0, colon))] = line.Substring(colon + 1).Trim();
-            }
-
-            string Get(string key) => fields.TryGetValue(Key(key), out string? value) ? value : "";
+            Dictionary<string, string> fields = DataFiles.ReadFields(path);
+            string Get(string key) => fields.TryGetValue(DataFiles.FieldKey(key), out string? value) ? value : "";
             return new CompanyInfo
             {
                 LegalName = Get("Razão social"),
@@ -76,17 +66,6 @@ namespace FiberPlugin.Core
                 Department = Get("Departamento"),
                 Attention = Get("Aos cuidados de")
             };
-        }
-
-        /// <summary>Nome do campo sem acentos, espaços e maiúsculas ("Endereço" → "endereco").</summary>
-        internal static string Key(string name)
-        {
-            var sb = new StringBuilder();
-            foreach (char c in name.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD))
-            {
-                if (char.IsLetterOrDigit(c) && CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark) sb.Append(c);
-            }
-            return sb.ToString();
         }
     }
 }

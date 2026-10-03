@@ -263,16 +263,20 @@ namespace FiberPlugin.Core
     /// <summary>Leitura de coordenadas digitadas ou coladas, com ponto ou vírgula decimal.</summary>
     public static class Coordinates
     {
+        // Palavras que indicam sul (latitude) e oeste (longitude): a coordenada vira negativa
+        private static readonly string[] SouthWords = { "S", "SUL", "SOUTH" };
+        private static readonly string[] WestWords = { "W", "O", "OESTE", "WEST" };
+
         /// <summary>
-        /// Graus decimais: "-3.1019", "-3,1019", "3.1019 S", "60.025° W" / "O" (sul e oeste viram negativos).
-        /// Null se não for um número.
+        /// Graus decimais: "-3.1019", "-3,1019", "3.1019 S", "3.1019 Sul", "60.025° W", "60.025 O", "60.025 Oeste"
+        /// (sul e oeste viram negativos). Null se não for um número.
         /// </summary>
         public static double? ParseDegrees(string text, bool latitude)
         {
             string t = text.Trim().ToUpperInvariant().Replace('−', '-');
             if (t.Length == 0) return null;
-            bool negative = latitude ? Regex.IsMatch(t, @"\d.*\bS\b|\bS\s*\d|[\d°]\s*S\b|^S")
-                                     : Regex.IsMatch(t, @"[\d°\s](W|O)\b|^(W|O)\b");
+            string[] hemisphere = latitude ? SouthWords : WestWords;
+            bool negative = Regex.Matches(t, "[A-Z]+").Cast<Match>().Any(word => hemisphere.Contains(word.Value));
             double? value = Number(Regex.Replace(t, @"[^\d.,\-]", ""));
             if (value == null) return null;
             return negative ? -Math.Abs(value.Value) : value;

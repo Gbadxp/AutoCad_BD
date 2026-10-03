@@ -110,6 +110,9 @@ namespace FiberPlugin.UI
         public static Color Input => Current.Input;
         public static Color InputFocused => Current.InputFocused;
 
+        /// <summary>Texto de erro nas janelas (o vermelho dos ícones, ajustado ao tema).</summary>
+        public static Color Error => Current.IsDark ? Color.FromArgb(0xEE, 0x5A, 0x43) : Color.FromArgb(0xD2, 0x3B, 0x24);
+
         // Mesma fonte e tamanhos das caixas de diálogo do AutoCAD
         public static readonly Font Body = new Font("Segoe UI", 9f);
         public static readonly Font BodyBold = new Font("Segoe UI Semibold", 9f);

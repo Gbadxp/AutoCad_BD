@@ -18,7 +18,7 @@ namespace FiberPlugin.UI
         private readonly ChoiceBar _hemisphere;
         private readonly InputBox _scale;
         private readonly ChoiceBar _scalePresets;
-        private readonly Label _status;
+        private readonly StatusLabel _status;
         private readonly ThemedButton _ok;
         private readonly bool _zoneFromFile;
         private bool _syncing;
@@ -70,15 +70,15 @@ namespace FiberPlugin.UI
             var blocks = new ThemedButton("Atualizar Blocos", false) { Margin = new Padding(0, 4, 8, 0) };
             var filesRow = Row("", folder, blocks, Hint("Planilhas, empresa.txt e BLOCOS.dwg"));
 
-            _status = new Label { Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Theme.Muted };
+            _status = new StatusLabel { Dock = DockStyle.Fill };
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 6), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in new (Control, float)[]
             {
-                (Section("Projeto"), 26), (_route, 54), (_address, 54), (Pair(_contract, _art), 54), (Pair(_start, _deadline), 54),
-                (Section("Desenho"), 32), (zoneRow, 40), (scaleRow, 40),
-                (Section("Arquivos do plugin"), 32), (filesRow, 40),
+                (new SectionLabel("Projeto"), 26), (_route, 54), (_address, 54), (Pair(_contract, _art), 54), (Pair(_start, _deadline), 54),
+                (new SectionLabel("Desenho"), 32), (zoneRow, 40), (scaleRow, 40),
+                (new SectionLabel("Arquivos do plugin"), 32), (filesRow, 40),
                 (_status, 40)
             })
             {
@@ -130,7 +130,7 @@ namespace FiberPlugin.UI
             folder.Click += (s, e) =>
             {
                 string? dir = OpenDataFolder?.Invoke();
-                ShowStatus(dir != null ? "Pasta aberta: " + dir : "Pasta de dados do plugin não encontrada.", error: dir == null);
+                _status.Set(dir != null ? "Pasta aberta: " + dir : "Não foi possível abrir a pasta de dados do plugin.", dir != null ? StatusKind.Ok : StatusKind.Error);
             };
             blocks.Click += (s, e) =>
             {
@@ -172,21 +172,21 @@ namespace FiberPlugin.UI
             {
                 if (!int.TryParse(zoneText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int z) || z < 1 || z > 60)
                 {
-                    ShowStatus("Zona UTM inválida: use um número de 1 a 60 (ex.: 20, 22, 23).", error: true);
+                    _status.Set("Zona UTM inválida: use um número de 1 a 60 (ex.: 20, 22, 23).", StatusKind.Error);
                     return false;
                 }
                 zone = new UtmSettings { Zone = z, South = _hemisphere.SelectedIndex == 0 };
             }
             else if (_drawingHasZone)
             {
-                ShowStatus("Este desenho já tem zona UTM: ela pode mudar, mas não ficar vazia.", error: true);
+                _status.Set("Este desenho já tem zona UTM: ela pode mudar, mas não ficar vazia.", StatusKind.Error);
                 return false;
             }
 
             if (!int.TryParse(_scale.Query.Replace(".", "").Replace(",", ""), NumberStyles.Integer, CultureInfo.InvariantCulture, out scale) ||
                 scale < DrawingScale.Min || scale > DrawingScale.Max)
             {
-                ShowStatus($"Escala inválida: use 1:X com X de {DrawingScale.Min} a {DrawingScale.Max:N0} (ex.: 1000).", error: true);
+                _status.Set($"Escala inválida: use 1:X com X de {DrawingScale.Min} a {DrawingScale.Max:N0} (ex.: 1000).", StatusKind.Error);
                 return false;
             }
             return true;
@@ -199,7 +199,7 @@ namespace FiberPlugin.UI
             if (!valid) return;
             string zoneText = zone == null ? "Sem zona UTM"
                 : $"Zona UTM {zone.Zone} {(zone.South ? "Sul" : "Norte")}" + (_zoneFromFile ? ", sugerida pelo último projeto" : "");
-            ShowStatus($"{zoneText}  ·  escala 1:{scale.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))}", error: false);
+            _status.Set($"{zoneText}  ·  escala 1:{scale.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))}", StatusKind.Ok);
         }
 
         /// <summary>Marca o atalho de escala que corresponde ao valor digitado (nenhum se for outro valor).</summary>
@@ -212,22 +212,7 @@ namespace FiberPlugin.UI
             _syncing = false;
         }
 
-        private void ShowStatus(string text, bool error)
-        {
-            _status.Text = text;
-            _status.ForeColor = error ? (Theme.Current.IsDark ? Color.FromArgb(0xEE, 0x5A, 0x43) : Color.FromArgb(0xD2, 0x3B, 0x24)) : Theme.Text;
-        }
-
         // ---------- Montagem ----------
-
-        private static Label Section(string text) => new Label
-        {
-            Text = text.ToUpperInvariant(),
-            Font = Theme.Section,
-            ForeColor = Theme.Muted,
-            TextAlign = ContentAlignment.BottomLeft,
-            Margin = Padding.Empty
-        };
 
         private static Label Hint(string text) => new Label
         {
