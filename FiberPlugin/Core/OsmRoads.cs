@@ -51,26 +51,7 @@ namespace FiberPlugin.Core
             ["cycleway"] = 2.5, ["footway"] = 2, ["path"] = 2, ["steps"] = 2, ["bridleway"] = 2
         };
 
-        /// <summary>Cor da layer por tipo de via (os "_link" usam a cor da via principal).</summary>
-        private static readonly Dictionary<string, short> Colors = new Dictionary<string, short>
-        {
-            ["motorway"] = 1, ["trunk"] = 1, ["primary"] = 1, ["secondary"] = 30, ["tertiary"] = 2, ["residential"] = 7,
-            ["unclassified"] = 8, ["service"] = 9, ["living_street"] = 3, ["pedestrian"] = 3, ["footway"] = 4, ["path"] = 4,
-            ["cycleway"] = 5, ["track"] = 6
-        };
-
         public static bool IsVehicle(string highway) => VehicleHighways.Contains(highway);
-
-        public static short ColorFor(string highway) =>
-            Colors.TryGetValue(highway.Replace("_link", ""), out short color) ? color : (short)7;
-
-        /// <summary>Layer do tipo de via: RUA_RESIDENTIAL, RUA_PRIMARY...</summary>
-        public static string LayerFor(string highway)
-        {
-            string cleaned = new string(highway.Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '_').ToArray());
-            if (cleaned.Length > 24) cleaned = cleaned.Substring(0, 24);
-            return "RUA_" + (cleaned.Length > 0 ? cleaned.ToUpperInvariant() : "SEM_TIPO");
-        }
 
         // ---------- Download ----------
 

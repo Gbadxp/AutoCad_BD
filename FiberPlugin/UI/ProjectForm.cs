@@ -68,7 +68,7 @@ namespace FiberPlugin.UI
 
             var folder = new ThemedButton("Pasta de Dados", false) { Margin = new Padding(0, 4, 8, 0) };
             var blocks = new ThemedButton("Atualizar Blocos", false) { Margin = new Padding(0, 4, 8, 0) };
-            var filesRow = Row("", folder, blocks, Hint("Planilhas, empresa.txt e BLOCOS.dwg"));
+            var filesRow = Row("", folder, blocks, Hint("Logo e figuras do memorial e BLOCOS.dwg"));
 
             _status = new StatusLabel { Dock = DockStyle.Fill };
 

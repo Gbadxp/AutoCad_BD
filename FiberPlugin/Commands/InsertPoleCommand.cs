@@ -14,7 +14,7 @@ namespace FiberPlugin.Commands
         private static PoleData? _lastModel;
 
         /// <summary>
-        /// Insere postes do modelo escolhido na lista (Dados\postes.csv): bloco DT ou CC do BLOCOS.dwg,
+        /// Insere postes do modelo escolhido na lista (Configurações > Postes): bloco DT ou CC do BLOCOS.dwg,
         /// já identificado: número em sequência, texto com número,
         /// altura/esforço e coordenada UTM, e o tipo DT/CC gravado para a listagem de postes.
         /// </summary>

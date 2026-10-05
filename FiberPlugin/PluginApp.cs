@@ -37,11 +37,27 @@ namespace FiberPlugin
             AcApp.Idle -= OnFirstIdle;
 
             PluginPaths.EnsureUserFolders();
+            List<string> converted;
+            try
+            {
+                converted = LegacyData.Migrate();
+            }
+            catch (System.Exception)
+            {
+                // A conversão tenta de novo na próxima abertura; até lá as planilhas antigas continuam sendo lidas
+                converted = new List<string>();
+            }
             FiberRibbon.Install();
 
             Document? doc = AcApp.DocumentManager.MdiActiveDocument;
             doc?.Editor.WriteMessage(
                 $"\n{PluginInfo.Name} v{PluginInfo.Version} carregado. Digite FIBRA ou use a aba \"Fibra\" da faixa de opções.\n");
+            if (converted.Count > 0)
+            {
+                doc?.Editor.WriteMessage($"[INFO]: Planilhas antigas convertidas ({string.Join(", ", converted)}): agora os dados ficam " +
+                                         "no plugin e são editados no botão Configurações. As planilhas foram guardadas em " +
+                                         $"Dados\\{DataFiles.LegacyFolderName}.\n");
+            }
         }
     }
 }

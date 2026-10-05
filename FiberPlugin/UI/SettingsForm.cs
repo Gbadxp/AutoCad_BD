@@ -3,7 +3,7 @@ using FiberPlugin.Models;
 
 namespace FiberPlugin.UI
 {
-    /// <summary>Tabela no estilo das listas do AutoCAD, para editar as planilhas da pasta Dados.</summary>
+    /// <summary>Tabela no estilo das listas do AutoCAD, para editar os cadastros do plugin.</summary>
     internal class ThemedGrid : DataGridView
     {
         public ThemedGrid()
@@ -53,6 +53,11 @@ namespace FiberPlugin.UI
                 e.Control.ForeColor = Theme.Text;
                 if (e.Control is ComboBox combo) combo.FlatStyle = FlatStyle.Flat;
             };
+            // O ComboBox grava na hora, sem esperar sair da célula
+            CurrentCellDirtyStateChanged += (s, e) =>
+            {
+                if (CurrentCell is DataGridViewComboBoxCell) CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -71,8 +76,41 @@ namespace FiberPlugin.UI
             return column;
         }
 
+        /// <summary>Coluna de escolha numa lista; aparece como texto até a célula ser editada.</summary>
+        public DataGridViewComboBoxColumn AddCombo(string header, float weight, IEnumerable<string> items)
+        {
+            var column = new DataGridViewComboBoxColumn
+            {
+                HeaderText = header,
+                FillWeight = weight,
+                FlatStyle = FlatStyle.Flat,
+                DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing,
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                MaxDropDownItems = 16
+            };
+            column.Items.AddRange(items.Cast<object>().ToArray());
+            Columns.Add(column);
+            return column;
+        }
+
         /// <summary>Texto da célula sem espaços nas pontas ("" se vazia).</summary>
         public string CellText(int row, int column) => (Rows[row].Cells[column].Value as string ?? Rows[row].Cells[column].Value?.ToString() ?? "").Trim();
+
+        /// <summary>Troca todas as linhas (valor fora da lista de uma coluna de escolha entra na lista).</summary>
+        public void ReplaceRows(IEnumerable<object?[]> rows)
+        {
+            Rows.Clear();
+            foreach (object?[] values in rows)
+            {
+                for (int c = 0; c < values.Length && c < Columns.Count; c++)
+                {
+                    if (Columns[c] is DataGridViewComboBoxColumn combo && values[c] is string text && !combo.Items.Contains(text)) combo.Items.Add(text);
+                }
+                int index = Rows.Add(values);
+                if (IsHandleCreated) Rows[index].Height = RowTemplate.Height;
+            }
+            ClearSelection();
+        }
 
         /// <summary>Linha nova no fim, já editando a primeira célula.</summary>
         public void AddRowAndEdit(params object?[] values)
@@ -95,70 +133,101 @@ namespace FiberPlugin.UI
     }
 
     /// <summary>
-    /// Janela Configurações (FIBRA_CONFIGURACOES): o que o plugin coloca sozinho no desenho, em quatro abas.
-    /// Cabos e Postes editam as planilhas cabos.csv e postes.csv da pasta Dados (com a cor de cada cabo);
-    /// Nomes e Tamanhos e cores vão para Documentos\Fiber Plugin\configuracoes.txt (UserSettings). Valem para
-    /// todos os desenhos. Confere tudo enquanto o usuário digita.
+    /// Janela Configurações (FIBRA_CONFIGURACOES): os dados do plugin e o que ele coloca sozinho no desenho, em seis
+    /// abas. Cabos (com cor, tipo de linha e espessura), Postes, Tração (Tabela 08) e Empresa são os cadastros do plugin
+    /// (Documentos\Fiber Plugin\cabos.txt, postes.txt, tracao.txt e empresa.txt); Nomes e Desenho vão para
+    /// configuracoes.txt (UserSettings). Valem para todos os desenhos. Confere tudo enquanto o usuário digita.
     /// </summary>
     internal class SettingsForm : Form
     {
-        private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5;
+        private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5,
+            CableLinetype = 6, CableLineWeight = 7;
         private const int PoleType = 0, PoleHeight = 1, PoleEffort = 2;
-        private static readonly string[] TabNames = { "Cabos", "Postes", "Nomes", "Tamanhos e cores" };
+        private const int TabCables = 0, TabPoles = 1, TabTraction = 2, TabCompany = 3, TabNames = 4;
+        private static readonly string[] TabTitles = { "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho" };
+        private static readonly string[] LinetypeLabels = LayerStyle.Linetypes.Select(l => l.Label).ToArray();
+        private static readonly string[] WeightLabels =
+            new[] { LayerStyle.DefaultWeightLabel }.Concat(LayerStyle.Weights.Select(w => LayerStyle.WeightLabel(w))).ToArray();
+
+        /// <summary>Campos da aba Empresa, por linha (o número é a largura relativa).</summary>
+        private static readonly (string Section, (string Field, float Width)[][] Rows)[] CompanyLayout =
+        {
+            ("Empresa", new[]
+            {
+                new[] { ("Razão social", 2f), ("CNPJ", 1f) },
+                new[] { ("Nome na plaqueta", 1f), ("Tipo de companhia", 1f), ("E-mail", 1f) },
+                new[] { ("Endereço", 2f), ("CEP", 1f) },
+                new[] { ("Cidade", 1f), ("Telefone", 1f), ("Telefone de emergência", 1f) }
+            }),
+            ("Representante legal", new[]
+            {
+                new[] { ("Representante", 1f), ("Qualificação", 1f), ("CREA", 1f) },
+                new[] { ("RG", 1f), ("CPF", 1f), ("Endereço do representante", 1f) }
+            }),
+            ("Concessionária", new[]
+            {
+                new[] { ("Concessionária", 1f), ("Departamento", 1f), ("Aos cuidados de", 1f) }
+            })
+        };
 
         private readonly ChoiceBar _tabs;
         private readonly Control[] _pages;
-        private readonly ThemedGrid _cables;
-        private readonly ThemedGrid _poles;
+        private readonly ThemedGrid _cables, _poles, _traction;
+        private double[] _spans = new double[0];
+        private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
         private readonly ChoiceBar _digits;
         private readonly Label _example;
-        private readonly LabeledInput _textHeight, _boxSize, _arrowLength, _routeOffset;
-        private readonly ColorField _cableColor, _poleLabelColor, _boxLabelColor, _effortColor;
+        private readonly LabeledInput _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer;
+        private readonly ColorField _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor;
+        private readonly LabeledCombo _roadLinetype, _roadWeight;
         private readonly StatusLabel _status;
         private readonly ThemedButton _ok, _defaults;
 
         /// <summary>Resultado (preenchidos enquanto tudo estiver certo).</summary>
         public List<CableModel> Cables { get; private set; } = new List<CableModel>();
         public List<PoleData> PoleTypes { get; private set; } = new List<PoleData>();
+        public TractionTable Traction { get; private set; }
+        public CompanyInfo Company { get; private set; } = new CompanyInfo();
         public UserSettings Settings { get; private set; }
 
         /// <summary>Grava as alterações; retorna o erro (a janela continua aberta para tentar de novo) ou null.</summary>
         public Func<SettingsForm, string?>? SaveChanges { get; set; }
 
-        /// <param name="cableNotes">Aviso da leitura do cabos.csv (linhas ignoradas, planilha ausente), mostrado na aba Cabos.</param>
-        /// <param name="poleNotes">O mesmo para o postes.csv, na aba Postes.</param>
-        public SettingsForm(List<CableModel> cables, List<PoleData> poles, UserSettings settings, string? cableNotes = null, string? poleNotes = null)
+        /// <param name="cableNotes">Aviso da leitura dos cabos (linhas ignoradas, arquivo ilegível), mostrado na aba Cabos.</param>
+        /// <param name="poleNotes">O mesmo para os postes, na aba Postes.</param>
+        /// <param name="tractionNotes">O mesmo para a tabela de tração, na aba Tração.</param>
+        public SettingsForm(List<CableModel> cables, List<PoleData> poles, TractionTable traction, CompanyInfo company,
+            UserSettings settings, string? cableNotes = null, string? poleNotes = null, string? tractionNotes = null)
         {
             Settings = settings.Clone();
+            Traction = traction;
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Configurações";
-            ClientSize = new Size(780, 640);
+            ClientSize = new Size(900, 720);
 
             var header = new HeaderPanel
             {
                 IconCommand = "FIBRA_CONFIGURACOES",
                 Title = "Configurações",
-                Subtitle = "O que o plugin coloca sozinho no desenho · vale para todos os projetos"
+                Subtitle = "Dados do plugin e o que ele coloca sozinho no desenho · vale para todos os projetos"
             };
 
-            _tabs = new ChoiceBar(TabNames);
+            _tabs = new ChoiceBar(TabTitles);
             var tabBar = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(18, 10, 18, 4), BackColor = Theme.Background };
             tabBar.Controls.Add(_tabs);
 
             // ---------- Cabos ----------
             _cables = new ThemedGrid();
-            _cables.AddText("Nome completo", 34);
-            _cables.AddText("Nome curto", 19);
-            _cables.AddText("Peso kg/km", 13, numeric: true);
-            _cables.AddText("Fibras", 8, numeric: true);
+            _cables.AddText("Nome completo", 27);
+            _cables.AddText("Nome curto", 16);
+            _cables.AddText("Peso kg/km", 12, numeric: true);
+            _cables.AddText("Fibras", 7, numeric: true);
             _cables.AddText("Diâm. mm", 11, numeric: true);
-            _cables.AddText("Cor", 16).ReadOnly = true;
-            foreach (CableModel c in cables)
-            {
-                _cables.Rows.Add(c.FullName, c.ShortName, Num(c.WeightKgKm), c.Fibers?.ToString() ?? "",
-                    c.DiameterMm is double d ? Num(d) : "", c.Color);
-            }
+            _cables.AddText("Cor", 14).ReadOnly = true;
+            _cables.AddCombo("Tipo de linha", 14, LinetypeLabels);
+            _cables.AddCombo("Espessura", 11, WeightLabels);
+            FillCables(cables);
             _cables.CellPainting += PaintColorCell;
             _cables.CellClick += (s, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == CableColor) PickCableColor(e.RowIndex); };
             _cables.KeyDown += (s, e) =>
@@ -170,28 +239,20 @@ namespace FiberPlugin.UI
 
             var addCable = new ThemedButton("Adicionar cabo", false);
             var removeCable = new ThemedButton("Remover cabo", false);
-            addCable.Click += (s, e) => _cables.AddRowAndEdit("", "", "", "", "", null);
+            addCable.Click += (s, e) => _cables.AddRowAndEdit("", "", "", "", "", null, LinetypeLabels[0], LayerStyle.DefaultWeightLabel);
             removeCable.Click += (s, e) => _cables.RemoveCurrentRow();
             Control cablesPage = GridPage(_cables, new[] { addCable, removeCable },
-                "Clique na cor para trocar; Delete volta para a cor padrão (aba Tamanhos e cores). As layers dos cabos já lançados " +
-                "mudam de cor ao salvar. Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com a planilha.",
+                "Clique na cor para trocar (Delete volta para a cor padrão, na aba Desenho). Cor, tipo de linha e espessura vão para a layer " +
+                "do cabo; as dos cabos já lançados mudam ao salvar. Espessura na tela: botão \"Mostrar espessura\" (LWDISPLAY). " +
+                "Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com o cadastro.",
                 cableNotes);
 
             // ---------- Postes ----------
             _poles = new ThemedGrid();
-            var type = new DataGridViewComboBoxColumn
-            {
-                HeaderText = "Tipo",
-                FillWeight = 30,
-                FlatStyle = FlatStyle.Flat,
-                DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing,
-                SortMode = DataGridViewColumnSortMode.NotSortable
-            };
-            type.Items.AddRange(PoleData.DoubleT, PoleData.Circular);
-            _poles.Columns.Add(type);
+            _poles.AddCombo("Tipo", 30, new[] { PoleData.DoubleT, PoleData.Circular });
             _poles.AddText("Altura (m)", 35, numeric: true);
             _poles.AddText("Esforço nominal (daN)", 35, numeric: true);
-            foreach (PoleData p in poles) _poles.Rows.Add(p.Type, Num(p.HeightM), Num(p.EffortDaN));
+            FillPoles(poles);
 
             var addPole = new ThemedButton("Adicionar modelo", false);
             var removePole = new ThemedButton("Remover modelo", false);
@@ -200,6 +261,39 @@ namespace FiberPlugin.UI
             Control polesPage = GridPage(_poles, new[] { addPole, removePole },
                 "Modelos oferecidos no Inserir Postes. DT = Duplo T, CC = Circular. Altura em metros e esforço em daN, como na norma " +
                 "(o desenho mostra 11/300).", poleNotes);
+
+            // ---------- Tração ----------
+            _traction = new ThemedGrid();
+            _traction.DefaultCellStyle.Padding = new Padding(1, 0, 3, 0);
+            _traction.ColumnHeadersDefaultCellStyle.Padding = new Padding(1, 0, 1, 0);
+            FillTraction(traction);
+            var addRange = new ThemedButton("Adicionar faixa", false);
+            var removeRange = new ThemedButton("Remover faixa", false);
+            addRange.Click += (s, e) => _traction.AddRowAndEdit(new object?[] { "" }.Concat(_spans.Select(_ => (object?)"")).ToArray());
+            removeRange.Click += (s, e) => _traction.RemoveCurrentRow();
+            Control tractionPage = GridPage(_traction, new[] { addRange, removeRange },
+                "Tabela 08 da NDU 009: tração em kgf por faixa de fibras (linhas) e vão em metros (colunas), cabo autossustentado, flecha " +
+                "de 1%. Fibras entre as faixas usam a faixa seguinte. Usada quando os Parâmetros de Cálculo estão em \"Tabela 08\".",
+                tractionNotes);
+
+            // ---------- Empresa ----------
+            var companyRows = new List<(Control, float)>();
+            foreach (var (section, rows) in CompanyLayout)
+            {
+                companyRows.Add((new SectionLabel(section), companyRows.Count == 0 ? 22 : 28));
+                foreach (var row in rows)
+                {
+                    var inputs = row.Select(f => (Control: (Control)(_company[f.Field] = new LabeledInput(f.Field, f.Field == "Tipo de companhia" ? "Internet" : "")), f.Width)).ToArray();
+                    companyRows.Add((WeightedRow(inputs), 52));
+                }
+            }
+            companyRows.Add((Hint("Vão para o Memorial Descritivo e a Tabela A do relatório. Campo vazio não aparece no documento. RG, CPF e " +
+                                  "endereço do representante ficam só neste computador (Documentos\\Fiber Plugin\\empresa.txt)."), 40));
+            Control companyPage = FormPage(companyRows.ToArray());
+            foreach (var (_, rows) in CompanyLayout)
+                foreach (var row in rows)
+                    foreach (var (field, _) in row)
+                        _company[field].Value = company[field];
 
             // ---------- Nomes ----------
             _polePrefix = new LabeledInput("Prefixo dos postes", "ex.: P-");
@@ -218,30 +312,34 @@ namespace FiberPlugin.UI
                       "pergunta na linha de comando se atualiza os nomes já desenhados neste desenho (texto e atributo do bloco)."), 44)
             });
 
-            // ---------- Tamanhos e cores ----------
+            // ---------- Desenho: tamanhos, cores e ruas ----------
             _textHeight = new LabeledInput("Altura dos textos (mm)", "ex.: 2.0");
             _boxSize = new LabeledInput("Símbolo da CTO/CEO (mm)", "ex.: 7.0");
             _arrowLength = new LabeledInput("Seta de esforço (mm)", "ex.: 18");
-            _routeOffset = new LabeledInput("Cabo afastado do poste (m)", "ex.: 1.8");
+            _routeOffset = new LabeledInput("Afastamento do cabo (m)", "ex.: 1.8");
             _cableColor = new ColorField("Cabos sem cor própria");
             _poleLabelColor = new ColorField("Textos dos postes");
             _boxLabelColor = new ColorField("Textos das CTO/CEO");
             _effortColor = new ColorField("Setas de esforço");
-            Control sizesPage = FormPage(new (Control, float)[]
+            _roadLayer = new LabeledInput("Layer das ruas", "ex.: RUAS");
+            _roadColor = new ColorField("Cor das ruas");
+            _roadLinetype = new LabeledCombo("Tipo de linha das ruas", LinetypeLabels);
+            _roadWeight = new LabeledCombo("Espessura das ruas", WeightLabels);
+            Control drawingPage = FormPage(new (Control, float)[]
             {
-                (new SectionLabel("Tamanhos no papel, na escala 1:1000"), 26),
-                (Row(_textHeight, _boxSize, _arrowLength), 56),
-                (Hint("Em outra escala (Dados do Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. " +
-                      "Ao salvar, o plugin pergunta se ajusta os textos já desenhados; símbolos e setas mudam nos próximos."), 40),
-                (new SectionLabel("Roteamento automático"), 30),
-                (Row(_routeOffset, new Panel { BackColor = Theme.Background }, new Panel { BackColor = Theme.Background }), 56),
+                (new SectionLabel("Tamanhos no papel (escala 1:1000) e roteamento automático"), 26),
+                (Row(_textHeight, _boxSize, _arrowLength, _routeOffset), 56),
+                (Hint("Em outra escala (Dados do Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
+                      "pergunta se ajusta os textos já desenhados; símbolos, setas e o afastamento valem para os próximos."), 40),
                 (new SectionLabel("Cores das layers"), 30),
-                (Row(_cableColor, _poleLabelColor), 56),
-                (Row(_boxLabelColor, _effortColor), 56),
-                (Hint("As layers que já existem neste desenho mudam de cor ao salvar."), 24)
+                (Row(_cableColor, _poleLabelColor, _boxLabelColor, _effortColor), 56),
+                (new SectionLabel("Ruas (Importar Ruas)"), 30),
+                (Row(_roadLayer, _roadColor, _roadLinetype, _roadWeight), 56),
+                (Hint("O Importar Ruas coloca tudo nessa layer: contorno das ruas e calçadas, eixos e nomes. Ao salvar, as layers deste " +
+                      "desenho mudam de cor e aparência (e a das ruas muda de nome, se você trocar o nome)."), 40)
             });
 
-            _pages = new[] { cablesPage, polesPage, namesPage, sizesPage };
+            _pages = new[] { cablesPage, polesPage, tractionPage, companyPage, namesPage, drawingPage };
             var pages = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(18, 4, 18, 0) };
             foreach (Control page in _pages)
             {
@@ -251,7 +349,7 @@ namespace FiberPlugin.UI
 
             _status = new StatusLabel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(18, 0, 18, 0) };
 
-            var footer = new FooterPanel { Hint = "Cabos e postes: pasta Dados · o resto: configuracoes.txt" };
+            var footer = new FooterPanel { Hint = "Gravado em Documentos\\Fiber Plugin" };
             _ok = new ThemedButton("Salvar", true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             _defaults = new ThemedButton("Restaurar padrão", false);
@@ -266,24 +364,24 @@ namespace FiberPlugin.UI
             Controls.Add(footer);
             CancelButton = cancel;
 
-            Fill(settings);
+            FillNames(settings);
+            FillDrawing(settings);
 
-            foreach (LabeledInput input in new[] { _polePrefix, _ctoPrefix, _ceoPrefix, _textHeight, _boxSize, _arrowLength, _routeOffset })
-            {
-                input.Box.Input.TextChanged += (s, e) => UpdateStatus();
-            }
-            foreach (ColorField field in new[] { _cableColor, _poleLabelColor, _boxLabelColor, _effortColor })
+            var inputs2 = new List<LabeledInput> { _polePrefix, _ctoPrefix, _ceoPrefix, _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer };
+            inputs2.AddRange(_company.Values);
+            foreach (LabeledInput input in inputs2) input.Box.Input.TextChanged += (s, e) => UpdateStatus();
+            foreach (ColorField field in new[] { _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor })
             {
                 field.ValueChanged += (s, e) => { UpdateStatus(); _cables.Invalidate(); };
             }
+            _roadLinetype.ValueChanged += (s, e) => UpdateStatus();
+            _roadWeight.ValueChanged += (s, e) => UpdateStatus();
             _digits.SelectedChanged += (s, e) => UpdateStatus();
-            foreach (ThemedGrid grid in new[] { _cables, _poles })
+            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction })
             {
                 grid.CellValueChanged += (s, e) => UpdateStatus();
                 grid.RowsRemoved += (s, e) => UpdateStatus();
                 grid.RowsAdded += (s, e) => UpdateStatus();
-                // O ComboBox do tipo grava na hora, sem esperar sair da célula
-                grid.CurrentCellDirtyStateChanged += (s, e) => { if (grid.CurrentCell is DataGridViewComboBoxCell) grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
             }
             _tabs.SelectedChanged += (s, e) => ShowPage(_tabs.SelectedIndex);
             _defaults.Click += (s, e) => RestoreDefaults();
@@ -293,8 +391,7 @@ namespace FiberPlugin.UI
             Load += (s, e) =>
             {
                 ShowPage(_tabs.SelectedIndex);
-                _cables.ClearSelection();
-                _poles.ClearSelection();
+                foreach (ThemedGrid grid in new[] { _cables, _poles, _traction }) grid.ClearSelection();
             };
             UpdateStatus();
         }
@@ -304,19 +401,41 @@ namespace FiberPlugin.UI
             if (index < 0) return;
             for (int i = 0; i < _pages.Length; i++) _pages[i].Visible = i == index;
             _pages[index].BringToFront();
-            _defaults.Visible = index >= 2; // Cabos e postes não têm "padrão": são as planilhas do usuário
+            _defaults.Visible = index != TabCompany; // A empresa não tem padrão
         }
 
-        private void Fill(UserSettings s)
+        // ---------- Preenchimento ----------
+
+        private void FillCables(IEnumerable<CableModel> cables) =>
+            _cables.ReplaceRows(cables.Select(c => new object?[]
+            {
+                c.FullName, c.ShortName, Num(c.WeightKgKm), c.Fibers?.ToString() ?? "", c.DiameterMm is double d ? Num(d) : "", c.Color,
+                LayerStyle.LinetypeLabel(c.Linetype), LayerStyle.WeightLabel(c.LineWeightMm)
+            }));
+
+        private void FillPoles(IEnumerable<PoleData> poles) =>
+            _poles.ReplaceRows(poles.Select(p => new object?[] { p.Type, Num(p.HeightM), Num(p.EffortDaN) }));
+
+        /// <summary>Uma coluna por vão da tabela (os vãos vêm da própria tabela).</summary>
+        private void FillTraction(TractionTable table)
+        {
+            _spans = table.Spans;
+            _traction.Rows.Clear();
+            _traction.Columns.Clear();
+            _traction.AddText("Fibras", 2.6f);
+            foreach (double span in _spans) _traction.AddText(Num(span), 1f, numeric: true);
+            _traction.ReplaceRows(table.Rows.Select(r => new object?[] { r.Label }.Concat(r.Values.Select(v => (object?)Num(v))).ToArray()));
+        }
+
+        private void FillNames(UserSettings s)
         {
             _polePrefix.Value = s.PolePrefix;
             _ctoPrefix.Value = s.CtoPrefix;
             _ceoPrefix.Value = s.CeoPrefix;
             _digits.SelectedIndex = s.NumberDigits - 1;
-            FillSizes(s);
         }
 
-        private void FillSizes(UserSettings s)
+        private void FillDrawing(UserSettings s)
         {
             _textHeight.Value = Num(s.TextHeight);
             _boxSize.Value = Num(s.BoxSymbolSize);
@@ -326,22 +445,24 @@ namespace FiberPlugin.UI
             _poleLabelColor.Value = s.PoleLabelColor;
             _boxLabelColor.Value = s.BoxLabelColor;
             _effortColor.Value = s.EffortColor;
+            _roadLayer.Value = s.RoadLayer;
+            _roadColor.Value = s.RoadColor;
+            _roadLinetype.Value = LayerStyle.LinetypeLabel(s.RoadLinetype);
+            _roadWeight.Value = LayerStyle.WeightLabel(s.RoadLineWeightMm);
         }
 
+        /// <summary>"Restaurar padrão" da aba aberta: os valores que vêm com o plugin.</summary>
         private void RestoreDefaults()
         {
-            var defaults = new UserSettings();
-            if (_tabs.SelectedIndex == 2)
+            switch (_tabs.SelectedIndex)
             {
-                _polePrefix.Value = defaults.PolePrefix;
-                _ctoPrefix.Value = defaults.CtoPrefix;
-                _ceoPrefix.Value = defaults.CeoPrefix;
-                _digits.SelectedIndex = defaults.NumberDigits - 1;
+                case TabCables: FillCables(CableProvider.Defaults()); break;
+                case TabPoles: FillPoles(PoleModels.Defaults()); break;
+                case TabTraction: FillTraction(TractionTable.Default()); break;
+                case TabNames: FillNames(new UserSettings()); break;
+                default: FillDrawing(new UserSettings()); break;
             }
-            else
-            {
-                FillSizes(defaults);
-            }
+            UpdateStatus();
         }
 
         private void PickCableColor(int row)
@@ -373,11 +494,12 @@ namespace FiberPlugin.UI
             e.Handled = true;
         }
 
+        // ---------- Conferência e resultado ----------
+
         private void Save()
         {
             // Célula ainda em edição entra no que vai ser gravado
-            _cables.EndEdit();
-            _poles.EndEdit();
+            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction }) grid.EndEdit();
             UpdateStatus();
             if (!_ok.Enabled) return;
             string? error = SaveChanges?.Invoke(this);
@@ -390,22 +512,27 @@ namespace FiberPlugin.UI
             Close();
         }
 
-        /// <summary>Confere as quatro abas e monta o resultado. O primeiro problema aparece na linha de status.</summary>
+        /// <summary>Confere as seis abas e monta o resultado. O primeiro problema aparece na linha de status.</summary>
         private void UpdateStatus()
         {
             string? cableError = ReadCables(out List<CableModel> cables);
             string? poleError = ReadPoles(out List<PoleData> poles);
+            string? tractionError = ReadTraction(out TractionTable? traction);
+            CompanyInfo company = ReadCompany();
             string? settingsError = ReadSettings(out UserSettings settings);
-            string? error = cableError ?? poleError ?? settingsError;
+            string? error = cableError ?? poleError ?? tractionError ?? settingsError;
             if (error == null)
             {
                 Cables = cables;
                 PoleTypes = poles;
+                Traction = traction!;
+                Company = company;
                 Settings = settings;
                 _example.Text = $"{Settings.Name(Settings.PolePrefix, 7)}    {Settings.Name(Settings.CtoPrefix, 3)}    {Settings.Name(Settings.CeoPrefix, 1)}";
-                _status.Set($"{Cables.Count} cabo(s) · {PoleTypes.Count} modelo(s) de poste · {Settings.Name(Settings.PolePrefix, 1)}, " +
-                            $"{Settings.Name(Settings.CtoPrefix, 1)}, {Settings.Name(Settings.CeoPrefix, 1)} · texto de {Num(Settings.TextHeight)} mm · " +
-                            $"cabo a {Num(Settings.AutoRouteOffset)} m do poste", StatusKind.Ok);
+                _status.Set($"{Cables.Count} cabos · {PoleTypes.Count} modelos de poste · tração com {Traction.Rows.Count} faixas · " +
+                            $"empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · " +
+                            $"{Settings.Name(Settings.PolePrefix, 1)}, {Settings.Name(Settings.CtoPrefix, 1)}, {Settings.Name(Settings.CeoPrefix, 1)} · " +
+                            $"ruas na layer {Settings.RoadLayer}", StatusKind.Ok);
             }
             else
             {
@@ -450,10 +577,12 @@ namespace FiberPlugin.UI
                     WeightKgKm = weight,
                     Fibers = fibers ?? CableModel.FibersFromName(shortName + " " + full),
                     DiameterMm = diameter,
-                    Color = _cables.Rows[i].Cells[CableColor].Value as short?
+                    Color = _cables.Rows[i].Cells[CableColor].Value as short?,
+                    Linetype = LayerStyle.LinetypeFromLabel(_cables.CellText(i, CableLinetype)),
+                    LineWeightMm = LayerStyle.WeightFromText(_cables.CellText(i, CableLineWeight))
                 });
             }
-            return null;
+            return cables.Count == 0 ? "Cabos: cadastre pelo menos um cabo." : null;
         }
 
         private string? ReadPoles(out List<PoleData> poles)
@@ -470,7 +599,41 @@ namespace FiberPlugin.UI
                 if (!DataFiles.TryParseNumber(effortText, out double effort) || effort <= 0) return $"{where}: informe o esforço nominal em daN (ex.: 300).";
                 poles.Add(new PoleData { Type = type, HeightM = height, EffortDaN = effort });
             }
+            return poles.Count == 0 ? "Postes: cadastre pelo menos um modelo." : null;
+        }
+
+        private string? ReadTraction(out TractionTable? table)
+        {
+            table = null;
+            var rows = new List<TractionRow>();
+            for (int i = 0; i < _traction.Rows.Count; i++)
+            {
+                string label = _traction.CellText(i, 0);
+                var texts = Enumerable.Range(1, _spans.Length).Select(c => _traction.CellText(i, c)).ToList();
+                if (label.Length == 0 && texts.All(t => t.Length == 0)) continue;
+
+                string where = $"Tração, linha {i + 1}";
+                var row = new TractionRow(label, new double[_spans.Length]);
+                if (row.MaxFibers == null) return $"{where}: a faixa de fibras termina num número (ex.: 2-12 ou 96).";
+                if (rows.Any(r => r.MaxFibers == row.MaxFibers)) return $"{where}: a faixa até {row.MaxFibers} fibras já existe.";
+                for (int c = 0; c < _spans.Length; c++)
+                {
+                    if (!DataFiles.TryParseNumber(texts[c], out double value) || value <= 0)
+                        return $"{where}: informe a tração em kgf no vão de {Num(_spans[c])} m.";
+                    row.Values[c] = value;
+                }
+                rows.Add(row);
+            }
+            if (rows.Count == 0) return "Tração: a tabela precisa de pelo menos uma faixa de fibras.";
+            table = new TractionTable(_spans, rows);
             return null;
+        }
+
+        private CompanyInfo ReadCompany()
+        {
+            var company = new CompanyInfo();
+            foreach (var pair in _company) company[pair.Key] = pair.Value.Value;
+            return company;
         }
 
         private string? ReadSettings(out UserSettings settings)
@@ -490,7 +653,7 @@ namespace FiberPlugin.UI
                 (_routeOffset, v => s.AutoRouteOffset = v)
             })
             {
-                if (!DataFiles.TryParseNumber(input.Value, out double value)) return $"Tamanhos e cores: informe {input.Title.ToLowerInvariant()} (ex.: {input.Box.Placeholder.Replace("ex.: ", "")}).";
+                if (!DataFiles.TryParseNumber(input.Value, out double value)) return $"Desenho: informe {input.Title.ToLowerInvariant()} (ex.: {input.Box.Placeholder.Replace("ex.: ", "")}).";
                 apply(value);
             }
 
@@ -498,11 +661,15 @@ namespace FiberPlugin.UI
             s.PoleLabelColor = _poleLabelColor.Value;
             s.BoxLabelColor = _boxLabelColor.Value;
             s.EffortColor = _effortColor.Value;
+            s.RoadLayer = _roadLayer.Value;
+            s.RoadColor = _roadColor.Value;
+            s.RoadLinetype = LayerStyle.LinetypeFromLabel(_roadLinetype.Value);
+            s.RoadLineWeightMm = LayerStyle.WeightFromText(_roadWeight.Value);
 
             string? error = s.Validate();
             if (error == null) return null;
             bool names = error.StartsWith("Prefixo") || error.StartsWith("Os prefixos") || error.Contains("dígitos");
-            return (names ? "Nomes: " : "Tamanhos e cores: ") + error;
+            return (names ? "Nomes: " : "Desenho: ") + error;
         }
 
         // ---------- Montagem das páginas ----------
@@ -528,7 +695,7 @@ namespace FiberPlugin.UI
             page.Controls.Add(frame, 0, 0);
             page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             page.Controls.Add(bar, 0, 1);
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
             Label hintLabel = Hint(hint);
             hintLabel.Dock = DockStyle.Fill;
             page.Controls.Add(hintLabel, 0, 2);
@@ -562,16 +729,20 @@ namespace FiberPlugin.UI
         }
 
         /// <summary>Campos lado a lado, com a mesma largura.</summary>
-        private static Control Row(params Control[] controls)
+        private static Control Row(params Control[] controls) => WeightedRow(controls.Select(c => (c, 1f)).ToArray());
+
+        /// <summary>Campos lado a lado, cada um com a largura relativa dada.</summary>
+        private static Control WeightedRow((Control Control, float Width)[] controls)
         {
             var row = new TableLayoutPanel { ColumnCount = controls.Length, RowCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
             row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            float total = controls.Sum(c => c.Width);
             for (int i = 0; i < controls.Length; i++)
             {
-                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / controls.Length));
-                controls[i].Dock = DockStyle.Fill;
-                controls[i].Margin = new Padding(i == 0 ? 0 : 6, 0, i == controls.Length - 1 ? 0 : 6, 0);
-                row.Controls.Add(controls[i], i, 0);
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f * controls[i].Width / total));
+                controls[i].Control.Dock = DockStyle.Fill;
+                controls[i].Control.Margin = new Padding(i == 0 ? 0 : 6, 0, i == controls.Length - 1 ? 0 : 6, 0);
+                row.Controls.Add(controls[i].Control, i, 0);
             }
             return row;
         }

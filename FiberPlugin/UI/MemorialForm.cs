@@ -83,7 +83,7 @@ namespace FiberPlugin.UI
                 _deadline = Field("Prazo de execução", "Ex.: 60 dias", deadline, 1, 1);
             }
 
-            var footer = new FooterPanel { Hint = "Empresa: Dados do Projeto > Pasta de Dados > empresa.txt" };
+            var footer = new FooterPanel { Hint = "Dados da empresa: Configurações > Empresa" };
             _ok = new ThemedButton("Gerar PDF", true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             footer.AddButton(_ok);

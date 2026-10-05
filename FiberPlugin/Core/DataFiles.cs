@@ -5,29 +5,68 @@ using System.Text;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Leitura das planilhas da pasta Dados. Aceita arquivos salvos pelo Excel em pt-BR
-    /// (separador ";" e vírgula decimal, codificação ANSI) ou em UTF-8.
+    /// Arquivos de dados do plugin (cabos, postes, tração, empresa) em Documentos\Fiber Plugin, gravados pela janela
+    /// Configurações: texto com ";" entre as colunas e vírgula decimal, ou "Campo: valor". Sem o arquivo, vale o padrão
+    /// que vem no código. Até a 1.9.35 esses dados eram planilhas da pasta Dados (cabos.csv...): elas são lidas enquanto
+    /// o arquivo novo não existe e, ao gravar o novo, vão para Dados\Antigos.
+    /// Aceita também arquivos salvos pelo Excel em pt-BR (codificação ANSI) ou em UTF-8.
     /// </summary>
     public static class DataFiles
     {
-        /// <summary>Números gravados nas planilhas: vírgula decimal, como o Excel em português.</summary>
+        /// <summary>Números gravados nos arquivos: vírgula decimal, como no resto das janelas.</summary>
         public static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
 
+        public const string LegacyFolderName = "Antigos";
+
+        /// <summary>Caminho do arquivo de dados do plugin (Documentos\Fiber Plugin\nome).</summary>
+        public static string UserFile(string fileName) => Path.Combine(PluginPaths.UserRoot, fileName);
+
         /// <summary>
-        /// Grava uma planilha da pasta Dados em UTF-8 com BOM (o Excel abre com os acentos certos). Retorna o erro
-        /// (null se gravou), por exemplo com a planilha aberta no Excel.
+        /// Arquivo de onde ler: o do plugin; sem ele, a planilha antiga da pasta Dados (<paramref name="legacyName"/>).
+        /// Null = nenhum dos dois (usar o padrão do código).
         /// </summary>
-        public static string? Write(string fileName, string content)
+        public static string? Source(string fileName, string legacyName)
         {
-            string? path = PluginPaths.DataFile(fileName);
-            if (path == null) return $"pasta {PluginPaths.DataFolderName} não encontrada";
+            string file = UserFile(fileName);
+            if (File.Exists(file)) return file;
+            string? legacy = PluginPaths.DataFile(legacyName);
+            return legacy != null && File.Exists(legacy) ? legacy : null;
+        }
+
+        /// <summary>
+        /// Grava o arquivo de dados do plugin (UTF-8) e tira a planilha antiga do caminho (vai para Dados\Antigos, onde
+        /// fica como cópia). Retorna o erro (null se gravou).
+        /// </summary>
+        public static string? Save(string fileName, string content, string legacyName)
+        {
             try
             {
-                File.WriteAllText(path, content, new UTF8Encoding(true));
-                return null;
+                Directory.CreateDirectory(PluginPaths.UserRoot);
+                File.WriteAllText(UserFile(fileName), content, new UTF8Encoding(true));
             }
-            catch (IOException ex) { return $"{fileName}: {ex.Message} Feche a planilha no Excel e tente de novo."; }
+            catch (IOException ex) { return $"{fileName}: {ex.Message}"; }
             catch (UnauthorizedAccessException ex) { return $"{fileName}: {ex.Message}"; }
+
+            RetireLegacy(legacyName);
+            return null;
+        }
+
+        /// <summary>Move a planilha antiga para Dados\Antigos (sem apagar nada). Se não der (aberta no Excel), fica onde está.</summary>
+        private static void RetireLegacy(string legacyName)
+        {
+            string? legacy = PluginPaths.DataFile(legacyName);
+            if (legacy == null || !File.Exists(legacy) || !PluginPaths.IsInstalled) return;
+            try
+            {
+                string folder = Path.Combine(Path.GetDirectoryName(legacy)!, LegacyFolderName);
+                Directory.CreateDirectory(folder);
+                string target = Path.Combine(folder, legacyName);
+                if (File.Exists(target))
+                    target = Path.Combine(folder, Path.GetFileNameWithoutExtension(legacyName) + DateTime.Now.ToString(" yyyy-MM-dd HH-mm-ss") + Path.GetExtension(legacyName));
+                File.Move(legacy, target);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         /// <summary>Lê todas as linhas, mesmo com o arquivo aberto no Excel.</summary>

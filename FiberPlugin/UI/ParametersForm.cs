@@ -122,7 +122,7 @@ namespace FiberPlugin.UI
         private void UpdateMethodHint() =>
             _methodHint.Text = _method.SelectedIndex == 0
                 ? "Tração pela Tabela 08 da norma (cabo autossustentado, flecha de 1%), pelo número de fibras e o comprimento do vão."
-                : "T = p·L² / (8·f), com flecha f de 1% do vão: T = 12,5 · p · L (p em kgf/m), pela coluna Peso da planilha de cabos.";
+                : "T = p·L² / (8·f), com flecha f de 1% do vão: T = 12,5 · p · L (p em kgf/m), pelo peso de cada cabo (Configurações > Cabos).";
 
         private void UpdateStatus()
         {

@@ -93,7 +93,7 @@ namespace FiberPlugin.Commands
             if (company == null)
             {
                 ed.WriteMessage($"\n[ERRO]: {error}");
-                ed.WriteMessage("\n[DICA]: Use Dados do Projeto > Pasta de Dados e confira o arquivo empresa.txt.");
+                ed.WriteMessage("\n[DICA]: Preencha na aba Empresa do botão Configurações (aba Fibra).");
                 return;
             }
 
@@ -238,7 +238,7 @@ namespace FiberPlugin.Commands
                         Length = t.Length,
                         MaxSpan = maxSpan,
                         MaxTension = t.Model != null ? traction.Tension(t.Model, maxSpan) : 0,
-                        TractionSource = t.Model != null ? traction.Describe(t.Model) : "Cabo fora da planilha"
+                        TractionSource = t.Model != null ? traction.Describe(t.Model) : "Cabo não cadastrado"
                     };
                 }).ToList(),
                 Efforts = project.Efforts.Select(e => new MemorialEffort

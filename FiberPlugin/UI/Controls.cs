@@ -423,6 +423,158 @@ namespace FiberPlugin.UI
         }
     }
 
+    /// <summary>
+    /// Lista de escolha com o título em cima (como o LabeledInput): campo com a opção escolhida e uma seta; o clique
+    /// (ou Enter, Espaço, seta para baixo) abre as opções num menu com as cores do tema.
+    /// </summary>
+    internal class LabeledCombo : Panel
+    {
+        private readonly List<string> _items;
+        private readonly DropButton _button;
+        private string _value = "";
+
+        public event EventHandler? ValueChanged;
+
+        public LabeledCombo(string title, IEnumerable<string> items)
+        {
+            _items = items.ToList();
+            BackColor = Theme.Background;
+            Height = 50;
+            Margin = new Padding(4, 2, 4, 2);
+            _button = new DropButton(this) { Dock = DockStyle.Top, Height = 28 };
+            var label = new Label
+            {
+                Text = title.ToUpperInvariant(),
+                Font = Theme.Section,
+                ForeColor = Theme.Muted,
+                AutoSize = false,
+                Height = 20,
+                Dock = DockStyle.Top,
+                TextAlign = ContentAlignment.BottomLeft,
+                AutoEllipsis = true
+            };
+            Controls.Add(_button);
+            Controls.Add(label);
+            if (_items.Count > 0) _value = _items[0];
+        }
+
+        /// <summary>Opção escolhida; um texto fora da lista entra no fim dela.</summary>
+        public string Value
+        {
+            get => _value;
+            set
+            {
+                if (value.Length > 0 && !_items.Contains(value)) _items.Add(value);
+                string chosen = value.Length > 0 ? value : _items.FirstOrDefault() ?? "";
+                if (chosen == _value) return;
+                _value = chosen;
+                _button.Invalidate();
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        private void ShowMenu()
+        {
+            var menu = new ContextMenuStrip
+            {
+                Renderer = new ToolStripProfessionalRenderer(new ThemeMenuColors()),
+                ShowImageMargin = false,
+                ShowCheckMargin = true,
+                Font = Theme.Body,
+                BackColor = Theme.Surface,
+                ForeColor = Theme.Text
+            };
+            foreach (string item in _items)
+            {
+                var entry = new ToolStripMenuItem(item) { Checked = item == _value, ForeColor = Theme.Text };
+                entry.Click += (s, e) => Value = item;
+                menu.Items.Add(entry);
+            }
+            menu.MinimumSize = new Size(_button.Width, 0);
+            menu.Closed += (s, e) => BeginInvoke(new Action(menu.Dispose));
+            menu.Show(_button, new Point(0, _button.Height));
+        }
+
+        /// <summary>Campo da opção escolhida, desenhado como o InputBox, com a seta à direita.</summary>
+        private sealed class DropButton : Control
+        {
+            private readonly LabeledCombo _owner;
+            private bool _hover;
+
+            public DropButton(LabeledCombo owner)
+            {
+                _owner = owner;
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                         ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
+                TabStop = true;
+            }
+
+            protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+            protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+            protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+            protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+
+            protected override void OnClick(EventArgs e)
+            {
+                base.OnClick(e);
+                Focus();
+                _owner.ShowMenu();
+            }
+
+            protected override bool IsInputKey(Keys keyData) => keyData is Keys.Down or Keys.Up || base.IsInputKey(keyData);
+
+            protected override void OnKeyDown(KeyEventArgs e)
+            {
+                base.OnKeyDown(e);
+                if (e.KeyCode is Keys.Enter or Keys.Space or Keys.Down)
+                {
+                    _owner.ShowMenu();
+                    e.Handled = true;
+                }
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Parent?.BackColor ?? Theme.Background);
+                var r = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
+                float radius = Theme.Scale(this, Theme.Radius);
+                Theme.FillRounded(g, Focused || _hover ? Theme.InputFocused : Theme.Input, r, radius);
+                Theme.DrawRounded(g, Focused ? Theme.Accent : _hover ? Theme.BorderHover : Theme.Border, r, radius);
+
+                // Seta para baixo
+                int cx = Width - Theme.Scale(this, 14), cy = Height / 2, s = Theme.Scale(this, 4);
+                using (var brush = new SolidBrush(Theme.Muted))
+                {
+                    g.FillPolygon(brush, new[] { new Point(cx - s, cy - s / 2), new Point(cx + s, cy - s / 2), new Point(cx, cy + s / 2 + 1) });
+                }
+
+                var text = new Rectangle(Theme.Scale(this, 9), 0, Width - Theme.Scale(this, 34), Height);
+                TextRenderer.DrawText(g, _owner.Value, Theme.Body, text, Theme.Text,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+        }
+
+        /// <summary>Cores do menu de opções, iguais às das listas do tema.</summary>
+        private sealed class ThemeMenuColors : ProfessionalColorTable
+        {
+            public override Color ToolStripDropDownBackground => Theme.Surface;
+            public override Color MenuBorder => Theme.Border;
+            public override Color MenuItemBorder => Theme.SelectionBorder;
+            public override Color MenuItemSelected => Theme.SurfaceHover;
+            public override Color MenuItemSelectedGradientBegin => Theme.SurfaceHover;
+            public override Color MenuItemSelectedGradientEnd => Theme.SurfaceHover;
+            public override Color ImageMarginGradientBegin => Theme.Surface;
+            public override Color ImageMarginGradientMiddle => Theme.Surface;
+            public override Color ImageMarginGradientEnd => Theme.Surface;
+            public override Color CheckBackground => Theme.Selection;
+            public override Color CheckSelectedBackground => Theme.Selection;
+            public override Color CheckPressedBackground => Theme.Selection;
+            public override Color SeparatorDark => Theme.Separator;
+        }
+    }
+
     /// <summary>Lista com itens desenhados (título, linha secundária e etiqueta), no estilo das listas do AutoCAD.</summary>
     internal class ThemedListBox : ListBox
     {

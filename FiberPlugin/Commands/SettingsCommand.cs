@@ -1,3 +1,4 @@
+using System.IO;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -13,9 +14,10 @@ namespace FiberPlugin.Commands
     public class SettingsCommand
     {
         /// <summary>
-        /// Janela Configurações: cabos (com a cor de cada um) e modelos de poste das planilhas da pasta Dados, prefixos dos
-        /// nomes, tamanhos e cores das layers (UserSettings). Depois de salvar, leva as mudanças para o desenho aberto:
-        /// cor das layers que já existem e, se o usuário confirmar, os nomes e a altura dos textos já desenhados.
+        /// Janela Configurações: cadastros do plugin (cabos com cor, tipo de linha e espessura, modelos de poste, tabela de
+        /// tração e dados da empresa) e preferências (nomes, tamanhos, cores e a layer das ruas). Depois de salvar, leva as
+        /// mudanças para o desenho aberto: aparência das layers que já existem (e o nome da layer das ruas) e, se o usuário
+        /// confirmar, os nomes e a altura dos textos já desenhados.
         /// </summary>
         [CommandMethod("FIBRA_CONFIGURACOES")]
         public void EditSettings()
@@ -31,20 +33,26 @@ namespace FiberPlugin.Commands
             List<CableModel> cablesBefore = CableProvider.Read(cableWarnings, out string? cableError);
             var poleWarnings = new List<string>();
             List<PoleData> polesBefore = PoleModels.Read(poleWarnings, out string? poleError);
-            string originalCables = CableProvider.ToCsv(cablesBefore);
-            string originalPoles = PoleModels.ToCsv(polesBefore);
+            var tractionWarnings = new List<string>();
+            TractionTable tractionBefore = TractionTable.Read(tractionWarnings, out string? tractionError);
+            CompanyInfo companyBefore = CompanyInfo.Read();
 
             UserSettings after;
             List<CableModel> cablesAfter;
-            using (var form = new UI.SettingsForm(cablesBefore, polesBefore, before,
-                       Notes(CableProvider.FileName, cableError, cableWarnings), Notes(PoleModels.FileName, poleError, poleWarnings)))
+            using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
+                       Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings)))
             {
-                // Só regrava a planilha que mudou: as outras ficam como o usuário deixou no Excel
+                // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga
                 form.SaveChanges = f =>
                 {
-                    if (CableProvider.ToCsv(f.Cables) != originalCables && CableProvider.Save(f.Cables) is string e1) return e1;
-                    if (PoleModels.ToCsv(f.PoleTypes) != originalPoles && PoleModels.Save(f.PoleTypes) is string e2) return e2;
-                    return f.Settings.Save() is string e3 ? $"{UserSettings.FilePath}: {e3}" : null;
+                    if (Pending(CableProvider.FileName, CableProvider.ToText(f.Cables) != CableProvider.ToText(cablesBefore)) &&
+                        CableProvider.Save(f.Cables) is string e1) return e1;
+                    if (Pending(PoleModels.FileName, PoleModels.ToText(f.PoleTypes) != PoleModels.ToText(polesBefore)) &&
+                        PoleModels.Save(f.PoleTypes) is string e2) return e2;
+                    if (Pending(TractionTable.FileName, !f.Traction.SameAs(tractionBefore)) && f.Traction.Save() is string e3) return e3;
+                    if (Pending(CompanyInfo.FileName, !f.Company.SameAs(companyBefore)) && !(f.Company.IsEmpty && companyBefore.IsEmpty) &&
+                        f.Company.Save() is string e4) return e4;
+                    return f.Settings.Save() is string e5 ? $"{UserSettings.FilePath}: {e5}" : null;
                 };
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
                 after = form.Settings;
@@ -52,10 +60,10 @@ namespace FiberPlugin.Commands
             }
 
             ed.WriteMessage($"\n[SUCESSO]: Configurações salvas ({cablesAfter.Count} cabo(s), nomes {after.Name(after.PolePrefix, 1)}, " +
-                            $"{after.Name(after.CtoPrefix, 1)}, {after.Name(after.CeoPrefix, 1)}, texto de {after.TextHeight:0.##} mm). " +
+                            $"{after.Name(after.CtoPrefix, 1)}, {after.Name(after.CeoPrefix, 1)}, ruas na layer {after.RoadLayer}). " +
                             "Valem para todos os desenhos.");
 
-            UpdateLayerColors(ed, db, LayerColorChanges(cablesBefore, cablesAfter, before, after));
+            UpdateLayers(ed, db, cablesBefore, cablesAfter, before, after);
 
             bool poleNames = before.PolePrefix != after.PolePrefix || before.NumberDigits != after.NumberDigits;
             bool boxNames = before.CtoPrefix != after.CtoPrefix || before.CeoPrefix != after.CeoPrefix || before.NumberDigits != after.NumberDigits;
@@ -64,41 +72,61 @@ namespace FiberPlugin.Commands
             if (Math.Abs(after.TextHeight - before.TextHeight) > 1e-9) ScaleCommand.ResizeTexts(ed, db, after.TextHeight / before.TextHeight);
         }
 
-        /// <summary>Aviso mostrado na aba da planilha (null se ela foi lida sem problemas).</summary>
-        private static string? Notes(string fileName, string? error, List<string> warnings)
+        /// <summary>Precisa gravar: mudou na janela ou ainda está na planilha antiga (sem o arquivo do plugin).</summary>
+        private static bool Pending(string fileName, bool changed) => changed || !File.Exists(DataFiles.UserFile(fileName));
+
+        /// <summary>Aviso mostrado na aba do cadastro (null se ele foi lido sem problemas).</summary>
+        private static string? Notes(string? error, List<string> warnings)
         {
-            if (error != null) return error + " Ao salvar, a planilha é criada com o que estiver na tabela.";
+            if (error != null) return error;
             if (warnings.Count == 0) return null;
-            return $"{fileName}: {warnings.Count} linha(s) ignorada(s) na leitura ({warnings[0]}). " +
-                   "Se você mudar esta tabela, elas saem da planilha ao salvar.";
+            return $"{warnings.Count} linha(s) do arquivo antigo foram ignoradas na leitura ({warnings[0]}) e não estão na tabela.";
         }
 
-        /// <summary>Layers do plugin cuja cor mudou: a de cada cabo (cor própria ou a padrão) e as dos textos e setas.</summary>
-        private static Dictionary<string, short> LayerColorChanges(List<CableModel> cablesBefore, List<CableModel> cablesAfter,
+        /// <summary>
+        /// Leva para o desenho aberto a aparência nova das layers do plugin que já existem: a de cada cabo (cor, tipo de
+        /// linha e espessura), a das ruas (renomeada, se o nome mudou) e a cor das layers de textos e setas.
+        /// </summary>
+        private static void UpdateLayers(Editor ed, Database db, List<CableModel> cablesBefore, List<CableModel> cablesAfter,
             UserSettings before, UserSettings after)
         {
-            var changes = new Dictionary<string, short>(StringComparer.OrdinalIgnoreCase);
+            var styles = new Dictionary<string, LayerStyle>(StringComparer.OrdinalIgnoreCase);
             foreach (CableModel cable in cablesAfter)
             {
                 CableModel? old = CableProvider.Find(cablesBefore, cable.ShortName);
-                short color = cable.Color ?? after.CableColor;
-                if (old == null || (old.Color ?? before.CableColor) != color) changes[CableDrawing.LayerFor(cable)] = color;
+                LayerStyle style = CableDrawing.StyleFor(cable, after);
+                if (old == null || !CableDrawing.StyleFor(old, before).SameAs(style)) styles[CableDrawing.LayerFor(cable)] = style;
             }
-            if (before.PoleLabelColor != after.PoleLabelColor) changes[PoleLabels.Layer] = after.PoleLabelColor;
-            if (before.BoxLabelColor != after.BoxLabelColor) changes[PoleLabels.BoxLayer] = after.BoxLabelColor;
-            if (before.EffortColor != after.EffortColor) changes[FiberSettings.EffortLayer] = after.EffortColor;
-            return changes;
-        }
+            bool roadRenamed = !before.RoadLayer.Equals(after.RoadLayer, StringComparison.OrdinalIgnoreCase);
+            if (roadRenamed || !before.RoadStyle.SameAs(after.RoadStyle)) styles[after.RoadLayer] = after.RoadStyle;
 
-        /// <summary>Troca a cor das layers que já existem no desenho (as que não existem nascem com a cor nova).</summary>
-        private static void UpdateLayerColors(Editor ed, Database db, Dictionary<string, short> changes)
-        {
-            if (changes.Count == 0) return;
+            var colors = new Dictionary<string, short>(StringComparer.OrdinalIgnoreCase);
+            if (before.PoleLabelColor != after.PoleLabelColor) colors[PoleLabels.Layer] = after.PoleLabelColor;
+            if (before.BoxLabelColor != after.BoxLabelColor) colors[PoleLabels.BoxLayer] = after.BoxLabelColor;
+            if (before.EffortColor != after.EffortColor) colors[FiberSettings.EffortLayer] = after.EffortColor;
+            if (styles.Count == 0 && colors.Count == 0) return;
+
             int changed = 0;
+            var warnings = new List<string>();
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 var layers = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
-                foreach (var (name, color) in changes.Select(c => (c.Key, c.Value)))
+
+                // Nome novo da layer das ruas: a layer antiga deste desenho passa a ter o nome novo
+                if (roadRenamed && layers.Has(before.RoadLayer) && !layers.Has(after.RoadLayer))
+                {
+                    var road = (LayerTableRecord)tr.GetObject(layers[before.RoadLayer], OpenMode.ForWrite);
+                    road.Name = after.RoadLayer;
+                    ed.WriteMessage($"\n[INFO]: Layer {before.RoadLayer} renomeada para {after.RoadLayer}.");
+                }
+
+                foreach (var (name, style) in styles.Select(s => (s.Key, s.Value)))
+                {
+                    if (!layers.Has(name)) continue;
+                    if (CadHelpers.ApplyLayerStyle(tr, db, name, style) is string warning) warnings.Add(warning);
+                    changed++;
+                }
+                foreach (var (name, color) in colors.Select(c => (c.Key, c.Value)))
                 {
                     if (!layers.Has(name)) continue;
                     var layer = (LayerTableRecord)tr.GetObject(layers[name], OpenMode.ForWrite);
@@ -107,9 +135,10 @@ namespace FiberPlugin.Commands
                 }
                 tr.Commit();
             }
+            foreach (string warning in warnings) ed.WriteMessage($"\n[AVISO]: {warning}");
             if (changed > 0)
             {
-                ed.WriteMessage($"\n[INFO]: Cor nova em {changed} layer(s) deste desenho.");
+                ed.WriteMessage($"\n[INFO]: Aparência nova em {changed} layer(s) deste desenho.");
                 ed.Regen();
             }
         }

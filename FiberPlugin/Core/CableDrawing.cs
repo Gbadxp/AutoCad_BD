@@ -8,11 +8,11 @@ namespace FiberPlugin.Core
     public class CableTotal
     {
         public string Name { get; set; } = "";       // Nome curto (ex.: ASU-80 06F.O)
-        public CableModel? Model { get; set; }       // Null se o cabo não está na planilha
+        public CableModel? Model { get; set; }       // Null se o cabo não está cadastrado
         public int Runs { get; set; }                // Quantidade de lances (polilinhas)
         public double Length { get; set; }           // Metros
 
-        /// <summary>Nome completo da planilha ou, sem ele, o nome curto.</summary>
+        /// <summary>Nome completo do cadastro ou, sem ele, o nome curto.</summary>
         public string Description => Model?.FullName ?? Name;
     }
 
@@ -43,8 +43,12 @@ namespace FiberPlugin.Core
             return FiberSettings.CableLayerPrefix + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));
         }
 
-        /// <summary>Cor da layer do cabo: a da planilha (coluna Cor) ou a cor padrão dos cabos da janela Configurações.</summary>
-        public static short ColorFor(CableModel cable) => cable.Color ?? UserSettings.Current.CableColor;
+        /// <summary>
+        /// Aparência da layer do cabo (Configurações > Cabos): cor própria ou a cor padrão dos cabos, tipo de linha e
+        /// espessura. <paramref name="settings"/> = preferências a usar (padrão: as atuais).
+        /// </summary>
+        public static LayerStyle StyleFor(CableModel cable, UserSettings? settings = null) =>
+            new LayerStyle(cable.Color ?? (settings ?? UserSettings.Current).CableColor, cable.Linetype, cable.LineWeightMm);
 
         /// <summary>Comprimento de cada vão de uma sequência de pontos.</summary>
         public static List<double> SpanLengths(IList<Point3d> points)
@@ -61,7 +65,7 @@ namespace FiberPlugin.Core
             IList<Point3d> vertices, IList<double> spanLengths, CableModel cable)
         {
             string layer = LayerFor(cable);
-            CadHelpers.EnsureLayer(tr, db, layer, ColorFor(cable));
+            CadHelpers.EnsureLayer(tr, db, layer, StyleFor(cable));
 
             var poly = new Polyline { Layer = layer };
             for (int i = 0; i < vertices.Count; i++)

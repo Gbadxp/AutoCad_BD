@@ -44,6 +44,14 @@ namespace FiberPlugin.Core
         public short BoxLabelColor { get; set; } = 7;    // Textos das CTO/CEO
         public short EffortColor { get; set; } = 4;      // Setas de esforço: ciano, como no modelo de projeto
 
+        // Layer única das ruas do Importar Ruas (contorno, calçadas, eixos e nomes)
+        public string RoadLayer { get; set; } = "RUAS";
+        public short RoadColor { get; set; } = 8;        // Cinza: as ruas ficam de fundo e os cabos aparecem
+        public string? RoadLinetype { get; set; }        // Null = contínua
+        public double? RoadLineWeightMm { get; set; }    // Null = padrão do AutoCAD
+
+        public LayerStyle RoadStyle => new LayerStyle(RoadColor, RoadLinetype, RoadLineWeightMm);
+
         private static UserSettings? _current;
 
         public static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
@@ -83,6 +91,7 @@ namespace FiberPlugin.Core
             if (!InRange(BoxSymbolSize, MinBoxSymbol, MaxBoxSymbol)) return $"Símbolo da CTO/CEO: de {MinBoxSymbol:0} a {MaxBoxSymbol:0} mm.";
             if (!InRange(EffortArrowLength, MinArrowLength, MaxArrowLength)) return $"Seta de esforço: de {MinArrowLength:0} a {MaxArrowLength:0} mm.";
             if (!InRange(AutoRouteOffset, MinRouteOffset, MaxRouteOffset)) return $"Afastamento do roteamento: de {MinRouteOffset:0.0} a {MaxRouteOffset:0} m.";
+            if (LayerStyle.LayerNameError(RoadLayer) is string layerError) return $"Layer das ruas: {layerError}.";
             return null;
         }
 
@@ -126,6 +135,10 @@ namespace FiberPlugin.Core
             settings.PoleLabelColor = Color("Cor dos textos dos postes", settings.PoleLabelColor);
             settings.BoxLabelColor = Color("Cor dos textos das CTO/CEO", settings.BoxLabelColor);
             settings.EffortColor = Color("Cor das setas de esforco", settings.EffortColor);
+            if (Text("Layer das ruas") is string road && LayerStyle.LayerNameError(road) == null) settings.RoadLayer = road.Trim();
+            settings.RoadColor = Color("Cor das ruas", settings.RoadColor);
+            settings.RoadLinetype = LayerStyle.LinetypeFromLabel(Text("Tipo de linha das ruas"));
+            settings.RoadLineWeightMm = LayerStyle.WeightFromText(Text("Espessura das ruas (mm)"));
             return settings;
         }
 
@@ -148,6 +161,10 @@ namespace FiberPlugin.Core
             sb.AppendLine($"Cor dos textos dos postes: {PoleLabelColor}");
             sb.AppendLine($"Cor dos textos das CTO/CEO: {BoxLabelColor}");
             sb.AppendLine($"Cor das setas de esforco: {EffortColor}");
+            sb.AppendLine($"Layer das ruas: {RoadLayer}");
+            sb.AppendLine($"Cor das ruas: {RoadColor}");
+            sb.AppendLine($"Tipo de linha das ruas: {RoadLinetype ?? "Continuous"}");
+            sb.AppendLine($"Espessura das ruas (mm): {(RoadLineWeightMm is double w ? N(w) : LayerStyle.DefaultWeightLabel)}");
 
             try
             {

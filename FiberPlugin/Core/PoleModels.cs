@@ -5,35 +5,46 @@ using Autodesk.AutoCAD.EditorInput;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Modelos de poste oferecidos no FIBRA_INSERIR_POSTE, lidos de Dados\postes.csv
-    /// (colunas: Tipo;Altura_m;Esforco_daN, com tipo DT = Duplo T ou CC = Circular).
+    /// Modelos de poste oferecidos no FIBRA_INSERIR_POSTE: Documentos\Fiber Plugin\postes.txt, editado na janela
+    /// Configurações (colunas Tipo;Altura_m;Esforco_daN, com tipo DT = Duplo T ou CC = Circular). Sem o arquivo, vale a
+    /// planilha antiga Dados\postes.csv (até a 1.9.35) ou, sem ela, a lista padrão do código.
     /// Cada tipo usa o seu bloco do BLOCOS.dwg.
     /// </summary>
     public static class PoleModels
     {
-        public const string FileName = "postes.csv";
+        public const string FileName = "postes.txt";
+        public const string LegacyFileName = "postes.csv";
         public const string Header = "Tipo;Altura_m;Esforco_daN";
+
+        /// <summary>Modelos que vêm com o plugin: DT e CC 11/300 a 12/1500 e o DT 9/200.</summary>
+        public static List<PoleData> Defaults()
+        {
+            var models = new List<PoleData>();
+            foreach (var (height, effort) in new[] { (11.0, 300.0), (11, 600), (11, 1000), (12, 1000), (11, 1500), (12, 1500) })
+            {
+                models.Add(new PoleData { Type = PoleData.DoubleT, HeightM = height, EffortDaN = effort });
+                models.Add(new PoleData { Type = PoleData.Circular, HeightM = height, EffortDaN = effort });
+            }
+            models.Add(new PoleData { Type = PoleData.DoubleT, HeightM = 9, EffortDaN = 200 });
+            return models;
+        }
 
         public static List<PoleData> Load(Editor? ed = null)
         {
             var warnings = new List<string>();
             List<PoleData> models = Read(warnings, out string? error);
             if (error != null) ed?.WriteMessage($"\n[ERRO]: {error}");
-            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] {FileName}: {warning}");
+            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] Postes: {warning}");
             return models;
         }
 
-        /// <summary>Modelos da planilha, sem depender do AutoCAD (linhas ignoradas em <paramref name="warnings"/>).</summary>
+        /// <summary>Modelos cadastrados, sem depender do AutoCAD (linhas ignoradas em <paramref name="warnings"/>).</summary>
         public static List<PoleData> Read(List<string> warnings, out string? error)
         {
             error = null;
             var models = new List<PoleData>();
-            string? path = PluginPaths.DataFile(FileName);
-            if (path == null || !File.Exists(path))
-            {
-                error = $"Planilha de postes não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}).";
-                return models;
-            }
+            string? path = DataFiles.Source(FileName, LegacyFileName);
+            if (path == null) return Defaults();
 
             try
             {
@@ -61,14 +72,15 @@ namespace FiberPlugin.Core
             }
             catch (IOException ex)
             {
-                error = $"Não foi possível ler '{path}' ({ex.Message}).";
+                error = $"Não foi possível ler '{path}' ({ex.Message}); usando os modelos padrão do plugin.";
+                return Defaults();
             }
 
             return models;
         }
 
-        /// <summary>Conteúdo da planilha para estes modelos (números com vírgula, como o Excel em português).</summary>
-        public static string ToCsv(IEnumerable<PoleData> models)
+        /// <summary>Conteúdo do arquivo para estes modelos (números com vírgula).</summary>
+        public static string ToText(IEnumerable<PoleData> models)
         {
             var sb = new StringBuilder(Header + "\r\n");
             foreach (PoleData m in models)
@@ -80,8 +92,8 @@ namespace FiberPlugin.Core
             return sb.ToString();
         }
 
-        /// <summary>Grava a planilha de postes. Retorna o erro (null se gravou).</summary>
-        public static string? Save(IEnumerable<PoleData> models) => DataFiles.Write(FileName, ToCsv(models));
+        /// <summary>Grava os modelos de poste. Retorna o erro (null se gravou).</summary>
+        public static string? Save(IEnumerable<PoleData> models) => DataFiles.Save(FileName, ToText(models), LegacyFileName);
 
         /// <summary>
         /// Bloco da biblioteca para o tipo de poste. Ordem de procura:

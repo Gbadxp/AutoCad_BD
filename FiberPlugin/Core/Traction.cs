@@ -1,18 +1,15 @@
-using System.IO;
 using Autodesk.AutoCAD.EditorInput;
 using FiberPlugin.Models;
 
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Tração de projeto de cada vão, em kgf. Pela Tabela 08 da NDU 009 (Dados\tracao_ndu009.csv, por número de
-    /// fibras e vão) ou pelo peso do cabo com flecha de 1% (T = p·L² / 8f = p·L / 0,08).
+    /// Tração de projeto de cada vão, em kgf. Pela Tabela 08 da NDU 009 (TractionTable, por número de fibras e vão)
+    /// ou pelo peso do cabo com flecha de 1% (T = p·L² / 8f = p·L / 0,08).
     /// Cabos sem número de fibras conhecido usam o peso mesmo no modo tabela (com aviso).
     /// </summary>
     public sealed class Traction
     {
-        public const string TableFileName = "tracao_ndu009.csv";
-
         private readonly List<(int MaxFibers, string Label, double[] Values)> _rows = new List<(int, string, double[])>();
         private double[] _spans = new double[0];
 
@@ -24,35 +21,22 @@ namespace FiberPlugin.Core
         /// <summary>Cabos calculados pelo peso no modo tabela, por não terem o número de fibras.</summary>
         public HashSet<string> WithoutFibers { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Parâmetros do desenho e tabela da pasta Dados. Problemas com a tabela vão para o Editor.</summary>
+        /// <summary>Parâmetros do desenho e tabela de tração do plugin. Problemas com a tabela vão para o Editor.</summary>
         public static Traction Load(Autodesk.AutoCAD.DatabaseServices.Database db, Editor? ed = null)
         {
             var traction = new Traction { Settings = CalcSettings.Get(db) };
             if (!traction.Settings.UseNormTable) return traction;
 
-            string? path = PluginPaths.DataFile(TableFileName);
-            if (path == null || !File.Exists(path))
-            {
-                ed?.WriteMessage($"\n[AVISO]: Tabela de tração não encontrada ({TableFileName}): usando o peso dos cabos.");
-                return traction;
-            }
+            var warnings = new List<string>();
+            TractionTable table = TractionTable.Read(warnings, out string? error);
+            if (error != null) ed?.WriteMessage($"\n[AVISO]: {error}");
+            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] Tabela de tração: {warning}");
 
-            foreach (var (_, cols) in DataFiles.ReadRows(path))
+            // "2-12", "18-36", "96"...: vale o limite superior da faixa
+            traction._spans = table.Spans;
+            foreach (TractionRow row in table.Rows)
             {
-                if (cols.Length < 3) continue;
-                if (traction._spans.Length == 0)
-                {
-                    // Cabeçalho: Fibras;15;20;...;120
-                    traction._spans = cols.Skip(1).Select(c => DataFiles.TryParseNumber(c, out double s) ? s : 0).ToArray();
-                    continue;
-                }
-
-                // "2-12", "18-36", "96"...: vale o limite superior da faixa
-                string label = cols[0];
-                if (!int.TryParse(label.Split('-', 'a', 'A').Last().Trim(), out int maxFibers)) continue;
-                double[] values = cols.Skip(1).Take(traction._spans.Length)
-                    .Select(c => DataFiles.TryParseNumber(c, out double t) ? t : 0).ToArray();
-                if (values.Length == traction._spans.Length) traction._rows.Add((maxFibers, label, values));
+                if (row.MaxFibers is int maxFibers) traction._rows.Add((maxFibers, row.Label, row.Values));
             }
             traction._rows.Sort((a, b) => a.MaxFibers.CompareTo(b.MaxFibers));
             return traction;
@@ -67,7 +51,7 @@ namespace FiberPlugin.Core
         {
             if (WithoutFibers.Count == 0) return;
             ed.WriteMessage($"\n[AVISO]: Sem o número de fibras, calculados pelo peso: {string.Join(", ", WithoutFibers)}. " +
-                            "Preencha a coluna Fibras na planilha de cabos.");
+                            "Preencha a coluna Fibras em Configurações > Cabos.");
         }
 
         /// <summary>Tração do vão de <paramref name="span"/> metros para o cabo, em kgf.</summary>

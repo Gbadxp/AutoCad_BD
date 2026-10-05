@@ -65,8 +65,58 @@ namespace FiberPlugin.Core
         /// <summary>Troca caracteres que não são aceitos em nomes de layer/bloco.</summary>
         public static string SanitizeName(string name)
         {
-            char[] invalid = { '<', '>', '/', '\\', '"', ':', ';', '?', '*', '|', ',', '=', '`' };
-            return new string(name.Select(c => invalid.Contains(c) ? '-' : c).ToArray());
+            return new string(name.Select(c => LayerStyle.InvalidNameChars.Contains(c) ? '-' : c).ToArray());
+        }
+
+        /// <summary>Cria a layer com a aparência dada; se ela já existir, fica como está (o usuário pode ter mudado).</summary>
+        /// <returns>Aviso se o tipo de linha não existir no acadiso.lin (a layer fica contínua), ou null.</returns>
+        public static string? EnsureLayer(Transaction tr, Database db, string name, LayerStyle style)
+        {
+            var lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            if (lt.Has(name)) return null;
+            EnsureLayer(tr, db, name, style.Color);
+            return ApplyLayerStyle(tr, db, name, style);
+        }
+
+        /// <summary>Troca cor, tipo de linha e espessura de uma layer que já existe (nada se ela não existir).</summary>
+        /// <returns>Aviso se o tipo de linha não existir no acadiso.lin (a layer fica contínua), ou null.</returns>
+        public static string? ApplyLayerStyle(Transaction tr, Database db, string name, LayerStyle style)
+        {
+            var lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+            if (!lt.Has(name)) return null;
+
+            string? warning = null;
+            ObjectId linetype = db.ContinuousLinetype;
+            if (style.Linetype is string wanted)
+            {
+                ObjectId loaded = LinetypeId(tr, db, wanted);
+                if (loaded.IsNull) warning = $"Tipo de linha '{wanted}' não encontrado no {LayerStyle.LinetypeFile}: a layer {name} ficou contínua.";
+                else linetype = loaded;
+            }
+
+            var ltr = (LayerTableRecord)tr.GetObject(lt[name], OpenMode.ForWrite);
+            ltr.Color = Autodesk.AutoCAD.Colors.Color.FromColorIndex(Autodesk.AutoCAD.Colors.ColorMethod.ByAci, style.Color);
+            ltr.LinetypeObjectId = linetype;
+            ltr.LineWeight = style.WeightMm is double mm ? (LineWeight)(int)Math.Round(mm * 100) : LineWeight.ByLineWeightDefault;
+            return warning;
+        }
+
+        /// <summary>Tipo de linha do desenho, carregado do acadiso.lin se ainda não estiver. Null se não existir.</summary>
+        private static ObjectId LinetypeId(Transaction tr, Database db, string name)
+        {
+            var table = (LinetypeTable)tr.GetObject(db.LinetypeTableId, OpenMode.ForRead);
+            if (!table.Has(name))
+            {
+                try
+                {
+                    db.LoadLineTypeFile(name, LayerStyle.LinetypeFile);
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    return ObjectId.Null;
+                }
+            }
+            return table.Has(name) ? table[name] : ObjectId.Null;
         }
 
         /// <summary>Normaliza o ângulo para que o texto nunca fique de cabeça para baixo.</summary>

@@ -13,16 +13,14 @@ namespace FiberPlugin.Commands
     public class RoadsCommand
     {
         private const double Margin = 30;      // m além da borda: a rua chega inteira até o corte
-        private const string OutlineLayer = "RUA_CONTORNO";
-        private const string PathsLayer = "RUA_CAMINHOS";
-        private const string NamesLayer = "RUA_NOMES";
         private const double NameScale = 1.25;   // Nomes com 2,5 mm no papel (o texto padrão do plugin tem 2 mm)
         private const double NameSpacing = 400;  // m entre repetições do nome numa rua longa, na escala 1:1000
 
         /// <summary>
         /// Abre a janela da área (retângulo pelos quatro lados ou centro e raio, em lat/long ou UTM, ou marcada no desenho),
         /// baixa as ruas do OpenStreetMap e desenha
-        /// o contorno já unido (meio-fio, sem sobreposição nos cruzamentos), o eixo (uma layer por tipo de via) ou os dois.
+        /// o contorno já unido (meio-fio, sem sobreposição nos cruzamentos), o eixo ou os dois, e os nomes, tudo na layer
+        /// das ruas (RUAS por padrão; nome, cor, tipo de linha e espessura no botão Configurações).
         /// As ruas são cortadas na borda da área e ficam na zona UTM do projeto, alinhadas com postes e KML; o desenho
         /// recebe a geolocalização do AutoCAD se ainda não tiver.
         /// </summary>
@@ -94,28 +92,35 @@ namespace FiberPlugin.Commands
                 .Select(r => (Road: r, Axis: r.Coords.Select(c => UtmZone.FromGeographic(c.Lat, c.Lon, utm.Zone, utm.South)).ToList()))
                 .ToList();
 
+            // Uma layer só para as ruas, com a aparência escolhida em Configurações (criada só se vier alguma rua)
+            UserSettings prefs = UserSettings.Current;
+            string layer = prefs.RoadLayer;
             var counts = new Dictionary<string, int>();
             int names = 0;
+            string? layerWarning = null;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
-
-                void Draw(List<(double X, double Y)> vertices, string layer, short color, bool closed)
+                bool layerReady = false;
+                void EnsureLayer()
                 {
-                    if (!counts.ContainsKey(layer))
-                    {
-                        CadHelpers.EnsureLayer(tr, db, layer, color);
-                        counts[layer] = 0;
-                    }
+                    if (layerReady) return;
+                    layerWarning = CadHelpers.EnsureLayer(tr, db, layer, prefs.RoadStyle);
+                    layerReady = true;
+                }
+
+                void Draw(List<(double X, double Y)> vertices, string kind, bool closed)
+                {
+                    EnsureLayer();
                     var poly = new Polyline { Layer = layer, Closed = closed };
                     for (int i = 0; i < vertices.Count; i++) poly.AddVertexAt(i, new Point2d(vertices[i].X, vertices[i].Y), 0, 0, 0);
                     CadHelpers.Append(tr, modelSpace, poly);
-                    counts[layer]++;
+                    counts[kind] = counts.TryGetValue(kind, out int n) ? n + 1 : 1;
                 }
 
                 if (outline)
                 {
-                    // Leito unido: ruas numa layer e calçadas/ciclovias/trilhas em outra, para não virarem uma coisa só.
+                    // Leito unido: ruas e calçadas/ciclovias/trilhas unidas separadamente, para não virarem uma coisa só.
                     // Os eixos passam um pouco da borda para a rua chegar inteira até o corte.
                     foreach (bool vehicles in new[] { true, false })
                     {
@@ -128,18 +133,18 @@ namespace FiberPlugin.Commands
 
                         foreach (List<(double X, double Y)> ring in OsmRoads.Pavement(strips, minX, minY, maxX, maxY))
                         {
-                            Draw(ring, vehicles ? OutlineLayer : PathsLayer, vehicles ? (short)7 : (short)4, closed: true);
+                            Draw(ring, vehicles ? "contorno(s) de rua" : "contorno(s) de calçada/caminho", closed: true);
                         }
                     }
                 }
 
                 if (axes)
                 {
-                    foreach (var (road, axis) in projected)
+                    foreach (var (_, axis) in projected)
                     {
                         foreach (List<(double X, double Y)> run in OsmRoads.Clip(axis, minX, minY, maxX, maxY))
                         {
-                            Draw(run, OsmRoads.LayerFor(road.Highway), OsmRoads.ColorFor(road.Highway), closed: false);
+                            Draw(run, "eixo(s)", closed: false);
                         }
                     }
                 }
@@ -151,7 +156,7 @@ namespace FiberPlugin.Commands
                         .Where(p => p.Road.Label.Length > 0)
                         .SelectMany(p => OsmRoads.Clip(p.Axis, minX, minY, maxX, maxY).Select(run => (p.Road.Label, (IList<(double X, double Y)>)run)));
                     List<StreetLabel> labels = StreetLabels.Place(named, height, NameSpacing * DrawingScale.Factor(db));
-                    if (labels.Count > 0) CadHelpers.EnsureLayer(tr, db, NamesLayer, 7);
+                    if (labels.Count > 0) EnsureLayer();
 
                     foreach (StreetLabel label in labels)
                     {
@@ -164,7 +169,7 @@ namespace FiberPlugin.Commands
                             at += new Vector3d(-Math.Sin(label.Angle), Math.Cos(label.Angle), 0) * height * 0.25;
                             attachment = AttachmentPoint.BottomCenter;
                         }
-                        MText text = CadHelpers.AddText(tr, modelSpace, at, CadHelpers.MTextLiteral(label.Text), label.Angle, attachment, NamesLayer);
+                        MText text = CadHelpers.AddText(tr, modelSpace, at, CadHelpers.MTextLiteral(label.Text), label.Angle, attachment, layer);
                         text.TextHeight = height;
                         names++;
                     }
@@ -177,9 +182,10 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage("\n[AVISO]: Nenhuma rua encontrada nessa área.");
                 return;
             }
-            ed.WriteMessage($"\n[SUCESSO]: {roads.Count} via(s) do OpenStreetMap: " +
-                            string.Join(", ", counts.OrderByDescending(c => c.Value).Select(c => $"{c.Value} polilinha(s) em {c.Key}")) +
-                            (settings.IncludeNames ? $"; {names} nome(s) de rua em {NamesLayer}" : "") + ".");
+            ed.WriteMessage($"\n[SUCESSO]: {roads.Count} via(s) do OpenStreetMap na layer {layer}: " +
+                            string.Join(", ", counts.OrderByDescending(c => c.Value).Select(c => $"{c.Value} {c.Key}")) +
+                            (settings.IncludeNames ? $"; {names} nome(s) de rua" : "") + ".");
+            if (layerWarning != null) ed.WriteMessage($"\n[AVISO]: {layerWarning}");
             if (settings.IncludeNames && names == 0)
                 ed.WriteMessage("\n[AVISO]: Nenhuma rua com nome nessa área no OpenStreetMap (ou os trechos são curtos demais para o texto).");
 

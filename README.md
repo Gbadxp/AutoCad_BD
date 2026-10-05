@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.35.msi`](Instalador/FiberPlugin-1.9.35.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.36.msi`](Instalador/FiberPlugin-1.9.36.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -57,9 +57,11 @@ FiberPlugin.bundle/
 - **Carrega sozinho** ao abrir o AutoCAD, sem `NETLOAD`.
 - **Sem aviso de segurança (SECURELOAD):** `Program Files\Autodesk\ApplicationPlugins` é pasta
   confiável do AutoCAD.
-- **As planilhas ficam em `Documentos\Fiber Plugin\Dados`**, editáveis sem permissão de
-  administrador. Arquivos que faltarem são copiados do pacote na abertura do AutoCAD, sem sobrescrever
-  os existentes. Atualizar ou desinstalar o plugin não apaga nada dessa pasta.
+- **Sem planilhas**: cabos, postes, tabela de tração e dados da empresa vêm com o plugin e são editados no botão
+  **Configurações**. O que você muda fica em `Documentos\Fiber Plugin` (sem precisar de administrador); atualizar ou
+  desinstalar o plugin não apaga nada dessa pasta. As planilhas das versões até a 1.9.35 (`Dados\cabos.csv`,
+  `postes.csv`, `tracao_ndu009.csv` e `empresa.txt`) são convertidas sozinhas na primeira abertura e guardadas em
+  `Dados\Antigos`.
 - **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (janela Dados do Projeto; ex.: o da pasta
   do projeto) ou, sem ele, a cópia que vem no pacote. Com o arquivo escolhido, um bloco novo aparece só
   de salvar o `BLOCOS.dwg`, sem reinstalar.
@@ -83,8 +85,8 @@ No AutoCAD, rode `NETLOAD` e escolha a DLL da versão certa:
 - AutoCAD 2022-2024: `FiberPlugin\bin\Debug\net48\FiberPlugin.dll`
 - AutoCAD 2025-2026: `FiberPlugin\bin\Debug\net8.0-windows\FiberPlugin.dll`
 
-Carregado por `NETLOAD`, o plugin usa diretamente as pastas `FiberPlugin/Dados` e `FiberPlugin/Blocos`
-do código-fonte. Se a versão instalada também estiver ativa, desinstale-a antes de testar para não
+Carregado por `NETLOAD`, o plugin usa diretamente as pastas `FiberPlugin/Dados` (figuras do memorial) e
+`FiberPlugin/Blocos` do código-fonte. Se a versão instalada também estiver ativa, desinstale-a antes de testar para não
 carregar duas cópias.
 
 ## Estrutura de pastas
@@ -96,11 +98,7 @@ AutoCad_BD/
 │   ├── Core/               rotinas compartilhadas (cálculos, desenho, biblioteca de blocos)
 │   ├── Models/             catálogo de cabos
 │   ├── UI/                 aba Fibra, menu e janelas
-│   ├── Dados/              dados editáveis (Excel / Bloco de Notas)
-│   │   ├── cabos.csv       cabos (NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm;Cor)
-│   │   ├── postes.csv      modelos de poste (Tipo;Altura_m;Esforco_daN)
-│   │   ├── tracao_ndu009.csv  Tabela 08 da NDU 009 (tração por fibras e vão)
-│   │   ├── empresa.txt     dados da empresa para o Memorial Descritivo
+│   ├── Dados/
 │   │   └── Memorial/       logo.png e figuras de instalação do memorial
 │   └── Blocos/
 │       └── BLOCOS.dwg      todos os blocos do plugin (a única biblioteca)
@@ -116,9 +114,10 @@ AutoCad_BD/
     └── verificar.ps1
 ```
 
-**Dados**: as planilhas são lidas a cada comando. Basta editar no Excel (ou nas abas Cabos e Postes do botão
-Configurações) e salvar, sem recompilar. Aceita CSV salvo pelo Excel em português (separador `;`, vírgula decimal).
-A coluna `Cor` do `cabos.csv` é opcional (número de cor do AutoCAD, 1 a 255); vazia, o cabo usa a cor padrão.
+**Dados**: cabos, postes, tabela de tração e empresa têm o padrão no código (`CableProvider.Defaults`,
+`PoleModels.Defaults`, `TractionTable.Default`) e são editados no botão **Configurações**, que grava em
+`Documentos\Fiber Plugin` (`cabos.txt`, `postes.txt`, `tracao.txt`, `empresa.txt` e `configuracoes.txt`). Os
+comandos releem esses arquivos a cada uso.
 
 **Blocos**: o plugin usa **somente** os blocos do `BLOCOS.dwg`. Para acrescentar, alterar ou remover um
 bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (na janela Dados do Projeto). Ao inserir, a definição é copiada do
@@ -152,7 +151,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 ### Inserir
 | Botão | Comando | Função |
 |---|---|---|
-| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista (DT ou CC 11/300, 11/600, 11/1000, 12/1000, 11/1500, 12/1500 e DT 9/200, de `Dados/postes.csv`) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
+| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista (DT ou CC 11/300, 11/600, 11/1000, 12/1000, 11/1500, 12/1500 e DT 9/200, ou os da aba Postes do botão Configurações) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
@@ -193,22 +192,24 @@ O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o
 | Percurso, endereço, contrato, ART, início e prazo | Dados dos documentos (Memorial Descritivo, de Esforço e Coordenadas), que já abrem com eles preenchidos (veja abaixo). |
 | Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Ao trocar, oferece atualizar os textos dos postes já inseridos. Num desenho sem zona, a janela sugere a do último projeto. |
 | Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. |
-| Pasta de Dados | Abre a pasta com as planilhas de cabos e postes e os dados do memorial (empresa.txt, logo e figuras). |
+| Pasta de Dados | Abre `Documentos\Fiber Plugin`, com o logo e as figuras do memorial (`Dados\Memorial`). |
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
-O botão **Configurações** (`FIBRA_CONFIGURACOES`) muda o que o plugin coloca sozinho no desenho. Vale para todos os
-projetos (não fica no DWG):
+O botão **Configurações** (`FIBRA_CONFIGURACOES`) tem todos os dados do plugin e o que ele coloca sozinho no
+desenho, sem planilhas. Vale para todos os projetos (não fica no DWG):
 
 | Aba | Função |
 |---|---|
-| Cabos | Tabela do `cabos.csv`: acrescente, edite ou remova cabos e escolha a **cor** de cada um (paleta com as 255 cores do AutoCAD; sem cor própria, usa a cor padrão dos cabos). Ao salvar, as layers dos cabos já lançados no desenho aberto mudam de cor. Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com a planilha. |
-| Postes | Tabela do `postes.csv`: modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). |
+| Cabos | Cadastro de cabos: acrescente, edite ou remova, e escolha para cada um a **cor** (paleta com as 255 cores do AutoCAD; sem cor própria, usa a cor padrão dos cabos), o **tipo de linha** (contínua, tracejada, traço e ponto, oculta...) e a **espessura** (0,00 a 2,11 mm). Isso vai para a layer do cabo; ao salvar, as layers dos cabos já lançados no desenho aberto mudam junto. A espessura aparece na tela com o botão "Mostrar espessura" (LWDISPLAY). Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com o cadastro. |
+| Postes | Modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). |
+| Tração | Tabela 08 da NDU 009: tração em kgf por faixa de fibras e vão (15 a 120 m). Usada quando os Parâmetros de Cálculo estão em "Tabela 08". |
+| Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
-| Tamanhos e cores | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m) e cores das layers dos cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. **Restaurar padrão** volta aos valores originais. |
+| Desenho | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
 
-Cabos e postes continuam nas planilhas da pasta Dados (dá para editar no Excel também); o resto fica em
-`Documentos\Fiber Plugin\configuracoes.txt`. Uma planilha só é regravada se mudou na janela; aberta no Excel, a
-janela avisa e continua aberta para tentar de novo.
+**Restaurar padrão** volta a aba aberta para o que vem com o plugin. Tudo fica em `Documentos\Fiber Plugin`
+(`cabos.txt`, `postes.txt`, `tracao.txt`, `empresa.txt` e `configuracoes.txt`); se algum arquivo estiver bloqueado,
+a janela avisa e continua aberta para tentar de novo.
 
 ### Só pela linha de comando
 | Comando | Função |
@@ -249,14 +250,14 @@ por cada um. Os dados são os mesmos do Memorial Descritivo: o que for digitado 
 **Dados do projeto salvos**: percurso, endereço da obra, contrato, ART, início e prazo ficam gravados no DWG e
 também em `Documentos\Fiber Plugin\projeto.txt` (os últimos salvos, editável no Bloco de Notas). Num desenho
 que ainda não tem algum desses dados, a janela já vem preenchida com o do arquivo. Para preencher antes, sem
-gerar documento, use o botão **Dados do Projeto**. O local e a data vêm da cidade do `empresa.txt` com a data do
+gerar documento, use o botão **Dados do Projeto**. O local e a data vêm da cidade da empresa com a data do
 dia. Esse arquivo fica fora do repositório, então os dados do projeto nunca vão para o GitHub.
 
-- **Dados da empresa**: `Dados/empresa.txt`, um campo por linha (`Campo: valor`); campo vazio não aparece.
-  RG, CPF e endereço do representante são dados pessoais: preencha só na cópia local
-  (`Documentos\Fiber Plugin\Dados\empresa.txt`, **Dados do Projeto > Pasta de Dados**), nunca no repositório, que é público.
-- **Logo e figuras**: `Dados/Memorial/` (`logo.png`, `fig-a-...` a `fig-e-...`). Para trocar, substitua o
-  arquivo mantendo o nome.
+- **Dados da empresa**: aba **Empresa** do botão Configurações; campo vazio não aparece. Ficam em
+  `Documentos\Fiber Plugin\empresa.txt`, só no seu computador (RG, CPF e endereço do representante são dados
+  pessoais e nunca vão para o repositório, que é público).
+- **Logo e figuras**: `Documentos\Fiber Plugin\Dados\Memorial` (`logo.png`, `fig-a-...` a `fig-e-...`; botão
+  **Pasta de Dados**). Para trocar, substitua o arquivo mantendo o nome.
 
 ## Google Earth (KML/KMZ)
 
@@ -299,19 +300,22 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   passa a ser a zona do projeto.
 - A janela confere enquanto você digita e mostra o tamanho da área, ou o que está errado (lado trocado, UTM no
   campo de lat/long, área fora da zona, mais de 50 km). Os valores ficam gravados no DWG para a próxima vez.
+- **Layer**: tudo (contorno, calçadas, eixos e nomes) vai para uma layer só, `RUAS` por padrão. Nome, cor (cinza
+  por padrão, para os cabos aparecerem por cima), tipo de linha e espessura ficam na aba **Desenho** do botão
+  **Configurações**.
 - **Desenho**:
-  - **Contorno** (padrão): o leito de todas as ruas unido, layer `RUA_CONTORNO`. Sai só o meio-fio: um contorno
-    contínuo em volta de cada quadra, cruzamentos e rotatórias abertos, sem linhas sobrepostas. Vãos de menos de
-    60 cm entre pistas são fechados.
-  - **Eixo**: a linha do centro de cada via, numa layer por tipo (`RUA_RESIDENTIAL`, `RUA_PRIMARY`...).
+  - **Contorno** (padrão): o leito de todas as ruas unido. Sai só o meio-fio: um contorno contínuo em volta de cada
+    quadra, cruzamentos e rotatórias abertos, sem linhas sobrepostas. Vãos de menos de 60 cm entre pistas são
+    fechados.
+  - **Eixo**: a linha do centro de cada via.
   - **Ambos**: contorno e eixo.
 
   A largura vem da tag `width` do OSM, senão do número de faixas (3,3 m cada), senão do tipo de via
   (residencial 7 m, secundária 12 m...).
-- Por padrão só as vias para veículos; calçadas, ciclovias e trilhas, se incluídas, têm o contorno à parte
-  (`RUA_CAMINHOS`).
+- Por padrão só as vias para veículos; calçadas, ciclovias e trilhas, se incluídas, têm o contorno unido à parte
+  (não se misturam com o das ruas).
 - **Nomes das ruas** (opção **Com os nomes das ruas**): o nome do OpenStreetMap (ou a sigla da rodovia, como
-  `BR-174`, se ela não tiver nome) escrito na direção da rua e sempre de pé, layer `RUA_NOMES`, com 2,5 mm no papel
+  `BR-174`, se ela não tiver nome) escrito na direção da rua e sempre de pé, com 2,5 mm no papel
   (acompanha a **Escala**). Só com o contorno o nome fica no meio da rua; com o eixo, logo acima dele. Os trechos
   da mesma rua são juntados: cada rua recebe um nome, repetido a cada 400 m (em 1:1000) nas longas, e trechos
   mais curtos que o texto ficam sem nome.
@@ -381,7 +385,7 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 **Esforço nos postes** (NDU 009, Anexo A)
 - Tração de cada vão pela **Tabela 08 da NDU 009** (cabo de fibra óptica autossustentado, flecha de 1%, sem
   vento), por faixa de número de fibras e vão, com interpolação entre os vãos da tabela
-  (`Dados/tracao_ndu009.csv`). O número de fibras vem da coluna `Fibras` da planilha de cabos ou do nome
+  (aba **Tração** do botão Configurações). O número de fibras vem da coluna `Fibras` do cadastro de cabos ou do nome
   ("06F.O"). Em **Parâmetros** dá para usar o peso do cabo: `T = p·L² / (8·f) = 12,5 · p · L` (p em kgf/m).
 - O esforço no poste é a soma vetorial das trações dos vãos que chegam nele (método analítico). De cada cabo é
   considerado o vértice mais próximo do poste, num raio de 2,5 m.

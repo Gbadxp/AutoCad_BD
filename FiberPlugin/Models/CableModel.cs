@@ -22,6 +22,12 @@ namespace FiberPlugin.Models
         /// <summary>Cor da layer do cabo (coluna Cor, número de cor do AutoCAD de 1 a 255). Null = cor padrão dos cabos.</summary>
         public short? Color { get; set; }
 
+        /// <summary>Tipo de linha da layer do cabo (nome no acadiso.lin, ex.: DASHED). Null = contínua.</summary>
+        public string? Linetype { get; set; }
+
+        /// <summary>Espessura da linha da layer do cabo, em mm. Null = a padrão do AutoCAD.</summary>
+        public double? LineWeightMm { get; set; }
+
         /// <summary>Número de fibras escrito no nome do cabo ("ASU-80 06F.O" → 6, "CFOA-SM-AS-80-S-36 FO" → 36).</summary>
         public static int? FibersFromName(string name)
         {
@@ -36,48 +42,57 @@ namespace FiberPlugin.Models
     }
 
     /// <summary>
-    /// Catálogo de cabos lido da planilha Dados\cabos.csv
-    /// (colunas: NomeCompleto;NomeCurto;Peso_kg_km e, opcionais, Fibras;Diametro_mm;Cor).
-    /// A planilha é relida a cada comando, então basta salvar no Excel (ou na janela Configurações) para o cabo
-    /// novo aparecer.
+    /// Catálogo de cabos do plugin: Documentos\Fiber Plugin\cabos.txt, editado na janela Configurações (colunas
+    /// NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm;Cor;TipoLinha;Espessura_mm). Sem o arquivo, vale a planilha
+    /// antiga Dados\cabos.csv (até a 1.9.35) ou, sem ela, a lista padrão do código. Relido a cada comando.
     /// </summary>
     public static class CableProvider
     {
-        public const string FileName = "cabos.csv";
-        public const string Header = "NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm;Cor";
+        public const string FileName = "cabos.txt";
+        public const string LegacyFileName = "cabos.csv";
+        public const string Header = "NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm;Cor;TipoLinha;Espessura_mm";
 
-        /// <summary>
-        /// Cabos da planilha. Lista vazia (com aviso no Editor) se a planilha não existir ou não tiver
-        /// nenhum cabo válido: a planilha é a única fonte dos cabos, não há lista paralela no código.
-        /// </summary>
+        /// <summary>Cabos que vêm com o plugin (autossustentados ASU-80, 120 e 200 de 6, 12 e 24 fibras).</summary>
+        public static List<CableModel> Defaults()
+        {
+            var cables = new List<CableModel>();
+            foreach (var (fibers, weights) in new[] { (6, new[] { 31.0, 34, 38 }), (12, new[] { 31.0, 34, 38 }), (24, new[] { 33.0, 46, 63 }) })
+            {
+                int[] spans = { 80, 120, 200 };
+                for (int i = 0; i < spans.Length; i++)
+                {
+                    cables.Add(new CableModel
+                    {
+                        FullName = $"CFOA-SM-AS-{spans[i]}-S-{fibers:00} FO",
+                        ShortName = $"ASU-{spans[i]} {fibers:00}F.O",
+                        WeightKgKm = weights[i],
+                        Fibers = fibers
+                    });
+                }
+            }
+            return cables;
+        }
+
+        /// <summary>Cabos do catálogo. Linhas com problema vão para o Editor como aviso.</summary>
         public static List<CableModel> GetCables(Editor? ed = null)
         {
             var warnings = new List<string>();
             List<CableModel> cables = Read(warnings, out string? error);
-            if (error != null)
-            {
-                ed?.WriteMessage($"\n[ERRO]: {error}");
-                return cables;
-            }
-            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] {FileName}: {warning}");
-            if (cables.Count == 0) ed?.WriteMessage($"\n[ERRO]: Nenhum cabo válido em '{PluginPaths.DataFile(FileName)}'.");
+            if (error != null) ed?.WriteMessage($"\n[ERRO]: {error}");
+            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] Cabos: {warning}");
+            if (cables.Count == 0) ed?.WriteMessage("\n[ERRO]: Nenhum cabo cadastrado. Cadastre em Configurações > Cabos.");
             return cables;
         }
 
         /// <summary>
-        /// Cabos da planilha, sem depender do AutoCAD. <paramref name="warnings"/> recebe as linhas ignoradas;
-        /// <paramref name="error"/>, o motivo de não ter lido nada (planilha ausente ou bloqueada).
+        /// Cabos do catálogo, sem depender do AutoCAD. <paramref name="warnings"/> recebe as linhas ignoradas;
+        /// <paramref name="error"/>, o motivo de não ter lido o arquivo (aí vale a lista padrão).
         /// </summary>
         public static List<CableModel> Read(List<string> warnings, out string? error)
         {
             error = null;
-            string? path = PluginPaths.DataFile(FileName);
-            if (path == null || !File.Exists(path))
-            {
-                error = $"Planilha de cabos não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}). " +
-                        "Use Dados do Projeto > Pasta de Dados para abrir a pasta.";
-                return new List<CableModel>();
-            }
+            string? path = DataFiles.Source(FileName, LegacyFileName);
+            if (path == null) return Defaults();
 
             try
             {
@@ -85,13 +100,13 @@ namespace FiberPlugin.Models
             }
             catch (IOException ex)
             {
-                error = $"Não foi possível ler '{path}' ({ex.Message}).";
-                return new List<CableModel>();
+                error = $"Não foi possível ler '{path}' ({ex.Message}); usando os cabos padrão do plugin.";
+                return Defaults();
             }
         }
 
-        /// <summary>Conteúdo da planilha para estes cabos (números com vírgula, como o Excel em português).</summary>
-        public static string ToCsv(IEnumerable<CableModel> cables)
+        /// <summary>Conteúdo do arquivo para estes cabos (números com vírgula).</summary>
+        public static string ToText(IEnumerable<CableModel> cables)
         {
             var sb = new StringBuilder(Header + "\r\n");
             foreach (CableModel c in cables)
@@ -102,18 +117,20 @@ namespace FiberPlugin.Models
                     c.WeightKgKm.ToString("0.###", DataFiles.Br),
                     c.Fibers?.ToString(CultureInfo.InvariantCulture) ?? "",
                     c.DiameterMm?.ToString("0.###", DataFiles.Br) ?? "",
-                    c.Color?.ToString(CultureInfo.InvariantCulture) ?? "")).Append("\r\n");
+                    c.Color?.ToString(CultureInfo.InvariantCulture) ?? "",
+                    c.Linetype ?? "",
+                    c.LineWeightMm?.ToString("0.00", DataFiles.Br) ?? "")).Append("\r\n");
             }
             return sb.ToString();
         }
 
-        /// <summary>Grava a planilha de cabos. Retorna o erro (null se gravou).</summary>
-        public static string? Save(IEnumerable<CableModel> cables) => DataFiles.Write(FileName, ToCsv(cables));
+        /// <summary>Grava o catálogo de cabos. Retorna o erro (null se gravou).</summary>
+        public static string? Save(IEnumerable<CableModel> cables) => DataFiles.Save(FileName, ToText(cables), LegacyFileName);
 
-        /// <summary>Avisa no Editor os cabos do desenho que não estão na planilha (e foram ignorados nos cálculos).</summary>
+        /// <summary>Avisa no Editor os cabos do desenho que não estão no catálogo (e foram ignorados nos cálculos).</summary>
         public static void ReportUnknown(Editor ed, IEnumerable<string> names)
         {
-            foreach (string name in names) ed.WriteMessage($"\n[AVISO]: Cabo '{name}' não está na planilha de cabos e foi ignorado.");
+            foreach (string name in names) ed.WriteMessage($"\n[AVISO]: Cabo '{name}' não está cadastrado (Configurações > Cabos) e foi ignorado.");
         }
 
         public static CableModel? Find(IEnumerable<CableModel> cables, string? shortName)
@@ -170,7 +187,9 @@ namespace FiberPlugin.Models
                         : (double?)null,
                     Color = cols.Length > 5 && short.TryParse(cols[5], out short color) && color >= 1 && color <= 255
                         ? color
-                        : (short?)null
+                        : (short?)null,
+                    Linetype = cols.Length > 6 ? LayerStyle.LinetypeFromLabel(cols[6]) : null,
+                    LineWeightMm = cols.Length > 7 ? LayerStyle.WeightFromText(cols[7]) : null
                 });
             }
 

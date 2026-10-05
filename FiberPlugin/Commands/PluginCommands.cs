@@ -13,7 +13,7 @@ namespace FiberPlugin.Commands
     /// <summary>Comandos de manutenção do próprio plugin.</summary>
     public class PluginCommands
     {
-        /// <summary>Abre no Explorer a pasta com a planilha de cabos e a biblioteca de blocos.</summary>
+        /// <summary>Abre no Explorer a pasta do plugin (logo e figuras do memorial, dados gravados pela janela Configurações).</summary>
         [CommandMethod("FIBRA_ABRIR_PASTA")]
         public void OpenDataFolder()
         {
@@ -23,7 +23,7 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>
-        /// Abre no Explorer a pasta com as planilhas e o empresa.txt (Documentos\Fiber Plugin na instalação normal).
+        /// Abre no Explorer a pasta do plugin (Documentos\Fiber Plugin na instalação normal), com a pasta Dados\Memorial.
         /// Retorna a pasta, ou null se ela não existir ou o Explorer não abrir. Usado também pela janela Dados do Projeto.
         /// </summary>
         internal static string? ShowDataFolder()
