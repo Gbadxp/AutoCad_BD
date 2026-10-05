@@ -105,10 +105,42 @@ namespace FiberPlugin.UI
                 Orientation = large ? Wpf.Controls.Orientation.Vertical : Wpf.Controls.Orientation.Horizontal,
                 LargeImage = RibbonIcons.Get(tool.Command, 32),
                 Image = RibbonIcons.Get(tool.Command, 16),
-                ToolTip = tool.Description,
+                ToolTip = ToolTipFor(tool),
                 CommandParameter = tool.Command,
                 CommandHandler = RibbonCommandHandler.Instance
             };
+        }
+
+        /// <summary>Descrição do botão e, se houver, o atalho ativo do comando.</summary>
+        private static string ToolTipFor(Tool tool)
+        {
+            string alias = Commands.ShortcutRegistry.AliasFor(tool.Command);
+            return alias.Length > 0 ? $"{tool.Description}\nAtalho: {alias}" : tool.Description;
+        }
+
+        /// <summary>Atalhos mudaram (janela Configurações): atualiza a dica de cada botão da aba Fibra.</summary>
+        public static void RefreshShortcuts()
+        {
+            RibbonTab? tab = ComponentManager.Ribbon?.FindTab(TabId);
+            if (tab == null) return;
+            Dictionary<string, Tool> tools = ToolCatalog.Sections.SelectMany(s => s.Tools).ToDictionary(t => "FIBER_" + t.Command);
+            foreach (RibbonPanel panel in tab.Panels)
+            {
+                foreach (RibbonButton button in Buttons(panel.Source.Items))
+                {
+                    if (button.Id != null && tools.TryGetValue(button.Id, out Tool? tool)) button.ToolTip = ToolTipFor(tool);
+                }
+            }
+        }
+
+        private static IEnumerable<RibbonButton> Buttons(IEnumerable<RibbonItem> items)
+        {
+            foreach (RibbonItem item in items)
+            {
+                if (item is RibbonButton button) yield return button;
+                else if (item is RibbonRowPanel row)
+                    foreach (RibbonButton inner in Buttons(row.Items)) yield return inner;
+            }
         }
     }
 

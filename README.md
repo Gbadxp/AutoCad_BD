@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.38.msi`](Instalador/FiberPlugin-1.9.38.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.39.msi`](Instalador/FiberPlugin-1.9.39.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -213,10 +213,36 @@ desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG):
 | Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
 | Desenho | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
+| Atalhos | Atalho de cada comando (veja abaixo): mude, apague ou volte ao padrão. A coluna **Situação** avisa, enquanto você digita, quando o atalho já é um comando do AutoCAD ou de outro aplicativo, um comando LISP, um atalho do `acad.pgp` ou se repete com outro comando do plugin; com conflito, o Salvar não libera. Os atalhos novos valem na hora. |
 
 **Restaurar padrão** volta a aba aberta para o que vem com o plugin. Tudo fica em `Documentos\Fiber Plugin`
-(`cabos.txt`, `postes.txt`, `tracao.txt`, `empresa.txt` e `configuracoes.txt`); se algum arquivo estiver bloqueado,
-a janela avisa e continua aberta para tentar de novo.
+(`cabos.txt`, `postes.txt`, `tracao.txt`, `empresa.txt`, `configuracoes.txt` e `atalhos.txt`); se algum arquivo
+estiver bloqueado, a janela avisa e continua aberta para tentar de novo.
+
+### Atalhos
+Como os atalhos do próprio AutoCAD (L = LINHA, CO = COPIAR): digite o atalho na linha de comando e tecle Enter ou
+Espaço. Os padrões começam com F (de Fibra) e não coincidem com os atalhos do `acad.pgp`. A dica de cada botão da aba
+Fibra mostra o atalho. Ao abrir o AutoCAD, um atalho que passou a bater com outro comando não é registrado e aparece
+um aviso na linha de comando.
+
+| Atalho | Comando | Atalho | Comando |
+|---|---|---|---|
+| FF | Menu (FIBRA) | FMD | Memorial Descritivo |
+| FLC | Lançar Rota Manual | FME | Memorial de Esforço |
+| FRA | Roteamento Automático | FCO | Coordenadas dos Postes |
+| FPO | Inserir Postes | FGF | Gerar Folhas |
+| FCT | Inserir CTO | FIK | Importar KML |
+| FCE | Inserir CEO | FEK | Exportar KML |
+| FEL | Itens Elétricos | FIR | Importar Ruas |
+| FAM | Amarração | FCF | Configurações |
+| FRN | Renumerar | FCA | Esforço de 1 Cabo |
+| FTB | Tamanho do Bloco | FID | ID Energisa |
+| FET | Esforço Total no Poste | FZU | Zona UTM |
+| FEP | Esforço no Percurso | FES | Escala do Desenho |
+| FPA | Parâmetros de Cálculo | FAP | Pasta de Dados |
+| FEX | Esforço Existente | FAB | Atualizar Blocos |
+| FVP | Verificar Projeto | FXB | Exportar Blocos |
+| FRE | Gerar Relatório | FSO | Sobre o plugin |
 
 ### Só pela linha de comando
 | Comando | Função |

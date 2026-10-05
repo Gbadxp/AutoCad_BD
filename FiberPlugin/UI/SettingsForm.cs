@@ -143,8 +143,9 @@ namespace FiberPlugin.UI
         private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5,
             CableLinetype = 6, CableLineWeight = 7;
         private const int PoleType = 0, PoleHeight = 1, PoleEffort = 2;
-        public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5;
-        private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho" };
+        public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5, TabDrawing = 6, TabShortcuts = 7;
+        private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho", "Atalhos" };
+        private const int ShortcutTitle = 0, ShortcutCommand = 1, ShortcutAlias = 2, ShortcutState = 3;
         private static readonly string[] LinetypeLabels = LayerStyle.Linetypes.Select(l => l.Label).ToArray();
         private static readonly string[] WeightLabels =
             new[] { LayerStyle.DefaultWeightLabel }.Concat(LayerStyle.Weights.Select(w => LayerStyle.WeightLabel(w))).ToArray();
@@ -173,7 +174,10 @@ namespace FiberPlugin.UI
         private readonly ChoiceBar _tabs;
         private readonly ProjectPanel _project;
         private readonly Control[] _pages;
-        private readonly ThemedGrid _cables, _poles, _traction;
+        private readonly ThemedGrid _cables, _poles, _traction, _shortcuts;
+        private readonly List<(string Command, string Title)> _shortcutCommands;
+        private readonly Func<string, string?>? _conflict;
+        private (string Text, bool Error)[] _shortcutState = new (string, bool)[0];
         private double[] _spans = new double[0];
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
@@ -191,6 +195,9 @@ namespace FiberPlugin.UI
         public TractionTable Traction { get; private set; }
         public CompanyInfo Company { get; private set; } = new CompanyInfo();
         public UserSettings Settings { get; private set; }
+
+        /// <summary>Aba Atalhos: comando → atalho ("" = sem atalho).</summary>
+        public Dictionary<string, string> Shortcuts { get; private set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Aba Projeto: dados do projeto deste desenho e a escala 1:X digitada.</summary>
         public ProjectInfo Project => _project.Info;
@@ -210,10 +217,14 @@ namespace FiberPlugin.UI
         /// <param name="tractionNotes">O mesmo para a tabela de tração, na aba Tração.</param>
         /// <param name="drawingHasZone">O desenho já tem zona UTM: ela pode mudar, mas não ficar vazia.</param>
         /// <param name="initialTab">Aba aberta ao mostrar a janela (TabProject para o comando Dados do Projeto).</param>
+        /// <param name="shortcuts">Atalhos atuais (comando → atalho); null = os padrões.</param>
+        /// <param name="checkConflict">O que já existe no AutoCAD com esse nome (comando, LISP, acad.pgp); null se estiver livre.</param>
         public SettingsForm(List<CableModel> cables, List<PoleData> poles, TractionTable traction, CompanyInfo company,
             UserSettings settings, ProjectInfo project, int scale, bool drawingHasZone,
-            string? cableNotes = null, string? poleNotes = null, string? tractionNotes = null, int initialTab = TabProject)
+            string? cableNotes = null, string? poleNotes = null, string? tractionNotes = null, int initialTab = TabProject,
+            IDictionary<string, string>? shortcuts = null, Func<string, string?>? checkConflict = null)
         {
+            _conflict = checkConflict;
             Settings = settings.Clone();
             Traction = traction;
             Theme.ApplyForm(this);
@@ -363,7 +374,51 @@ namespace FiberPlugin.UI
                       "desenho mudam de cor e aparência (e a das ruas muda de nome, se você trocar o nome)."), 40)
             });
 
-            _pages = new Control[] { _project, cablesPage, polesPage, tractionPage, companyPage, namesPage, drawingPage };
+            // ---------- Atalhos ----------
+            _shortcuts = new ThemedGrid();
+            _shortcuts.AddText("Comando", 30).ReadOnly = true;
+            DataGridViewTextBoxColumn commandColumn = _shortcuts.AddText("Nome no AutoCAD", 26);
+            commandColumn.ReadOnly = true;
+            commandColumn.DefaultCellStyle.ForeColor = Theme.Muted;
+            _shortcuts.AddText("Atalho", 11);
+            _shortcuts.AddText("Situação", 40).ReadOnly = true;
+            _shortcutCommands = ToolCatalog.AllCommands.Where(c => ShortcutSettings.Defaults.ContainsKey(c.Command)).ToList();
+            if (shortcuts != null) FillShortcuts(shortcuts);
+            else FillShortcuts(ShortcutSettings.Defaults);
+            // Atalho sempre em maiúsculas, como o AutoCAD mostra
+            _shortcuts.CellParsing += (s, e) =>
+            {
+                if (e.ColumnIndex != ShortcutAlias || e.Value is not string text) return;
+                e.Value = ShortcutSettings.Normalize(text);
+                e.ParsingApplied = true;
+            };
+            _shortcuts.CellFormatting += (s, e) =>
+            {
+                if (e.ColumnIndex != ShortcutState || e.RowIndex < 0 || e.RowIndex >= _shortcutState.Length || e.CellStyle == null) return;
+                var (text, error) = _shortcutState[e.RowIndex];
+                e.Value = text;
+                e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = error ? Theme.Error : Theme.Muted;
+                e.FormattingApplied = true;
+            };
+            _shortcuts.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode is not (Keys.Delete or Keys.Back) || _shortcuts.CurrentCell?.ColumnIndex != ShortcutAlias || _shortcuts.IsCurrentCellInEditMode) return;
+                _shortcuts.CurrentCell.Value = "";
+                e.Handled = true;
+            };
+            var clearShortcut = new ThemedButton("Tirar atalho", false);
+            clearShortcut.Click += (s, e) =>
+            {
+                if (_shortcuts.CurrentCell == null) return;
+                _shortcuts.EndEdit();
+                _shortcuts.Rows[_shortcuts.CurrentCell.RowIndex].Cells[ShortcutAlias].Value = "";
+            };
+            Control shortcutsPage = GridPage(_shortcuts, new[] { clearShortcut },
+                "Digite o atalho na linha de comando e tecle Enter ou Espaço, como os atalhos do AutoCAD (L = LINHA, CO = COPIAR). " +
+                "Só letras e números. Delete ou \"Tirar atalho\" deixa o comando sem atalho. A Situação avisa quando o atalho já é um " +
+                "comando ou um atalho do AutoCAD (acad.pgp) ou se repete; com conflito, o Salvar não libera.", null);
+
+            _pages = new Control[] { _project, cablesPage, polesPage, tractionPage, companyPage, namesPage, drawingPage, shortcutsPage };
             var pages = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(18, 4, 18, 0) };
             foreach (Control page in _pages)
             {
@@ -401,7 +456,7 @@ namespace FiberPlugin.UI
             _roadLinetype.ValueChanged += (s, e) => UpdateStatus();
             _roadWeight.ValueChanged += (s, e) => UpdateStatus();
             _digits.SelectedChanged += (s, e) => UpdateStatus();
-            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction })
+            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction, _shortcuts })
             {
                 grid.CellValueChanged += (s, e) => UpdateStatus();
                 grid.RowsRemoved += (s, e) => UpdateStatus();
@@ -418,7 +473,7 @@ namespace FiberPlugin.UI
             Load += (s, e) =>
             {
                 ShowPage(_tabs.SelectedIndex);
-                foreach (ThemedGrid grid in new[] { _cables, _poles, _traction }) grid.ClearSelection();
+                foreach (ThemedGrid grid in new[] { _cables, _poles, _traction, _shortcuts }) grid.ClearSelection();
             };
             UpdateStatus();
         }
@@ -454,6 +509,16 @@ namespace FiberPlugin.UI
             _traction.ReplaceRows(table.Rows.Select(r => new object?[] { r.Label }.Concat(r.Values.Select(v => (object?)Num(v))).ToArray()));
         }
 
+        /// <summary>Uma linha por comando, na ordem da aba (menu, botões, linha de comando).</summary>
+        private void FillShortcuts(IReadOnlyDictionary<string, string> shortcuts) =>
+            _shortcuts.ReplaceRows(_shortcutCommands.Select(c => new object?[]
+            {
+                c.Title, c.Command, shortcuts.TryGetValue(c.Command, out string? alias) ? ShortcutSettings.Normalize(alias) : "", ""
+            }));
+
+        private void FillShortcuts(IDictionary<string, string> shortcuts) =>
+            FillShortcuts(new Dictionary<string, string>(shortcuts, StringComparer.OrdinalIgnoreCase) as IReadOnlyDictionary<string, string>);
+
         private void FillNames(UserSettings s)
         {
             _polePrefix.Value = s.PolePrefix;
@@ -487,6 +552,7 @@ namespace FiberPlugin.UI
                 case TabPoles: FillPoles(PoleModels.Defaults()); break;
                 case TabTraction: FillTraction(TractionTable.Default()); break;
                 case TabNames: FillNames(new UserSettings()); break;
+                case TabShortcuts: FillShortcuts(ShortcutSettings.Defaults); break;
                 default: FillDrawing(new UserSettings()); break;
             }
             UpdateStatus();
@@ -526,7 +592,7 @@ namespace FiberPlugin.UI
         private void Save()
         {
             // Célula ainda em edição entra no que vai ser gravado
-            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction }) grid.EndEdit();
+            foreach (ThemedGrid grid in new[] { _cables, _poles, _traction, _shortcuts }) grid.EndEdit();
             UpdateStatus();
             if (!_ok.Enabled) return;
             string? error = SaveChanges?.Invoke(this);
@@ -547,9 +613,11 @@ namespace FiberPlugin.UI
             string? tractionError = ReadTraction(out TractionTable? traction);
             CompanyInfo company = ReadCompany();
             string? settingsError = ReadSettings(out UserSettings settings);
-            string? error = _project.Error ?? cableError ?? poleError ?? tractionError ?? settingsError;
+            string? shortcutError = ReadShortcuts(out Dictionary<string, string> shortcuts);
+            string? error = _project.Error ?? cableError ?? poleError ?? tractionError ?? settingsError ?? shortcutError;
             if (error == null)
             {
+                Shortcuts = shortcuts;
                 Cables = cables;
                 PoleTypes = poles;
                 Traction = traction!;
@@ -558,6 +626,9 @@ namespace FiberPlugin.UI
                 _example.Text = $"{Settings.Name(Settings.PolePrefix, 7)}    {Settings.Name(Settings.CtoPrefix, 3)}    {Settings.Name(Settings.CeoPrefix, 1)}";
                 if (_tabs.SelectedIndex == TabProject)
                     _status.Set($"Projeto deste desenho: {_project.Summary}" + (Project.Route.Length > 0 ? $" · {Project.Route}" : ""), StatusKind.Ok);
+                else if (_tabs.SelectedIndex == TabShortcuts)
+                    _status.Set($"{Shortcuts.Count(s => s.Value.Length > 0)} de {Shortcuts.Count} comandos com atalho, sem conflitos · " +
+                                "digite o atalho na linha de comando e tecle Enter", StatusKind.Ok);
                 else
                     _status.Set($"{Cables.Count} cabos · {PoleTypes.Count} modelos de poste · tração com {Traction.Rows.Count} faixas · " +
                             $"empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · " +
@@ -657,6 +728,42 @@ namespace FiberPlugin.UI
             if (rows.Count == 0) return "Tração: a tabela precisa de pelo menos uma faixa de fibras.";
             table = new TractionTable(_spans, rows);
             return null;
+        }
+
+        /// <summary>
+        /// Atalhos digitados e a situação de cada um (coluna Situação): forma errada, repetido com outro comando do plugin
+        /// ou já existente no AutoCAD (comando, LISP ou acad.pgp). Retorna o primeiro problema.
+        /// </summary>
+        private string? ReadShortcuts(out Dictionary<string, string> map)
+        {
+            map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var aliases = new string[_shortcutCommands.Count];
+            for (int i = 0; i < aliases.Length && i < _shortcuts.Rows.Count; i++)
+            {
+                aliases[i] = ShortcutSettings.Normalize(_shortcuts.CellText(i, ShortcutAlias));
+                map[_shortcutCommands[i].Command] = aliases[i];
+            }
+
+            string? first = null;
+            _shortcutState = new (string, bool)[aliases.Length];
+            for (int i = 0; i < aliases.Length; i++)
+            {
+                string alias = aliases[i] ?? "";
+                if (alias.Length == 0)
+                {
+                    _shortcutState[i] = ("sem atalho", false);
+                    continue;
+                }
+                int other = Array.FindIndex(aliases, a => a == alias);
+                if (other == i) other = Array.FindIndex(aliases, i + 1, a => a == alias);
+                string? problem = ShortcutSettings.SyntaxError(alias)
+                                  ?? (other >= 0 ? $"repetido com {_shortcutCommands[other].Title}" : null)
+                                  ?? _conflict?.Invoke(alias);
+                _shortcutState[i] = problem != null ? ("⚠ " + problem, true) : ("ok", false);
+                if (problem != null && first == null) first = $"Atalhos: {alias} ({_shortcutCommands[i].Title}) {problem}.";
+            }
+            _shortcuts.InvalidateColumn(ShortcutState);
+            return first;
         }
 
         private CompanyInfo ReadCompany()

@@ -47,11 +47,25 @@ namespace FiberPlugin
                 // A conversão tenta de novo na próxima abertura; até lá as planilhas antigas continuam sendo lidas
                 converted = new List<string>();
             }
+            // Atalhos (FLC, FRA...) antes da faixa de opções, que mostra o atalho na dica de cada botão
+            List<string> skippedShortcuts;
+            try
+            {
+                skippedShortcuts = Commands.ShortcutRegistry.Apply(ShortcutSettings.Load());
+            }
+            catch (System.Exception ex)
+            {
+                skippedShortcuts = new List<string> { $"os atalhos não puderam ser registrados ({ex.Message})" };
+            }
             FiberRibbon.Install();
 
             Document? doc = AcApp.DocumentManager.MdiActiveDocument;
             doc?.Editor.WriteMessage(
                 $"\n{PluginInfo.Name} v{PluginInfo.Version} carregado. Digite FIBRA ou use a aba \"Fibra\" da faixa de opções.\n");
+            foreach (string warning in skippedShortcuts)
+            {
+                doc?.Editor.WriteMessage($"[AVISO]: Atalho não registrado: {warning} Troque em Configurações > Atalhos.\n");
+            }
             if (converted.Count > 0)
             {
                 doc?.Editor.WriteMessage($"[INFO]: Planilhas antigas convertidas ({string.Join(", ", converted)}): agora os dados ficam " +

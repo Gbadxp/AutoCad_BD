@@ -29,6 +29,26 @@ namespace FiberPlugin.UI
     {
         public const string MenuCommand = "FIBRA";
 
+        /// <summary>Comandos sem botão na faixa de opções, que também podem ter atalho (aba Atalhos de Configurações).</summary>
+        private static readonly (string Command, string Title)[] CommandLineOnly =
+        {
+            ("FIBRA_CALCULAR_ESFORCO", "Esforço de 1 Cabo"),
+            ("FIBRA_ID_ENERGISA", "ID Energisa dos Postes"),
+            ("FIBRA_ZONA_UTM", "Zona UTM"),
+            ("FIBRA_ESCALA", "Escala do Desenho"),
+            ("FIBRA_ABRIR_PASTA", "Pasta de Dados"),
+            ("FIBRA_ATUALIZAR_BLOCOS", "Atualizar Blocos"),
+            ("FIBRA_EXPORTAR_BLOCOS", "Exportar Blocos para o BLOCOS.dwg"),
+            ("FIBRA_SOBRE", "Sobre o Fiber Plugin"),
+            ("FIBRA_RIBBON", "Recriar a Aba Fibra")
+        };
+
+        /// <summary>Todos os comandos que podem ter atalho, na ordem da aba Atalhos: o menu, os botões e os de linha de comando.</summary>
+        public static IEnumerable<(string Command, string Title)> AllCommands =>
+            new[] { (MenuCommand, "Menu do Fiber Plugin") }
+                .Concat(Sections.SelectMany(s => s.Tools).Select(t => (t.Command, t.Title)))
+                .Concat(CommandLineOnly);
+
         public static readonly (string Section, Tool[] Tools)[] Sections =
         {
             ("Cabos", new[]

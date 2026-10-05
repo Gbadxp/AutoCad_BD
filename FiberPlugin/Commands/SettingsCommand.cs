@@ -48,15 +48,18 @@ namespace FiberPlugin.Commands
             var tractionWarnings = new List<string>();
             TractionTable tractionBefore = TractionTable.Read(tractionWarnings, out string? tractionError);
             CompanyInfo companyBefore = CompanyInfo.Read();
+            Dictionary<string, string> shortcutsBefore = ShortcutSettings.Load();
 
             UserSettings after;
             List<CableModel> cablesAfter;
             ProjectInfo project;
             int scale;
             bool updateBlocks;
+            Dictionary<string, string> shortcuts;
             using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
                        projectBefore, scaleBefore, zoneBefore != null,
-                       Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab)
+                       Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab,
+                       shortcutsBefore, ShortcutRegistry.Conflict)
                    { OpenDataFolder = PluginCommands.ShowDataFolder })
             {
                 // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga
@@ -69,6 +72,7 @@ namespace FiberPlugin.Commands
                     if (Pending(TractionTable.FileName, !f.Traction.SameAs(tractionBefore)) && f.Traction.Save() is string e3) return e3;
                     if (Pending(CompanyInfo.FileName, !f.Company.SameAs(companyBefore)) && !(f.Company.IsEmpty && companyBefore.IsEmpty) &&
                         f.Company.Save() is string e4) return e4;
+                    if (!ShortcutSettings.Same(f.Shortcuts, shortcutsBefore) && ShortcutSettings.Save(f.Shortcuts) is string e6) return e6;
                     return f.Settings.Save() is string e5 ? $"{UserSettings.FilePath}: {e5}" : null;
                 };
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
@@ -77,6 +81,16 @@ namespace FiberPlugin.Commands
                 project = form.Project;
                 scale = form.ScaleDenominator;
                 updateBlocks = form.UpdateBlocksAfter;
+                shortcuts = form.Shortcuts;
+            }
+
+            // Atalhos novos valem na hora, e as dicas dos botões da aba Fibra mostram o atalho
+            if (!ShortcutSettings.Same(shortcuts, shortcutsBefore))
+            {
+                List<string> skipped = ShortcutRegistry.Apply(shortcuts);
+                ed.WriteMessage($"\n[SUCESSO]: Atalhos atualizados ({shortcuts.Count(s => s.Value.Length > 0)} comandos com atalho).");
+                foreach (string warning in skipped) ed.WriteMessage($"\n[AVISO]: Atalho não registrado: {warning}");
+                UI.FiberRibbon.RefreshShortcuts();
             }
 
             // Aba Projeto: grava só se algo mudou (ou para o Atualizar Blocos), como fazia a janela Dados do Projeto
