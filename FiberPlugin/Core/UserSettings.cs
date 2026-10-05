@@ -52,6 +52,9 @@ namespace FiberPlugin.Core
 
         public LayerStyle RoadStyle => new LayerStyle(RoadColor, RoadLinetype, RoadLineWeightMm);
 
+        /// <summary>Até que revisão os modelos de poste novos do padrão já entraram na lista do usuário (PoleModels.AddNewDefaults).</summary>
+        public int PoleModelsRevision { get; set; }
+
         private static UserSettings? _current;
 
         public static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
@@ -139,6 +142,7 @@ namespace FiberPlugin.Core
             settings.RoadColor = Color("Cor das ruas", settings.RoadColor);
             settings.RoadLinetype = LayerStyle.LinetypeFromLabel(Text("Tipo de linha das ruas"));
             settings.RoadLineWeightMm = LayerStyle.WeightFromText(Text("Espessura das ruas (mm)"));
+            settings.PoleModelsRevision = Text("Revisao dos modelos de poste") is string revision && int.TryParse(revision, out int r) && r >= 0 ? r : 0;
             return settings;
         }
 
@@ -165,6 +169,7 @@ namespace FiberPlugin.Core
             sb.AppendLine($"Cor das ruas: {RoadColor}");
             sb.AppendLine($"Tipo de linha das ruas: {RoadLinetype ?? "Continuous"}");
             sb.AppendLine($"Espessura das ruas (mm): {(RoadLineWeightMm is double w ? N(w) : LayerStyle.DefaultWeightLabel)}");
+            sb.AppendLine($"Revisao dos modelos de poste: {PoleModelsRevision}");
 
             try
             {

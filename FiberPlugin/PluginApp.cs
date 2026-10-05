@@ -38,9 +38,12 @@ namespace FiberPlugin
 
             PluginPaths.EnsureUserFolders();
             List<string> converted;
+            int newPoleModels = 0;
             try
             {
                 converted = LegacyData.Migrate();
+                // Modelos de poste que entraram no padrão nesta versão vão para a lista de quem já tem a sua
+                newPoleModels = PoleModels.AddNewDefaults();
             }
             catch (System.Exception)
             {
@@ -62,6 +65,11 @@ namespace FiberPlugin
             Document? doc = AcApp.DocumentManager.MdiActiveDocument;
             doc?.Editor.WriteMessage(
                 $"\n{PluginInfo.Name} v{PluginInfo.Version} carregado. Digite FIBRA ou use a aba \"Fibra\" da faixa de opções.\n");
+            if (newPoleModels > 0)
+            {
+                doc?.Editor.WriteMessage($"[INFO]: {newPoleModels} modelo(s) de poste novo(s) do plugin acrescentado(s) à sua lista " +
+                                         "(Configurações > Postes; os que você já tinha continuam).\n");
+            }
             foreach (string warning in skippedShortcuts)
             {
                 doc?.Editor.WriteMessage($"[AVISO]: Atalho não registrado: {warning} Troque em Configurações > Atalhos.\n");

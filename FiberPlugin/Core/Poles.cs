@@ -31,6 +31,11 @@ namespace FiberPlugin.Core
 
         public string TypeName => Type == Circular ? "Circular" : "Duplo T";
 
+        /// <summary>Mesmo modelo de poste: mesmo tipo, altura e esforço (o número e os dados do desenho não contam).</summary>
+        public bool SameModel(PoleData other) =>
+            string.Equals(Type, other.Type, StringComparison.OrdinalIgnoreCase) &&
+            Math.Abs(HeightM - other.HeightM) < 1e-6 && Math.Abs(EffortDaN - other.EffortDaN) < 1e-6;
+
         /// <summary>Número formatado: P-01, P-02... (prefixo e dígitos da janela Configurações).</summary>
         public static string NumberText(int number) => UserSettings.Current.Name(UserSettings.Current.PolePrefix, number);
     }

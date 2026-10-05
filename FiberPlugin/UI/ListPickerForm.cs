@@ -126,8 +126,10 @@ namespace FiberPlugin.UI
         /// <param name="current">Modelo já selecionado ao abrir (o último usado).</param>
         public static ListPickerForm<PoleData> Pole(List<PoleData> models, PoleData? current)
         {
+            // Por altura e esforço (DT antes de CC): os modelos acrescentados depois ficam no lugar certo da lista
+            models = models.OrderBy(m => m.HeightM).ThenBy(m => m.EffortDaN).ThenBy(m => m.Type == PoleData.DoubleT ? 0 : 1).ToList();
             var form = new ListPickerForm<PoleData>(models, "Inserir Postes", "FIBRA_INSERIR_POSTE",
-                $"{models.Count} modelo(s) cadastrados em Dados\\{PoleModels.FileName}",
+                $"{models.Count} modelo(s) cadastrados em Configurações > Postes",
                 "Buscar (ex.: 11/300, CC, DT)...", "Nenhum modelo encontrado", "Inserir",
                 m => (m.Designation,
                       $"{m.TypeName}  ·  {m.HeightM.ToString("0.#", CultureInfo.CurrentCulture)} m  ·  " +

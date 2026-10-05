@@ -16,17 +16,83 @@ namespace FiberPlugin.Core
         public const string LegacyFileName = "postes.csv";
         public const string Header = "Tipo;Altura_m;Esforco_daN";
 
-        /// <summary>Modelos que vêm com o plugin: DT e CC 11/300 a 12/1500 e o DT 9/200.</summary>
-        public static List<PoleData> Defaults()
+        /// <summary>Modelos que vêm com o plugin (tipo, altura em m, esforço em daN), por altura e esforço.</summary>
+        private static readonly (string Type, double Height, double Effort)[] Standard =
         {
-            var models = new List<PoleData>();
-            foreach (var (height, effort) in new[] { (11.0, 300.0), (11, 600), (11, 1000), (12, 1000), (11, 1500), (12, 1500) })
+            ("DT", 9, 200), ("DT", 9, 400), ("DT", 9, 600),
+            ("DT", 10, 200),
+            ("DT", 11, 200), ("DT", 11, 300), ("CC", 11, 300), ("DT", 11, 400), ("DT", 11, 600), ("CC", 11, 600),
+            ("DT", 11, 800), ("CC", 11, 800), ("DT", 11, 1000), ("CC", 11, 1000), ("DT", 11, 1500), ("CC", 11, 1500),
+            ("DT", 12, 400), ("DT", 12, 600), ("CC", 12, 600), ("DT", 12, 800), ("CC", 12, 800),
+            ("DT", 12, 1000), ("CC", 12, 1000), ("DT", 12, 1500), ("CC", 12, 1500),
+            ("DT", 13, 1000), ("CC", 13, 1000), ("DT", 13, 1500), ("CC", 13, 1500)
+        };
+
+        /// <summary>
+        /// Modelos que entraram no padrão depois que o usuário pode já ter a própria lista (revisão → modelos). Ao abrir o
+        /// AutoCAD, AddNewDefaults acrescenta na lista dele os que ainda não estiverem lá, uma vez só por revisão (se ele
+        /// apagar um depois, ele não volta).
+        /// </summary>
+        private static readonly (int Revision, (string Type, double Height, double Effort)[] Models)[] Additions =
+        {
+            (1, new[]
             {
-                models.Add(new PoleData { Type = PoleData.DoubleT, HeightM = height, EffortDaN = effort });
-                models.Add(new PoleData { Type = PoleData.Circular, HeightM = height, EffortDaN = effort });
+                ("DT", 9.0, 400.0), ("DT", 9, 600), ("DT", 10, 200), ("DT", 11, 200), ("DT", 11, 400), ("DT", 11, 800), ("CC", 11, 800),
+                ("DT", 12, 400), ("DT", 12, 600), ("CC", 12, 600), ("DT", 12, 800), ("CC", 12, 800),
+                ("DT", 13, 1000), ("CC", 13, 1000), ("DT", 13, 1500), ("CC", 13, 1500)
+            })
+        };
+
+        /// <summary>Revisão atual da lista padrão (a última de Additions).</summary>
+        public static int DefaultsRevision => Additions.Max(a => a.Revision);
+
+        private static PoleData Model((string Type, double Height, double Effort) m) =>
+            new PoleData { Type = m.Type, HeightM = m.Height, EffortDaN = m.Effort };
+
+        /// <summary>Modelos que vêm com o plugin: DT de 9 a 13 m e CC de 11 a 13 m, de 200 a 1500 daN.</summary>
+        public static List<PoleData> Defaults() => Standard.Select(Model).ToList();
+
+        /// <summary>
+        /// Acrescenta na lista do usuário os modelos que entraram no padrão desde a última vez (UserSettings guarda a
+        /// revisão já aplicada). Quem ainda usa a lista padrão já recebe os novos sem gravar nada. Retorna quantos entraram.
+        /// </summary>
+        public static int AddNewDefaults()
+        {
+            UserSettings settings = UserSettings.Current;
+            if (settings.PoleModelsRevision >= DefaultsRevision) return 0;
+
+            int added = 0;
+            if (DataFiles.Source(FileName, LegacyFileName) != null)
+            {
+                List<PoleData> models = Read(new List<string>(), out string? error);
+                if (error != null) return 0; // Tenta de novo na próxima abertura
+                added = MergeAdditions(models, settings.PoleModelsRevision);
+                if (added > 0 && Save(models) != null) return 0;
             }
-            models.Add(new PoleData { Type = PoleData.DoubleT, HeightM = 9, EffortDaN = 200 });
-            return models;
+
+            UserSettings updated = settings.Clone();
+            updated.PoleModelsRevision = DefaultsRevision;
+            updated.Save();
+            return added;
+        }
+
+        /// <summary>
+        /// Acrescenta no fim de <paramref name="models"/> os modelos das revisões depois de <paramref name="fromRevision"/>
+        /// que ainda não estão lá. Retorna quantos entraram.
+        /// </summary>
+        public static int MergeAdditions(List<PoleData> models, int fromRevision)
+        {
+            int added = 0;
+            foreach (var (_, newModels) in Additions.Where(a => a.Revision > fromRevision))
+            {
+                foreach (PoleData model in newModels.Select(Model))
+                {
+                    if (models.Any(m => m.SameModel(model))) continue;
+                    models.Add(model);
+                    added++;
+                }
+            }
+            return added;
         }
 
         public static List<PoleData> Load(Editor? ed = null)

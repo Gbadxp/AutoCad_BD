@@ -181,6 +181,7 @@ namespace FiberPlugin.UI
         // Resposta do AutoCAD para cada atalho já conferido: a conferência roda a cada tecla, a consulta só uma vez
         private readonly Dictionary<string, string?> _conflictCache = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         private (string Text, bool Error)[] _shortcutState = new (string, bool)[0];
+        private HashSet<int> _poleDuplicates = new HashSet<int>(); // Linhas da tabela de postes com modelo repetido
         private double[] _spans = new double[0];
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
@@ -291,14 +292,21 @@ namespace FiberPlugin.UI
             _poles.AddText("Altura (m)", 35, numeric: true);
             _poles.AddText("Esforço nominal (daN)", 35, numeric: true);
             FillPoles(poles);
+            // Modelo repetido em vermelho (as duas linhas)
+            _poles.CellFormatting += (s, e) =>
+            {
+                if (e.RowIndex < 0 || !_poleDuplicates.Contains(e.RowIndex) || e.CellStyle == null) return;
+                e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Theme.Error;
+            };
 
             var addPole = new ThemedButton("Adicionar modelo", false);
             var removePole = new ThemedButton("Remover modelo", false);
             addPole.Click += (s, e) => _poles.AddRowAndEdit(PoleData.DoubleT, "", "");
             removePole.Click += (s, e) => _poles.RemoveCurrentRow();
             Control polesPage = GridPage(_poles, new[] { addPole, removePole },
-                "Modelos oferecidos no Inserir Postes. DT = Duplo T, CC = Circular. Altura em metros e esforço em daN, como na norma " +
-                "(o desenho mostra 11/300).", poleNotes);
+                "Modelos oferecidos no Inserir Postes (que mostra a lista por altura e esforço). DT = Duplo T, CC = Circular. Altura em " +
+                "metros e esforço em daN, como na norma (o desenho mostra 11/300). Modelo repetido fica em vermelho e não deixa salvar.",
+                poleNotes);
 
             // ---------- Tração ----------
             _traction = new ThemedGrid();
@@ -689,21 +697,51 @@ namespace FiberPlugin.UI
             return cables.Count == 0 ? "Cabos: cadastre pelo menos um cabo." : null;
         }
 
+        /// <summary>
+        /// Modelos digitados. Modelo repetido (mesmo tipo, altura e esforço de uma linha acima) fica em vermelho na tabela e
+        /// não deixa salvar: na lista do Inserir Postes ele apareceria duas vezes.
+        /// </summary>
         private string? ReadPoles(out List<PoleData> poles)
         {
             poles = new List<PoleData>();
+            var rows = new List<int>();          // Linha da tabela de cada modelo lido
+            var duplicates = new HashSet<int>();
+            string? duplicateError = null;
             for (int i = 0; i < _poles.Rows.Count; i++)
             {
                 string type = _poles.CellText(i, PoleType).ToUpperInvariant(), heightText = _poles.CellText(i, PoleHeight), effortText = _poles.CellText(i, PoleEffort);
                 if (heightText.Length == 0 && effortText.Length == 0) continue;
 
                 string where = $"Postes, linha {i + 1}";
-                if (type != PoleData.DoubleT && type != PoleData.Circular) return $"{where}: escolha o tipo DT ou CC.";
-                if (!DataFiles.TryParseNumber(heightText, out double height) || height <= 0 || height > 40) return $"{where}: informe a altura em metros (ex.: 11).";
-                if (!DataFiles.TryParseNumber(effortText, out double effort) || effort <= 0) return $"{where}: informe o esforço nominal em daN (ex.: 300).";
-                poles.Add(new PoleData { Type = type, HeightM = height, EffortDaN = effort });
+                if (type != PoleData.DoubleT && type != PoleData.Circular) return SetPoleDuplicates(duplicates, $"{where}: escolha o tipo DT ou CC.");
+                if (!DataFiles.TryParseNumber(heightText, out double height) || height <= 0 || height > 40)
+                    return SetPoleDuplicates(duplicates, $"{where}: informe a altura em metros (ex.: 11).");
+                if (!DataFiles.TryParseNumber(effortText, out double effort) || effort <= 0)
+                    return SetPoleDuplicates(duplicates, $"{where}: informe o esforço nominal em daN (ex.: 300).");
+
+                var model = new PoleData { Type = type, HeightM = height, EffortDaN = effort };
+                int first = poles.FindIndex(p => p.SameModel(model));
+                if (first >= 0)
+                {
+                    duplicates.Add(rows[first]);
+                    duplicates.Add(i);
+                    duplicateError ??= $"{where}: o poste {model.Designation} já está cadastrado na linha {rows[first] + 1}. Apague uma das duas.";
+                }
+                poles.Add(model);
+                rows.Add(i);
             }
-            return poles.Count == 0 ? "Postes: cadastre pelo menos um modelo." : null;
+            return SetPoleDuplicates(duplicates, duplicateError ?? (poles.Count == 0 ? "Postes: cadastre pelo menos um modelo." : null));
+        }
+
+        /// <summary>Marca as linhas repetidas da tabela de postes (redesenhadas em vermelho) e devolve a mensagem.</summary>
+        private string? SetPoleDuplicates(HashSet<int> rows, string? message)
+        {
+            if (!rows.SetEquals(_poleDuplicates))
+            {
+                _poleDuplicates = rows;
+                _poles.Invalidate();
+            }
+            return message;
         }
 
         private string? ReadTraction(out TractionTable? table)

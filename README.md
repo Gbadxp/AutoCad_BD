@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.40.msi`](Instalador/FiberPlugin-1.9.40.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.41.msi`](Instalador/FiberPlugin-1.9.41.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -151,7 +151,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 ### Inserir
 | Botão | Comando | Função |
 |---|---|---|
-| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista (DT ou CC 11/300, 11/600, 11/1000, 12/1000, 11/1500, 12/1500 e DT 9/200, ou os da aba Postes do botão Configurações) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
+| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes do botão Configurações) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
@@ -208,7 +208,7 @@ desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG):
 | Aba | Função |
 |---|---|
 | Cabos | Cadastro de cabos: acrescente, edite ou remova, e escolha para cada um a **cor** (paleta com as 255 cores do AutoCAD; sem cor própria, usa a cor padrão dos cabos), o **tipo de linha** (contínua, tracejada, traço e ponto, oculta...) e a **espessura** (0,00 a 2,11 mm). Isso vai para a layer do cabo; ao salvar, as layers dos cabos já lançados no desenho aberto mudam junto. A espessura aparece na tela com o botão "Mostrar espessura" (LWDISPLAY). Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com o cadastro. |
-| Postes | Modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). |
+| Postes | Modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). Modelo repetido fica em vermelho e não deixa salvar. Quando uma versão nova traz modelos novos, eles entram na lista de quem já tem a sua na primeira abertura, sem tirar nem mudar os que a pessoa cadastrou. |
 | Tração | Tabela 08 da NDU 009: tração em kgf por faixa de fibras e vão (15 a 120 m). Usada quando os Parâmetros de Cálculo estão em "Tabela 08". |
 | Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
