@@ -33,22 +33,29 @@ namespace FiberPlugin.UI
 
             float dpi = form.DeviceDpi / 96f;
             string key = $"{form.GetType().Name} {Math.Round(design.Width / dpi)}x{Math.Round(design.Height / dpi)}";
+            Size Logical(Size pixels) => new Size((int)Math.Round(pixels.Width / dpi), (int)Math.Round(pixels.Height / dpi));
 
-            if (Saved().TryGetValue(DataFiles.FieldKey(key), out string? text) && Parse(text) is Size logical)
+            // Último tamanho usado ou, sem ele, o original; nos dois casos sem passar da área útil da tela (num notebook
+            // 1366x768 a janela Configurações original é mais alta que a tela e os botões ficariam atrás da barra de tarefas)
+            Size wanted = Saved().TryGetValue(DataFiles.FieldKey(key), out string? text) && Parse(text) is Size saved
+                ? new Size((int)Math.Round(saved.Width * dpi), (int)Math.Round(saved.Height * dpi))
+                : form.Size;
+            Rectangle area = Screen.FromControl(form).WorkingArea;
+            var size = new Size(Math.Max(form.MinimumSize.Width, Math.Min(area.Width, wanted.Width)),
+                                Math.Max(form.MinimumSize.Height, Math.Min(area.Height, wanted.Height)));
+            if (size != form.Size)
             {
-                Rectangle area = Screen.FromControl(form).WorkingArea;
-                var size = new Size(
-                    Math.Max(form.MinimumSize.Width, Math.Min(area.Width, (int)Math.Round(logical.Width * dpi))),
-                    Math.Max(form.MinimumSize.Height, Math.Min(area.Height, (int)Math.Round(logical.Height * dpi))));
                 form.Size = size;
                 form.Location = new Point(area.X + (area.Width - size.Width) / 2, area.Y + (area.Height - size.Height) / 2);
             }
 
+            // Grava só se o usuário mudou o tamanho (senão cada janela fechada reescreveria o arquivo)
+            Size opened = Logical(form.Size);
             form.FormClosed += (s, e) =>
             {
                 if (form.WindowState != FormWindowState.Normal) return;
-                Size now = form.Size;
-                Save(key, new Size((int)Math.Round(now.Width / dpi), (int)Math.Round(now.Height / dpi)));
+                Size closed = Logical(form.Size);
+                if (closed != opened) Save(key, closed);
             };
         }
 
@@ -89,7 +96,9 @@ namespace FiberPlugin.UI
                 if (wide && tall) host.AutoScrollPosition = Point.Empty;
                 host.PerformLayout();
             };
+            // O painel nasce agora, dentro de uma janela que já existe: o tema escuro vai já (o HandleCreated já passou)
             Theme.UseDarkScrollbars(host);
+            Theme.ApplyDarkScrollbars(host);
         }
 
         private static bool HasFixedRows(Control control) =>

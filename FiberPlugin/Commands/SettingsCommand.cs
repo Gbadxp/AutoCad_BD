@@ -50,12 +50,16 @@ namespace FiberPlugin.Commands
             CompanyInfo companyBefore = CompanyInfo.Read();
             Dictionary<string, string> shortcutsBefore = ShortcutSettings.Load();
 
-            UserSettings after;
-            List<CableModel> cablesAfter;
+            // O que já foi gravado (a gravação pode parar no meio, ex.: arquivo bloqueado, e o usuário cancelar depois):
+            // o desenho recebe o que foi gravado mesmo assim, para cadastro e desenho não ficarem diferentes
+            List<CableModel>? savedCables = null;
+            Dictionary<string, string>? savedShortcuts = null;
+            UserSettings? savedSettings = null;
+
+            bool confirmed;
             ProjectInfo project;
             int scale;
             bool updateBlocks;
-            Dictionary<string, string> shortcuts;
             using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
                        projectBefore, scaleBefore, zoneBefore != null,
                        Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab,
@@ -65,41 +69,58 @@ namespace FiberPlugin.Commands
                 // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga
                 form.SaveChanges = f =>
                 {
-                    if (Pending(CableProvider.FileName, CableProvider.ToText(f.Cables) != CableProvider.ToText(cablesBefore)) &&
-                        CableProvider.Save(f.Cables) is string e1) return e1;
+                    if (Pending(CableProvider.FileName, CableProvider.ToText(f.Cables) != CableProvider.ToText(cablesBefore)))
+                    {
+                        if (CableProvider.Save(f.Cables) is string e1) return e1;
+                        savedCables = f.Cables;
+                    }
                     if (Pending(PoleModels.FileName, PoleModels.ToText(f.PoleTypes) != PoleModels.ToText(polesBefore)) &&
                         PoleModels.Save(f.PoleTypes) is string e2) return e2;
                     if (Pending(TractionTable.FileName, !f.Traction.SameAs(tractionBefore)) && f.Traction.Save() is string e3) return e3;
                     if (Pending(CompanyInfo.FileName, !f.Company.SameAs(companyBefore)) && !(f.Company.IsEmpty && companyBefore.IsEmpty) &&
                         f.Company.Save() is string e4) return e4;
-                    if (!ShortcutSettings.Same(f.Shortcuts, shortcutsBefore) && ShortcutSettings.Save(f.Shortcuts) is string e6) return e6;
-                    return f.Settings.Save() is string e5 ? $"{UserSettings.FilePath}: {e5}" : null;
+                    if (!ShortcutSettings.Same(f.Shortcuts, shortcutsBefore))
+                    {
+                        if (ShortcutSettings.Save(f.Shortcuts) is string e6) return e6;
+                        savedShortcuts = f.Shortcuts;
+                    }
+                    if (f.Settings.Save() is string e5) return $"{UserSettings.FilePath}: {e5}";
+                    savedSettings = f.Settings;
+                    return null;
                 };
-                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
-                after = form.Settings;
-                cablesAfter = form.Cables;
+                confirmed = AcApp.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK;
                 project = form.Project;
                 scale = form.ScaleDenominator;
-                updateBlocks = form.UpdateBlocksAfter;
-                shortcuts = form.Shortcuts;
+                updateBlocks = confirmed && form.UpdateBlocksAfter;
             }
 
-            // Atalhos novos valem na hora, e as dicas dos botões da aba Fibra mostram o atalho
-            if (!ShortcutSettings.Same(shortcuts, shortcutsBefore))
+            if (!confirmed)
             {
-                List<string> skipped = ShortcutRegistry.Apply(shortcuts);
-                ed.WriteMessage($"\n[SUCESSO]: Atalhos atualizados ({shortcuts.Count(s => s.Value.Length > 0)} comandos com atalho).");
+                if (savedCables == null && savedShortcuts == null && savedSettings == null) return;
+                ed.WriteMessage("\n[AVISO]: A janela foi fechada sem salvar tudo; o que já tinha sido gravado vale e foi levado para o desenho.");
+            }
+            UserSettings after = savedSettings ?? before;
+            List<CableModel> cablesAfter = savedCables ?? cablesBefore;
+
+            // Atalhos novos valem na hora, e as dicas dos botões da aba Fibra mostram o atalho
+            if (savedShortcuts != null)
+            {
+                List<string> skipped = ShortcutRegistry.Apply(savedShortcuts);
+                ed.WriteMessage($"\n[SUCESSO]: Atalhos atualizados ({savedShortcuts.Count(s => s.Value.Length > 0)} comandos com atalho).");
                 foreach (string warning in skipped) ed.WriteMessage($"\n[AVISO]: Atalho não registrado: {warning}");
                 UI.FiberRibbon.RefreshShortcuts();
             }
 
             // Aba Projeto: grava só se algo mudou (ou para o Atualizar Blocos), como fazia a janela Dados do Projeto
-            if (updateBlocks || !project.SameAs(projectBefore) || scale != scaleBefore)
+            if (confirmed && (updateBlocks || !project.SameAs(projectBefore) || scale != scaleBefore))
                 ApplyProject(doc, project, zoneBefore, scaleBefore, scale);
 
-            ed.WriteMessage($"\n[SUCESSO]: Configurações salvas ({cablesAfter.Count} cabo(s), nomes {after.Name(after.PolePrefix, 1)}, " +
-                            $"{after.Name(after.CtoPrefix, 1)}, {after.Name(after.CeoPrefix, 1)}, ruas na layer {after.RoadLayer}). " +
-                            "Valem para todos os desenhos.");
+            if (confirmed)
+            {
+                ed.WriteMessage($"\n[SUCESSO]: Configurações salvas ({cablesAfter.Count} cabo(s), nomes {after.Name(after.PolePrefix, 1)}, " +
+                                $"{after.Name(after.CtoPrefix, 1)}, {after.Name(after.CeoPrefix, 1)}, ruas na layer {after.RoadLayer}). " +
+                                "Valem para todos os desenhos.");
+            }
 
             UpdateLayers(ed, db, cablesBefore, cablesAfter, before, after);
 
@@ -182,19 +203,35 @@ namespace FiberPlugin.Commands
             {
                 var layers = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
 
-                // Nome novo da layer das ruas: a layer antiga deste desenho passa a ter o nome novo
-                if (roadRenamed && layers.Has(before.RoadLayer) && !layers.Has(after.RoadLayer))
+                // Nome novo da layer das ruas: a layer antiga deste desenho passa a ter o nome novo. Uma recusa do AutoCAD
+                // (ex.: configuracoes.txt antigo com a layer 0) não impede o resto
+                if (roadRenamed && layers.Has(before.RoadLayer) && !layers.Has(after.RoadLayer) &&
+                    LayerStyle.LayerNameError(before.RoadLayer) == null)
                 {
-                    var road = (LayerTableRecord)tr.GetObject(layers[before.RoadLayer], OpenMode.ForWrite);
-                    road.Name = after.RoadLayer;
-                    ed.WriteMessage($"\n[INFO]: Layer {before.RoadLayer} renomeada para {after.RoadLayer}.");
+                    try
+                    {
+                        var road = (LayerTableRecord)tr.GetObject(layers[before.RoadLayer], OpenMode.ForWrite);
+                        road.Name = after.RoadLayer;
+                        ed.WriteMessage($"\n[INFO]: Layer {before.RoadLayer} renomeada para {after.RoadLayer}.");
+                    }
+                    catch (Autodesk.AutoCAD.Runtime.Exception ex)
+                    {
+                        warnings.Add($"Não foi possível renomear a layer {before.RoadLayer} para {after.RoadLayer} ({ex.Message}).");
+                    }
                 }
 
                 foreach (var (name, style) in styles.Select(s => (s.Key, s.Value)))
                 {
                     if (!layers.Has(name)) continue;
-                    if (CadHelpers.ApplyLayerStyle(tr, db, name, style) is string warning) warnings.Add(warning);
-                    changed++;
+                    try
+                    {
+                        if (CadHelpers.ApplyLayerStyle(tr, db, name, style) is string warning) warnings.Add(warning);
+                        changed++;
+                    }
+                    catch (Autodesk.AutoCAD.Runtime.Exception ex)
+                    {
+                        warnings.Add($"Não foi possível mudar a layer {name} ({ex.Message}).");
+                    }
                 }
                 foreach (var (name, color) in colors.Select(c => (c.Key, c.Value)))
                 {

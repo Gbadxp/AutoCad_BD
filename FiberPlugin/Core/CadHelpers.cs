@@ -137,13 +137,20 @@ namespace FiberPlugin.Core
             return ent;
         }
 
+        /// <summary>
+        /// Chave reserva de um registro cuja entrada original está quebrada. Remover ou substituir a entrada quebrada
+        /// abriria o objeto inexistente, e isso pode derrubar o AutoCAD; a reserva fica ao lado e é lida primeiro.
+        /// </summary>
+        private const string SpareSuffix = "_2";
+
         /// <summary>Dados gravados no dicionário do desenho (escala, zona UTM...). Null se não houver.</summary>
         public static TypedValue[]? ReadDrawingRecord(Database db, string key)
         {
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
                 var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-                if (OpenRecord(tr, nod, key, OpenMode.ForRead) is not Xrecord xrec) return null;
+                if ((OpenRecord(tr, nod, key + SpareSuffix, OpenMode.ForRead) ?? OpenRecord(tr, nod, key, OpenMode.ForRead)) is not Xrecord xrec)
+                    return null;
                 using (ResultBuffer? data = xrec.Data)
                 {
                     return data?.AsArray();
@@ -151,19 +158,27 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <summary>
+        /// Grava o registro no dicionário do desenho. Se a entrada da chave estiver quebrada (ou não for um Xrecord), ela
+        /// não é tocada: o registro vai para a chave reserva. Se as duas estiverem ocupadas, não grava (o desenho fica
+        /// como está, sem risco de cair).
+        /// </summary>
         public static void WriteDrawingRecord(Transaction tr, Database db, string key, params TypedValue[] values)
         {
             var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-            var data = new ResultBuffer(values);
-            if (OpenRecord(tr, nod, key, OpenMode.ForWrite) is Xrecord existing)
+            Xrecord? existing = OpenRecord(tr, nod, key + SpareSuffix, OpenMode.ForWrite) ?? OpenRecord(tr, nod, key, OpenMode.ForWrite);
+            if (existing != null)
             {
-                existing.Data = data;
+                using (var data = new ResultBuffer(values)) existing.Data = data;
                 return;
             }
+
+            string target = nod.Contains(key) ? key + SpareSuffix : key;
+            if (nod.Contains(target)) return;
             nod.UpgradeOpen();
-            if (nod.Contains(key)) nod.Remove(key); // Entrada quebrada ou que não é Xrecord: grava uma nova no lugar
-            var xrec = new Xrecord { Data = data };
-            nod.SetAt(key, xrec);
+            Xrecord xrec;
+            using (var data = new ResultBuffer(values)) xrec = new Xrecord { Data = data };
+            nod.SetAt(target, xrec);
             tr.AddNewlyCreatedDBObject(xrec, true);
         }
 

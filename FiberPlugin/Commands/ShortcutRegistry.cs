@@ -5,6 +5,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Runtime;
 using FiberPlugin.Core;
 using AcUtils = Autodesk.AutoCAD.Internal.Utils;
+using CommandCallback = Autodesk.AutoCAD.Internal.CommandCallback;
 
 namespace FiberPlugin.Commands
 {
@@ -20,6 +21,10 @@ namespace FiberPlugin.Commands
         private const string PgpFile = "acad.pgp";
 
         private static readonly Dictionary<string, string> Registered = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // O AutoCAD guarda só o ponteiro do delegate de cada atalho: a referência fica aqui para o coletor de lixo do
+        // .NET não descartá-lo enquanto o atalho existir (digitar o atalho chamaria um delegate liberado)
+        private static readonly Dictionary<string, CommandCallback> Callbacks = new Dictionary<string, CommandCallback>(StringComparer.OrdinalIgnoreCase);
         private static Dictionary<string, string>? _pgp;
 
         /// <summary>Atalho ativo do comando ("" se não houver).</summary>
@@ -55,6 +60,7 @@ namespace FiberPlugin.Commands
                 try { AcUtils.RemoveCommand(Group, alias); } catch (System.Exception) { }
             }
             Registered.Clear();
+            Callbacks.Clear();
             _pgp = null; // Relê o acad.pgp (pode ter mudado)
 
             var warnings = new List<string>();
@@ -76,7 +82,18 @@ namespace FiberPlugin.Commands
                 }
 
                 MethodInfo method = target.Method;
-                AcUtils.AddCommand(Group, alias, alias, target.Flags, () => Invoke(method));
+                CommandCallback callback = () => Invoke(method);
+                try
+                {
+                    AcUtils.AddCommand(Group, alias, alias, target.Flags, callback);
+                }
+                catch (System.Exception ex)
+                {
+                    // O AutoCAD recusou (nome em uso por algo que a conferência não viu): os outros atalhos seguem
+                    warnings.Add($"{alias} ({pair.Key}): o AutoCAD não aceitou ({ex.Message}).");
+                    continue;
+                }
+                Callbacks[alias] = callback;
                 Registered[alias] = pair.Key;
             }
             return warnings;

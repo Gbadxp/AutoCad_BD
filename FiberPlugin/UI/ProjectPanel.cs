@@ -67,16 +67,17 @@ namespace FiberPlugin.UI
 
             var folder = new ThemedButton("Pasta de Dados", false) { Margin = new Padding(0, 4, 8, 0) };
             var blocks = new ThemedButton("Atualizar Blocos", false) { Margin = new Padding(0, 4, 8, 0) };
-            _filesHint = Hint("Logo e figuras do memorial e BLOCOS.dwg");
+            _filesHint = InlineHint("Logo e figuras do memorial e BLOCOS.dwg");
 
             foreach (var (control, height) in new (Control, float)[]
             {
                 (new SectionLabel("Projeto deste desenho"), 26), (_route, 54), (_address, 54),
-                (Pair(_contract, _art), 54), (Pair(_start, _deadline), 54),
-                (new SectionLabel("Desenho"), 32), (Row("Zona UTM", _zone, _hemisphere), 40), (Row("Escala   1:", _scale, _scalePresets), 40),
-                (new SectionLabel("Arquivos do plugin"), 32), (Row("", folder, blocks, _filesHint), 40),
-                (SmallHint("Ficam no desenho e também em Documentos\\Fiber Plugin\\projeto.txt: o próximo desenho já abre com eles. " +
-                           "Ao salvar com zona ou escala nova, o plugin pergunta se atualiza os postes e as anotações já desenhados."), 40)
+                (FormLayout.Row(_contract, _art), 54), (FormLayout.Row(_start, _deadline), 54),
+                (new SectionLabel("Desenho"), 32), (LabeledRow("Zona UTM", _zone, _hemisphere), 40),
+                (LabeledRow("Escala   1:", _scale, _scalePresets), 40),
+                (new SectionLabel("Arquivos do plugin"), 32), (LabeledRow("", folder, blocks, _filesHint), 40),
+                (FormLayout.Hint("Ficam no desenho e também em Documentos\\Fiber Plugin\\projeto.txt: o próximo desenho já abre com eles. " +
+                                 "Ao salvar com zona ou escala nova, o plugin pergunta se atualiza os postes e as anotações já desenhados."), 40)
             })
             {
                 RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -180,40 +181,17 @@ namespace FiberPlugin.UI
 
         // ---------- Montagem ----------
 
-        private static Label Hint(string text) => new Label
+        /// <summary>Dica curta na mesma linha dos botões (tamanho do texto, alinhada com eles).</summary>
+        private static Label InlineHint(string text)
         {
-            Text = text,
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = true,
-            Margin = new Padding(4, 11, 0, 0)
-        };
-
-        private static Label SmallHint(string text) => new Label
-        {
-            Text = text,
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = false
-        };
-
-        /// <summary>Dois campos lado a lado, em colunas iguais.</summary>
-        private static TableLayoutPanel Pair(LabeledInput left, LabeledInput right)
-        {
-            var grid = new TableLayoutPanel { ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            left.Dock = right.Dock = DockStyle.Fill;
-            left.Margin = new Padding(0, 0, 6, 0);
-            right.Margin = new Padding(6, 0, 0, 0);
-            grid.Controls.Add(left, 0, 0);
-            grid.Controls.Add(right, 1, 0);
-            return grid;
+            Label hint = FormLayout.Hint(text);
+            hint.AutoSize = true;
+            hint.Margin = new Padding(4, 11, 0, 0);
+            return hint;
         }
 
         /// <summary>Linha "rótulo | controles" com o rótulo numa coluna fixa.</summary>
-        private static TableLayoutPanel Row(string label, params Control[] controls)
+        private static TableLayoutPanel LabeledRow(string label, params Control[] controls)
         {
             var grid = new TableLayoutPanel { ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));

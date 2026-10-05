@@ -1,5 +1,6 @@
 using FiberPlugin.Core;
 using FiberPlugin.Models;
+using static FiberPlugin.UI.FormLayout;
 
 namespace FiberPlugin.UI
 {
@@ -177,6 +178,8 @@ namespace FiberPlugin.UI
         private readonly ThemedGrid _cables, _poles, _traction, _shortcuts;
         private readonly List<(string Command, string Title)> _shortcutCommands;
         private readonly Func<string, string?>? _conflict;
+        // Resposta do AutoCAD para cada atalho já conferido: a conferência roda a cada tecla, a consulta só uma vez
+        private readonly Dictionary<string, string?> _conflictCache = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         private (string Text, bool Error)[] _shortcutState = new (string, bool)[0];
         private double[] _spans = new double[0];
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
@@ -319,7 +322,7 @@ namespace FiberPlugin.UI
                 foreach (var row in rows)
                 {
                     var inputs = row.Select(f => (Control: (Control)(_company[f.Field] = new LabeledInput(f.Field, f.Field == "Tipo de companhia" ? "Internet" : "")), f.Width)).ToArray();
-                    companyRows.Add((WeightedRow(inputs), 52));
+                    companyRows.Add((Row(inputs), 52));
                 }
             }
             companyRows.Add((Hint("Vão para o Memorial Descritivo e a Tabela A do relatório. Campo vazio não aparece no documento. RG, CPF e " +
@@ -758,12 +761,20 @@ namespace FiberPlugin.UI
                 if (other == i) other = Array.FindIndex(aliases, i + 1, a => a == alias);
                 string? problem = ShortcutSettings.SyntaxError(alias)
                                   ?? (other >= 0 ? $"repetido com {_shortcutCommands[other].Title}" : null)
-                                  ?? _conflict?.Invoke(alias);
+                                  ?? Conflict(alias);
                 _shortcutState[i] = problem != null ? ("⚠ " + problem, true) : ("ok", false);
                 if (problem != null && first == null) first = $"Atalhos: {alias} ({_shortcutCommands[i].Title}) {problem}.";
             }
             _shortcuts.InvalidateColumn(ShortcutState);
             return first;
+        }
+
+        /// <summary>O que já existe no AutoCAD com esse nome (consultado uma vez por atalho enquanto a janela está aberta).</summary>
+        private string? Conflict(string alias)
+        {
+            if (_conflict == null) return null;
+            if (!_conflictCache.TryGetValue(alias, out string? result)) _conflictCache[alias] = result = _conflict(alias);
+            return result;
         }
 
         private CompanyInfo ReadCompany()
@@ -864,34 +875,6 @@ namespace FiberPlugin.UI
             page.RowCount++;
             return page;
         }
-
-        /// <summary>Campos lado a lado, com a mesma largura.</summary>
-        private static Control Row(params Control[] controls) => WeightedRow(controls.Select(c => (c, 1f)).ToArray());
-
-        /// <summary>Campos lado a lado, cada um com a largura relativa dada.</summary>
-        private static Control WeightedRow((Control Control, float Width)[] controls)
-        {
-            var row = new TableLayoutPanel { ColumnCount = controls.Length, RowCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
-            row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            float total = controls.Sum(c => c.Width);
-            for (int i = 0; i < controls.Length; i++)
-            {
-                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f * controls[i].Width / total));
-                controls[i].Control.Dock = DockStyle.Fill;
-                controls[i].Control.Margin = new Padding(i == 0 ? 0 : 6, 0, i == controls.Length - 1 ? 0 : 6, 0);
-                row.Controls.Add(controls[i].Control, i, 0);
-            }
-            return row;
-        }
-
-        private static Label Hint(string text) => new Label
-        {
-            Text = text,
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = false,
-            Margin = new Padding(0, 2, 0, 0)
-        };
 
         /// <summary>Número com vírgula e sem zeros sobrando ("2", "1,8"), como no resto das janelas.</summary>
         private static string Num(double value) => value.ToString("0.###", DataFiles.Br);

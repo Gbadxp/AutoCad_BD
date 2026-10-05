@@ -280,19 +280,8 @@ namespace FiberPlugin.UI
             Height = 50;
             Margin = new Padding(4, 2, 4, 2);
             _swatch = new Swatch(this) { Dock = DockStyle.Top, Height = 28 };
-            var label = new Label
-            {
-                Text = title.ToUpperInvariant(),
-                Font = Theme.Section,
-                ForeColor = Theme.Muted,
-                AutoSize = false,
-                Height = 20,
-                Dock = DockStyle.Top,
-                TextAlign = ContentAlignment.BottomLeft,
-                AutoEllipsis = true
-            };
             Controls.Add(_swatch);
-            Controls.Add(label);
+            Controls.Add(FormLayout.FieldTitle(title));
             Title = title;
         }
 

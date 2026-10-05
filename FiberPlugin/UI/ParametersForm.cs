@@ -156,13 +156,6 @@ namespace FiberPlugin.UI
         /// <summary>Número com vírgula, como no resto da janela ("5,40").</summary>
         private static string Format(double value, string format) => value.ToString(format, CultureInfo.GetCultureInfo("pt-BR"));
 
-        private static Label Hint(string text) => new Label
-        {
-            Text = text,
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = false,
-            Margin = new Padding(0, 2, 0, 0)
-        };
+        private static Label Hint(string text) => FormLayout.Hint(text);
     }
 }

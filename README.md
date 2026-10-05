@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.39.msi`](Instalador/FiberPlugin-1.9.39.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.40.msi`](Instalador/FiberPlugin-1.9.40.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -212,7 +212,7 @@ desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG):
 | Tração | Tabela 08 da NDU 009: tração em kgf por faixa de fibras e vão (15 a 120 m). Usada quando os Parâmetros de Cálculo estão em "Tabela 08". |
 | Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
-| Desenho | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
+| Desenho | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`; não pode ser a 0 nem a Defpoints, que são do AutoCAD), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
 | Atalhos | Atalho de cada comando (veja abaixo): mude, apague ou volte ao padrão. A coluna **Situação** avisa, enquanto você digita, quando o atalho já é um comando do AutoCAD ou de outro aplicativo, um comando LISP, um atalho do `acad.pgp` ou se repete com outro comando do plugin; com conflito, o Salvar não libera. Os atalhos novos valem na hora. |
 
 **Restaurar padrão** volta a aba aberta para o que vem com o plugin. Tudo fica em `Documentos\Fiber Plugin`

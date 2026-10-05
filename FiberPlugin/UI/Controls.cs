@@ -6,6 +6,52 @@ namespace FiberPlugin.UI
     // Controles desenhados no estilo da interface do AutoCAD: cores do tema ativo, cantos quase retos,
     // campos que clareiam no foco com borda azul e seleção azul-acinzentada com contorno.
 
+    /// <summary>Peças de montagem usadas em várias janelas (dicas, títulos de campo e campos lado a lado).</summary>
+    internal static class FormLayout
+    {
+        /// <summary>Dica em cinza, em letra pequena, que quebra linha na largura da célula.</summary>
+        public static Label Hint(string text) => new Label
+        {
+            Text = text,
+            Font = Theme.Small,
+            ForeColor = Theme.Muted,
+            AutoSize = false,
+            Margin = new Padding(0, 2, 0, 0)
+        };
+
+        /// <summary>Título de campo em maiúsculas, encostado no campo logo abaixo (LabeledInput, LabeledCombo, ColorField).</summary>
+        public static Label FieldTitle(string title) => new Label
+        {
+            Text = title.ToUpperInvariant(),
+            Font = Theme.Section,
+            ForeColor = Theme.Muted,
+            AutoSize = false,
+            Height = 20,
+            Dock = DockStyle.Top,
+            TextAlign = ContentAlignment.BottomLeft,
+            AutoEllipsis = true
+        };
+
+        /// <summary>Campos lado a lado, com a mesma largura.</summary>
+        public static TableLayoutPanel Row(params Control[] controls) => Row(controls.Select(c => (c, 1f)).ToArray());
+
+        /// <summary>Campos lado a lado, cada um com a largura relativa dada.</summary>
+        public static TableLayoutPanel Row((Control Control, float Width)[] controls)
+        {
+            var row = new TableLayoutPanel { ColumnCount = controls.Length, RowCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
+            row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            float total = controls.Sum(c => c.Width);
+            for (int i = 0; i < controls.Length; i++)
+            {
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f * controls[i].Width / total));
+                controls[i].Control.Dock = DockStyle.Fill;
+                controls[i].Control.Margin = new Padding(i == 0 ? 0 : 6, 0, i == controls.Length - 1 ? 0 : 6, 0);
+                row.Controls.Add(controls[i].Control, i, 0);
+            }
+            return row;
+        }
+    }
+
     /// <summary>Faixa de título: ícone, título e subtítulo, com separador fino embaixo.</summary>
     internal class HeaderPanel : Panel
     {
@@ -388,17 +434,7 @@ namespace FiberPlugin.UI
             Height = 50;
             Margin = new Padding(4, 2, 4, 2);
             Box = new InputBox(placeholder, searchIcon: false) { Dock = DockStyle.Top };
-            _title = new Label
-            {
-                Font = Theme.Section,
-                ForeColor = Theme.Muted,
-                AutoSize = false,
-                Height = 20,
-                Dock = DockStyle.Top,
-                TextAlign = ContentAlignment.BottomLeft,
-                AutoEllipsis = true
-            };
-            Title = title;
+            _title = FormLayout.FieldTitle(title);
             // O último adicionado encaixa primeiro: título em cima, campo embaixo
             Controls.Add(Box);
             Controls.Add(_title);
@@ -442,19 +478,8 @@ namespace FiberPlugin.UI
             Height = 50;
             Margin = new Padding(4, 2, 4, 2);
             _button = new DropButton(this) { Dock = DockStyle.Top, Height = 28 };
-            var label = new Label
-            {
-                Text = title.ToUpperInvariant(),
-                Font = Theme.Section,
-                ForeColor = Theme.Muted,
-                AutoSize = false,
-                Height = 20,
-                Dock = DockStyle.Top,
-                TextAlign = ContentAlignment.BottomLeft,
-                AutoEllipsis = true
-            };
             Controls.Add(_button);
-            Controls.Add(label);
+            Controls.Add(FormLayout.FieldTitle(title));
             if (_items.Count > 0) _value = _items[0];
         }
 

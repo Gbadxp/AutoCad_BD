@@ -86,12 +86,17 @@ namespace FiberPlugin.Core
             return Weights.OrderBy(w => Math.Abs(w - mm)).First();
         }
 
+        /// <summary>Layers do próprio AutoCAD: não podem ser renomeadas e mudar a aparência delas afeta o desenho todo.</summary>
+        private static readonly string[] ReservedLayers = { "0", "Defpoints" };
+
         /// <summary>Problema do nome de layer (null se estiver certo).</summary>
         public static string? LayerNameError(string name)
         {
             if (name.Trim().Length == 0) return "informe o nome da layer";
             if (name.Length > 255) return "nome de layer muito longo";
             if (name.IndexOfAny(InvalidNameChars) >= 0) return "o nome da layer não pode ter < > / \\ \" : ; ? * | , = `";
+            if (ReservedLayers.Any(r => r.Equals(name.Trim(), StringComparison.OrdinalIgnoreCase)))
+                return $"a layer {name.Trim()} é do AutoCAD; use outro nome (ex.: RUAS)";
             return null;
         }
     }
