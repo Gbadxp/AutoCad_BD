@@ -48,7 +48,7 @@ namespace FiberPlugin.Core
             string? file = LibraryFile;
             if (file == null || !File.Exists(file))
             {
-                LastError = $"{LibraryFileName} não encontrado ({file ?? "pasta Blocos"}). Use Dados do Projeto > Atualizar Blocos para escolher o arquivo.";
+                LastError = $"{LibraryFileName} não encontrado ({file ?? "pasta Blocos"}). Use Configurações > Projeto > Atualizar Blocos para escolher o arquivo.";
                 return new List<BlockEntry>();
             }
 
@@ -137,10 +137,10 @@ namespace FiberPlugin.Core
             // O BLOCOS.dwg do pacote fica em Arquivos de Programas e não pode ser alterado
             if (PluginPaths.IsInstalled && PluginPaths.CustomLibrary == null)
             {
-                return (0, 0, 0, $"Escolha o seu {LibraryFileName} em Dados do Projeto > Atualizar Blocos antes de exportar.");
+                return (0, 0, 0, $"Escolha o seu {LibraryFileName} em Configurações > Projeto > Atualizar Blocos antes de exportar.");
             }
             string? path = LibraryFile;
-            if (path == null) return (0, 0, 0, $"{LibraryFileName} não encontrado. Use Dados do Projeto > Atualizar Blocos para escolher o arquivo.");
+            if (path == null) return (0, 0, 0, $"{LibraryFileName} não encontrado. Use Configurações > Projeto > Atualizar Blocos para escolher o arquivo.");
 
             int added = 0, replaced = 0, kept = 0;
             var toCopy = new ObjectIdCollection();

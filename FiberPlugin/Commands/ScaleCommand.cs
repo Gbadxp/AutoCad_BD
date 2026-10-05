@@ -37,7 +37,7 @@ namespace FiberPlugin.Commands
 
         /// <summary>
         /// Grava a escala nova e pergunta se ajusta as anotações já desenhadas (de <paramref name="current"/> para
-        /// <paramref name="scale"/>). Usado também pela janela Dados do Projeto.
+        /// <paramref name="scale"/>). Usado também pela aba Projeto da janela Configurações.
         /// </summary>
         internal static void Apply(Editor ed, Database db, int current, int scale)
         {

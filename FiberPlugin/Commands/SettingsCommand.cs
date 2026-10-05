@@ -14,17 +14,29 @@ namespace FiberPlugin.Commands
     public class SettingsCommand
     {
         /// <summary>
-        /// Janela Configurações: cadastros do plugin (cabos com cor, tipo de linha e espessura, modelos de poste, tabela de
+        /// Janela Configurações: dados do projeto deste desenho (percurso, contrato, ART, zona UTM, escala, pasta de dados e
+        /// Atualizar Blocos), cadastros do plugin (cabos com cor, tipo de linha e espessura, modelos de poste, tabela de
         /// tração e dados da empresa) e preferências (nomes, tamanhos, cores e a layer das ruas). Depois de salvar, leva as
-        /// mudanças para o desenho aberto: aparência das layers que já existem (e o nome da layer das ruas) e, se o usuário
-        /// confirmar, os nomes e a altura dos textos já desenhados.
+        /// mudanças para o desenho aberto: dados do projeto, zona e escala (com a atualização dos postes e anotações),
+        /// aparência das layers que já existem (e o nome da layer das ruas) e, se o usuário confirmar, os nomes e a altura
+        /// dos textos já desenhados.
         /// </summary>
         [CommandMethod("FIBRA_CONFIGURACOES")]
-        public void EditSettings()
+        public void EditSettings() => Open(UI.SettingsForm.TabProject);
+
+        /// <summary>O antigo botão Dados do Projeto: a mesma janela, na aba Projeto (continua valendo na linha de comando).</summary>
+        [CommandMethod("FIBRA_DADOS_PROJETO")]
+        public void EditProjectData() => Open(UI.SettingsForm.TabProject);
+
+        private static void Open(int initialTab)
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+
+            ProjectInfo projectBefore = ProjectInfo.Load(db);
+            UtmSettings? zoneBefore = UtmZone.Get(db);
+            int scaleBefore = DrawingScale.Get(db);
 
             UserSettings.Reload();
             UserSettings before = UserSettings.Current.Clone();
@@ -39,8 +51,13 @@ namespace FiberPlugin.Commands
 
             UserSettings after;
             List<CableModel> cablesAfter;
+            ProjectInfo project;
+            int scale;
+            bool updateBlocks;
             using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
-                       Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings)))
+                       projectBefore, scaleBefore, zoneBefore != null,
+                       Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab)
+                   { OpenDataFolder = PluginCommands.ShowDataFolder })
             {
                 // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga
                 form.SaveChanges = f =>
@@ -57,7 +74,14 @@ namespace FiberPlugin.Commands
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK) return;
                 after = form.Settings;
                 cablesAfter = form.Cables;
+                project = form.Project;
+                scale = form.ScaleDenominator;
+                updateBlocks = form.UpdateBlocksAfter;
             }
+
+            // Aba Projeto: grava só se algo mudou (ou para o Atualizar Blocos), como fazia a janela Dados do Projeto
+            if (updateBlocks || !project.SameAs(projectBefore) || scale != scaleBefore)
+                ApplyProject(doc, project, zoneBefore, scaleBefore, scale);
 
             ed.WriteMessage($"\n[SUCESSO]: Configurações salvas ({cablesAfter.Count} cabo(s), nomes {after.Name(after.PolePrefix, 1)}, " +
                             $"{after.Name(after.CtoPrefix, 1)}, {after.Name(after.CeoPrefix, 1)}, ruas na layer {after.RoadLayer}). " +
@@ -70,6 +94,38 @@ namespace FiberPlugin.Commands
             if (poleNames || boxNames) UpdateNames(ed, db, poleNames, boxNames);
 
             if (Math.Abs(after.TextHeight - before.TextHeight) > 1e-9) ScaleCommand.ResizeTexts(ed, db, after.TextHeight / before.TextHeight);
+
+            if (updateBlocks) doc.SendStringToExecute("FIBRA_ATUALIZAR_BLOCOS ", true, false, false);
+        }
+
+        /// <summary>
+        /// Grava os dados do projeto (no desenho e no projeto.txt) e, se a zona ou a escala mudaram, grava no desenho e
+        /// oferece atualizar os postes e as anotações já desenhados (mesmo caminho dos comandos FIBRA_ZONA_UTM e FIBRA_ESCALA).
+        /// </summary>
+        private static void ApplyProject(Document doc, ProjectInfo info, UtmSettings? zoneBefore, int scaleBefore, int scale)
+        {
+            Database db = doc.Database;
+            Editor ed = doc.Editor;
+
+            string? error = info.Save(db);
+            ed.WriteMessage("\n[SUCESSO]: Dados do projeto salvos. O Memorial Descritivo, o de Esforço e as Coordenadas já abrem com eles preenchidos.");
+            if (error != null) ed.WriteMessage($"\n[AVISO]: Salvos só neste desenho; não foi possível gravar {ProjectInfo.FilePath} ({error}).");
+
+            // Zona nova (ou definida agora): grava no desenho e oferece atualizar as coordenadas dos postes
+            UtmSettings? zone = info.Zone;
+            if (zone != null && (zoneBefore == null || zoneBefore.Zone != zone.Zone || zoneBefore.South != zone.South))
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    UtmZone.Set(tr, db, zone);
+                    tr.Commit();
+                }
+                ed.WriteMessage($"\n[SUCESSO]: Zona UTM do projeto: {zone.Zone}, hemisfério {(zone.South ? "Sul" : "Norte")}.");
+                UtmZoneCommand.UpdatePoles(ed, db, zone);
+            }
+
+            // Escala nova: grava e oferece ajustar as anotações já desenhadas
+            if (scale != scaleBefore) ScaleCommand.Apply(ed, db, scaleBefore, scale);
         }
 
         /// <summary>Precisa gravar: mudou na janela ou ainda está na planilha antiga (sem o arquivo do plugin).</summary>

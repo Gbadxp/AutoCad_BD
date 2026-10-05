@@ -28,7 +28,7 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
-        /// janela Dados do Projeto, que também atualiza os postes). Null se nenhum dos dois tiver.
+        /// aba Projeto da janela Configurações, que também atualiza os postes). Null se nenhum dos dois tiver.
         /// </summary>
         public UtmSettings? Zone { get; set; }
 
@@ -41,6 +41,11 @@ namespace FiberPlugin.Core
         public static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
 
         private string[] Values => new[] { Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline };
+
+        /// <summary>Mesmos textos e mesma zona (para saber se algo mudou na aba Projeto).</summary>
+        public bool SameAs(ProjectInfo other) =>
+            Values.SequenceEqual(other.Values) &&
+            (Zone == null ? other.Zone == null : other.Zone != null && Zone.Zone == other.Zone.Zone && Zone.South == other.Zone.South);
 
         private static ProjectInfo From(string[] v) => new ProjectInfo
         {

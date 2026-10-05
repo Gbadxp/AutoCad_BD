@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.37.msi`](Instalador/FiberPlugin-1.9.37.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.38.msi`](Instalador/FiberPlugin-1.9.38.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -28,8 +28,8 @@ Opcionalmente confere também as ferramentas para compilar (.NET SDK 8 e Git).
 
 ### Primeiro uso num PC novo
 1. Rode `Verificacao/Verificar.bat` (ou instale o `.msi` da pasta `Instalador`).
-2. No AutoCAD, abra **Dados do Projeto**, clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
-3. Em cada desenho, defina a **Zona UTM** e a **Escala** (em **Dados do Projeto**) e os **Parâmetros** de cálculo.
+2. No AutoCAD, abra **Configurações** (aba Projeto), clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
+3. Em cada desenho, defina a **Zona UTM** e a **Escala** (em **Configurações**, aba Projeto) e os **Parâmetros** de cálculo.
 
 ### Gerar um instalador novo
 1. Altere `<Version>` em `FiberPlugin/FiberPlugin.csproj`.
@@ -62,7 +62,7 @@ FiberPlugin.bundle/
   desinstalar o plugin não apaga nada dessa pasta. As planilhas das versões até a 1.9.35 (`Dados\cabos.csv`,
   `postes.csv`, `tracao_ndu009.csv` e `empresa.txt`) são convertidas sozinhas na primeira abertura e guardadas em
   `Dados\Antigos`.
-- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (janela Dados do Projeto; ex.: o da pasta
+- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (Configurações, aba Projeto; ex.: o da pasta
   do projeto) ou, sem ele, a cópia que vem no pacote. Com o arquivo escolhido, um bloco novo aparece só
   de salvar o `BLOCOS.dwg`, sem reinstalar.
 
@@ -120,7 +120,7 @@ AutoCad_BD/
 comandos releem esses arquivos a cada uso.
 
 **Blocos**: o plugin usa **somente** os blocos do `BLOCOS.dwg`. Para acrescentar, alterar ou remover um
-bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (na janela Dados do Projeto). Ao inserir, a definição é copiada do
+bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (em Configurações, aba Projeto). Ao inserir, a definição é copiada do
 `BLOCOS.dwg` automaticamente, sem template; se o desenho já tiver um bloco com o mesmo nome, ele é
 substituído pela versão do `BLOCOS.dwg`. O grupo de cada bloco vem do nome e define o comando que o insere:
 POSTE/DT/CC → Postes, CTO → CTO, CEO → CEO, TRAFO/CHAVE/PARA-RAIO/ATERRAMENTO → Elétricos,
@@ -190,10 +190,11 @@ menores, até 75% do tamanho original, aparece a barra de rolagem, com o título
 Cada janela abre no último tamanho usado (guardado em `Documentos\Fiber Plugin\janelas.txt`; apague o arquivo para
 voltar ao tamanho original).
 
-### Projeto
-O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o que é do projeto:
+### Projeto e Configurações
+O botão **Configurações** (`FIBRA_CONFIGURACOES`) reúne numa janela só os dados do projeto e os do plugin. Ela abre
+na aba **Projeto**, com tudo o que é deste desenho (o comando `FIBRA_DADOS_PROJETO` continua abrindo a mesma janela):
 
-| Parte da janela | Função |
+| Aba Projeto | Função |
 |---|---|
 | Percurso, endereço, contrato, ART, início e prazo | Dados dos documentos (Memorial Descritivo, de Esforço e Coordenadas), que já abrem com eles preenchidos (veja abaixo). |
 | Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Ao trocar, oferece atualizar os textos dos postes já inseridos. Num desenho sem zona, a janela sugere a do último projeto. |
@@ -201,8 +202,8 @@ O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o
 | Pasta de Dados | Abre `Documentos\Fiber Plugin`, com o logo e as figuras do memorial (`Dados\Memorial`). |
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
-O botão **Configurações** (`FIBRA_CONFIGURACOES`) tem todos os dados do plugin e o que ele coloca sozinho no
-desenho, sem planilhas. Vale para todos os projetos (não fica no DWG):
+A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
+desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG):
 
 | Aba | Função |
 |---|---|
@@ -223,7 +224,7 @@ a janela avisa e continua aberta para tentar de novo.
 | `FIBRA` | Menu com todas as ferramentas, com busca. |
 | `FIBRA_CALCULAR_ESFORCO` | Esforço de um único cabo numa sequência de postes clicados. |
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg` escolhido no Atualizar Blocos. |
-| `FIBRA_ZONA_UTM`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da janela Dados do Projeto, pela linha de comando. |
+| `FIBRA_ZONA_UTM`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da aba Projeto de Configurações, pela linha de comando. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
 | `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID. Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
@@ -256,7 +257,7 @@ por cada um. Os dados são os mesmos do Memorial Descritivo: o que for digitado 
 **Dados do projeto salvos**: percurso, endereço da obra, contrato, ART, início e prazo ficam gravados no DWG e
 também em `Documentos\Fiber Plugin\projeto.txt` (os últimos salvos, editável no Bloco de Notas). Num desenho
 que ainda não tem algum desses dados, a janela já vem preenchida com o do arquivo. Para preencher antes, sem
-gerar documento, use o botão **Dados do Projeto**. O local e a data vêm da cidade da empresa com a data do
+gerar documento, use a aba **Projeto** do botão Configurações. O local e a data vêm da cidade da empresa com a data do
 dia. Esse arquivo fica fora do repositório, então os dados do projeto nunca vão para o GitHub.
 
 - **Dados da empresa**: aba **Empresa** do botão Configurações; campo vazio não aparece. Ficam em
@@ -341,7 +342,7 @@ executivo, confira com a base oficial do município.
 `FIBRA_GERAR_FOLHAS` monta o jogo de pranchas a partir do Model:
 
 1. Marque a área com dois cliques (retângulo em volta do trecho do projeto).
-2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, em Dados do Projeto), a sobreposição entre folhas
+2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, em Configurações > Projeto), a sobreposição entre folhas
    vizinhas (padrão 5%) e o prefixo dos nomes (padrão `FL`).
 3. O plugin divide a área numa grade de folhas, escolhe a orientação (paisagem ou retrato) que usa
    menos folhas e descarta os pedaços sem nenhum elemento do desenho.
@@ -359,7 +360,7 @@ Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve
 ## Escala das anotações
 
 Os textos dos vãos, os textos de identificação, a seta de esforço e o símbolo da CTO/CEO têm tamanho
-definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** da janela Dados do Projeto você informa a
+definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** da aba Projeto de Configurações você informa a
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
 

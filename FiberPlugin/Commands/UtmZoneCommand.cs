@@ -29,7 +29,7 @@ namespace FiberPlugin.Commands
 
         /// <summary>
         /// Depois de trocar a zona: pergunta se atualiza os textos e atributos de coordenada dos postes já inseridos.
-        /// Usado também pela janela Dados do Projeto.
+        /// Usado também pela aba Projeto da janela Configurações.
         /// </summary>
         internal static void UpdatePoles(Editor ed, Database db, UtmSettings utm)
         {
