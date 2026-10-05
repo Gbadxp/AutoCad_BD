@@ -99,36 +99,37 @@ namespace FiberPlugin.UI
             }
         }
 
-        /// <summary>Tamanho que a grade ocupa (24 matizes x 10 variações, mais a linha das cores padrão e dos cinzas).</summary>
-        public Size Measure()
-        {
-            int cell = Theme.Scale(this, 16);
-            return new Size(24 * cell, 10 * cell + Theme.Scale(this, 12) + Theme.Scale(this, 22));
-        }
-
+        /// <summary>
+        /// 24 matizes x 10 variações em cima e, embaixo, as cores padrão (1 a 9) à esquerda e os cinzas à direita.
+        /// O tamanho das células acompanha o tamanho da janela; a grade fica centralizada.
+        /// </summary>
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
             _cells.Clear();
-            int cell = Theme.Scale(this, 16);
-            int gap = Theme.Scale(this, 1);
+            int spacing = Theme.Scale(this, 12);
+            // Altura = 10 células + espaço + linha de baixo (células grandes, 22/16 da célula)
+            int cell = Math.Max(6, (int)Math.Min(Width / 24.0, (Height - spacing) / (10 + 22 / 16.0)));
+            int big = cell * 22 / 16;
+            int gap = Math.Max(1, cell / 16);
+            int left = (Width - 24 * cell) / 2;
 
             for (short index = 10; index <= 249; index++)
             {
                 int column = index / 10 - 1, row = index % 10;
-                _cells.Add((index, new Rectangle(column * cell, row * cell, cell - gap, cell - gap)));
+                _cells.Add((index, new Rectangle(left + column * cell, row * cell, cell - gap, cell - gap)));
             }
 
-            int top = 10 * cell + Theme.Scale(this, 12);
-            int big = Theme.Scale(this, 22);
+            int top = 10 * cell + spacing;
+            int bigGap = Math.Max(2, big / 11);
             for (short index = 1; index <= 9; index++)
             {
-                _cells.Add((index, new Rectangle((index - 1) * big, top, big - Theme.Scale(this, 2), big - Theme.Scale(this, 2))));
+                _cells.Add((index, new Rectangle(left + (index - 1) * big, top, big - bigGap, big - bigGap)));
             }
-            int grays = Width - 6 * big;
+            int grays = left + 24 * cell - 6 * big;
             for (short index = 250; index <= 255; index++)
             {
-                _cells.Add((index, new Rectangle(grays + (index - 250) * big, top, big - Theme.Scale(this, 2), big - Theme.Scale(this, 2))));
+                _cells.Add((index, new Rectangle(grays + (index - 250) * big, top, big - bigGap, big - bigGap)));
             }
         }
 
@@ -202,12 +203,14 @@ namespace FiberPlugin.UI
         {
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - " + title;
+            // Grade de 24 x 16 = 384 de largura e 10 x 16 + 12 + 22 = 194 de altura, com margens, informação e rodapé
+            ClientSize = new Size(420, 356);
 
             var header = new HeaderPanel { IconCommand = "FIBRA_CONFIGURACOES", Title = title, Subtitle = "Cores do AutoCAD (1 a 255)" };
-            _grid = new AciGrid { Selected = current ?? defaultColor ?? 7, Location = new Point(18, 12) };
-            _info = new Label { AutoSize = false, Height = 24, ForeColor = Theme.Text, TextAlign = ContentAlignment.MiddleLeft };
+            _grid = new AciGrid { Selected = current ?? defaultColor ?? 7, Dock = DockStyle.Fill };
+            _info = new Label { AutoSize = false, Height = 30, Dock = DockStyle.Bottom, ForeColor = Theme.Text, TextAlign = ContentAlignment.MiddleLeft };
 
-            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background };
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(18, 14, 18, 2) };
             body.Controls.Add(_grid);
             body.Controls.Add(_info);
 
@@ -233,16 +236,7 @@ namespace FiberPlugin.UI
             _grid.Confirmed += (s, e) => Confirm();
             _grid.SelectedChanged += (s, e) => ShowInfo();
             _grid.HoverChanged += (s, e) => ShowInfo();
-            Load += (s, e) =>
-            {
-                // Tamanho em pixels da tela (já escalado pelo DPI)
-                _grid.Size = _grid.Measure();
-                _grid.Location = new Point(Theme.Scale(this, 18), Theme.Scale(this, 14));
-                _info.SetBounds(_grid.Left, _grid.Bottom + Theme.Scale(this, 8), _grid.Width, Theme.Scale(this, 24));
-                ClientSize = new Size(_grid.Right + Theme.Scale(this, 18),
-                    header.Height + _info.Bottom + Theme.Scale(this, 6) + footer.Height);
-                ShowInfo();
-            };
+            ShowInfo();
             Shown += (s, e) => _grid.Focus();
         }
 

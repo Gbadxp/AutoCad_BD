@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.36.msi`](Instalador/FiberPlugin-1.9.36.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.37.msi`](Instalador/FiberPlugin-1.9.37.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -183,6 +183,12 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
 | Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
 | Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto (veja abaixo). |
+
+### Janelas
+Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
+menores, até 75% do tamanho original, aparece a barra de rolagem, com o título, as abas e os botões sempre à vista.
+Cada janela abre no último tamanho usado (guardado em `Documentos\Fiber Plugin\janelas.txt`; apague o arquivo para
+voltar ao tamanho original).
 
 ### Projeto
 O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o que é do projeto:

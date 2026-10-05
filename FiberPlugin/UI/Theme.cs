@@ -160,22 +160,29 @@ namespace FiberPlugin.UI
             form.BackColor = Background;
             form.ForeColor = Text;
             form.Font = Body;
-            form.FormBorderStyle = FormBorderStyle.FixedDialog;
-            form.MaximizeBox = false;
+            // Tamanho ajustável pelas bordas, com mínimo e tamanho lembrado (WindowSizes)
+            form.FormBorderStyle = FormBorderStyle.Sizable;
+            form.SizeGripStyle = SizeGripStyle.Hide;
+            form.MaximizeBox = true;
             form.MinimizeBox = false;
             form.ShowInTaskbar = false;
             form.StartPosition = FormStartPosition.CenterScreen;
             if (Current.IsDark) form.HandleCreated += (s, e) => UseDarkTitleBar(form.Handle);
+            form.Load += (s, e) => WindowSizes.Attach(form);
         }
 
         /// <summary>Barras de rolagem escuras no tema escuro (Windows 10 1809+).</summary>
         public static void UseDarkScrollbars(Control control)
         {
             if (!Current.IsDark) return;
-            control.HandleCreated += (s, e) =>
-            {
-                try { SetWindowTheme(control.Handle, "DarkMode_Explorer", null); } catch { /* Windows antigo: mantém o padrão */ }
-            };
+            control.HandleCreated += (s, e) => ApplyDarkScrollbars(control);
+        }
+
+        /// <summary>Barras de rolagem escuras já, para um controle que já tem janela (no tema escuro).</summary>
+        public static void ApplyDarkScrollbars(Control control)
+        {
+            if (!Current.IsDark || !control.IsHandleCreated) return;
+            try { SetWindowTheme(control.Handle, "DarkMode_Explorer", null); } catch { /* Windows antigo: mantém o padrão */ }
         }
 
         public static int Scale(Control control, int logicalPixels)
