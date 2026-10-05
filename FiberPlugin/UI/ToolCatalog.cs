@@ -75,7 +75,9 @@ namespace FiberPlugin.UI
             ("Projeto", new[]
             {
                 new Tool("FIBRA_DADOS_PROJETO", "Dados do Projeto",
-                    "Percurso, contrato, ART, zona UTM, escala, pasta de dados e Atualizar Blocos", "Dados do\nProjeto")
+                    "Percurso, contrato, ART, zona UTM, escala, pasta de dados e Atualizar Blocos", "Dados do\nProjeto"),
+                new Tool("FIBRA_CONFIGURACOES", "Configurações",
+                    "Cabos e cores, modelos de poste, nomes (P-01, CTO-01) e tamanhos que o plugin coloca sozinho", "Configurações")
             })
         };
     }

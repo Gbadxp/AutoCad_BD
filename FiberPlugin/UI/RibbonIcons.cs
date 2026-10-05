@@ -82,6 +82,7 @@ namespace FiberPlugin.UI
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
             ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
+            ["FIBRA_CONFIGURACOES"] = PaintSettings,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
@@ -405,6 +406,35 @@ namespace FiberPlugin.UI
             }
             dc.DrawGeometry(ink.Yellow, Ink.Pen(ink.YellowDark, 0.9), G("M29.5,15.5 L32,18 L22,28 L18.6,29 L19.5,25.5 Z"));
             dc.DrawGeometry(ink.Red, null, G("M29.5,15.5 L32,18 L30.6,19.4 L28.1,16.9 Z"));
+        }
+
+        /// <summary>Engrenagem com o centro azul e três amostras de cor (cabos) no canto.</summary>
+        private static void PaintSettings(M.DrawingContext dc, Ink ink)
+        {
+            const double cx = 14, cy = 14;
+            var gear = new M.StreamGeometry();
+            using (M.StreamGeometryContext g = gear.Open())
+            {
+                bool first = true;
+                for (int k = 0; k < 8; k++)
+                {
+                    double a = k * Math.PI / 4;
+                    foreach (var (offset, radius) in new[] { (-0.38, 8.6), (-0.2, 12.2), (0.2, 12.2), (0.38, 8.6) })
+                    {
+                        var p = new W.Point(cx + radius * Math.Cos(a + offset), cy + radius * Math.Sin(a + offset));
+                        if (first) g.BeginFigure(p, true, true);
+                        else g.LineTo(p, true, true);
+                        first = false;
+                    }
+                }
+            }
+            gear.Freeze();
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.3), gear);
+            dc.DrawEllipse(ink.Blue, Ink.Pen(ink.Line, 1.1), new W.Point(cx, cy), 3.6, 3.6);
+
+            dc.DrawRectangle(ink.Green, Ink.Pen(ink.Line, 0.8), new W.Rect(20, 22, 4, 7));
+            dc.DrawRectangle(ink.Red, Ink.Pen(ink.Line, 0.8), new W.Rect(24, 22, 4, 7));
+            dc.DrawRectangle(ink.Fiber, Ink.Pen(ink.Line, 0.8), new W.Rect(28, 22, 3, 7));
         }
 
         private static void PaintSheets(M.DrawingContext dc, Ink ink)

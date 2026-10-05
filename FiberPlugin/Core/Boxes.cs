@@ -1,4 +1,3 @@
-using System.Globalization;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 
@@ -11,8 +10,8 @@ namespace FiberPlugin.Core
         public int Number { get; set; }
         public string PoleHandle { get; set; } = "";              // Poste mais próximo na inserção ("" = nenhum)
 
-        /// <summary>Identificação: CTO-01, CEO-03...</summary>
-        public string Id => Kind + "-" + Number.ToString("D2", CultureInfo.InvariantCulture);
+        /// <summary>Identificação: CTO-01, CEO-03... (prefixos e dígitos da janela Configurações).</summary>
+        public string Id => UserSettings.Current.Name(UserSettings.Current.BoxPrefix(Kind), Number);
     }
 
     public class BoxInfo

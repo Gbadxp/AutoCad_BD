@@ -17,28 +17,30 @@ namespace FiberPlugin.Core
 
         // Tamanhos das anotações NA ESCALA DE REFERÊNCIA 1:1000 (2,0 = 2 mm no papel).
         // Em outra escala (comando FIBRA_ESCALA) eles são multiplicados por DrawingScale.Factor.
+        // Os editáveis vêm da janela Configurações (UserSettings).
 
         // Textos
-        public const double TextHeight = 2.0;
-        public const double LabelGap = TextHeight * 0.25;   // Distância entre o texto do vão e a linha do cabo
+        public static double TextHeight => UserSettings.Current.TextHeight;
+        public const double LabelGapRatio = 0.25;                         // Distância texto/linha, em alturas de texto
+        public static double LabelGap => TextHeight * LabelGapRatio;     // Entre o texto do vão e a linha do cabo
 
         // Seta de esforço desenhada quando o desenho não tem o bloco "SETA DE ESFORÇO"
         public const double EffortArrowGap = 1.5;           // Espaço entre o centro do poste e o início da seta
-        public const double EffortArrowLength = 18.0;       // Comprimento total da seta
+        public static double EffortArrowLength => UserSettings.Current.EffortArrowLength; // Comprimento total da seta
         public const double EffortArrowHeadLength = 2.5;    // Comprimento da ponta
         public const double EffortArrowHeadWidth = 1.2;     // Largura da base da ponta
 
         // Símbolos de CTO/CEO: maior lado com 7 mm no papel (7 m no desenho em 1:1000, 14 m em 1:2000...).
         // Os blocos são ajustados a esse tamanho na inserção, independente da unidade em que foram
         // desenhados no BLOCOS.dwg.
-        public const double BoxSymbolSize = 7.0;
+        public static double BoxSymbolSize => UserSettings.Current.BoxSymbolSize;
 
-        // Roteamento automático: afastamento do cabo em relação ao centro do poste
-        public const double AutoRouteOffset = 1.8;
+        // Roteamento automático: afastamento do cabo em relação ao centro do poste (1,8 m por padrão)
+        public static double AutoRouteOffset => UserSettings.Current.AutoRouteOffset;
 
         // Raio em volta do poste dentro do qual um vértice de cabo é considerado "preso" ao poste.
-        // Precisa ser maior que AutoRouteOffset (o roteamento garante vértices a exatamente 1,8 m do poste).
-        public const double PoleMatchTolerance = 2.5;
+        // Precisa ser maior que AutoRouteOffset (o roteamento garante vértices a exatamente essa distância do poste).
+        public static double PoleMatchTolerance => Math.Max(2.5, AutoRouteOffset + 0.7);
 
         // Raio para vincular um ponto de esforço ao poste mais próximo (Esforço no Percurso e no Poste)
         public const double PoleLinkRadius = 10.0;

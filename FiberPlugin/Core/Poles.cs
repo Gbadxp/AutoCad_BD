@@ -31,8 +31,8 @@ namespace FiberPlugin.Core
 
         public string TypeName => Type == Circular ? "Circular" : "Duplo T";
 
-        /// <summary>Número formatado: P-01, P-02...</summary>
-        public static string NumberText(int number) => "P-" + number.ToString("D2", CultureInfo.InvariantCulture);
+        /// <summary>Número formatado: P-01, P-02... (prefixo e dígitos da janela Configurações).</summary>
+        public static string NumberText(int number) => UserSettings.Current.Name(UserSettings.Current.PolePrefix, number);
     }
 
     public class PoleInfo

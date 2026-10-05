@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.34.msi`](Instalador/FiberPlugin-1.9.34.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.35.msi`](Instalador/FiberPlugin-1.9.35.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -97,7 +97,7 @@ AutoCad_BD/
 │   ├── Models/             catálogo de cabos
 │   ├── UI/                 aba Fibra, menu e janelas
 │   ├── Dados/              dados editáveis (Excel / Bloco de Notas)
-│   │   ├── cabos.csv       cabos (NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm)
+│   │   ├── cabos.csv       cabos (NomeCompleto;NomeCurto;Peso_kg_km;Fibras;Diametro_mm;Cor)
 │   │   ├── postes.csv      modelos de poste (Tipo;Altura_m;Esforco_daN)
 │   │   ├── tracao_ndu009.csv  Tabela 08 da NDU 009 (tração por fibras e vão)
 │   │   ├── empresa.txt     dados da empresa para o Memorial Descritivo
@@ -116,8 +116,9 @@ AutoCad_BD/
     └── verificar.ps1
 ```
 
-**Dados**: as planilhas são lidas a cada comando. Basta editar no Excel e salvar, sem recompilar.
-Aceita CSV salvo pelo Excel em português (separador `;`, vírgula decimal).
+**Dados**: as planilhas são lidas a cada comando. Basta editar no Excel (ou nas abas Cabos e Postes do botão
+Configurações) e salvar, sem recompilar. Aceita CSV salvo pelo Excel em português (separador `;`, vírgula decimal).
+A coluna `Cor` do `cabos.csv` é opcional (número de cor do AutoCAD, 1 a 255); vazia, o cabo usa a cor padrão.
 
 **Blocos**: o plugin usa **somente** os blocos do `BLOCOS.dwg`. Para acrescentar, alterar ou remover um
 bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (na janela Dados do Projeto). Ao inserir, a definição é copiada do
@@ -130,7 +131,8 @@ Um `BLOCOS.bak` que apareça na pasta é o backup automático do AutoCAD ao salv
 Regras dos blocos:
 - **Postes DT e CC**: o Inserir Postes usa um bloco para cada tipo, achado pelo nome nesta ordem:
   exatamente `DT`/`CC`; nome com DT ou CC como palavra (ex.: `POSTE DT`); `DUPLO T`/`CIRCULAR`.
-- **Número**: atributo `NUMERO` (ou `NÚMERO`/`ID`), preenchido com P-01, CTO-01... e usado pelo Renumerar.
+- **Número**: atributo `NUMERO` (ou `NÚMERO`/`ID`), preenchido com P-01, CTO-01... (prefixos do botão
+  Configurações) e usado pelo Renumerar.
 - **Tipo do poste**: atributo `NOME` (ou `TIPO`/`INFO`/`DESCRICAO`), preenchido com a altura/esforço (11/300).
 - **Coordenadas**: atributos `COORDENADA_X`, `COORDENADA_Y` e `ZONA` são preenchidos na inserção
   (postes e elétricos).
@@ -193,6 +195,20 @@ O botão **Dados do Projeto** (`FIBRA_DADOS_PROJETO`) abre uma janela com tudo o
 | Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. |
 | Pasta de Dados | Abre a pasta com as planilhas de cabos e postes e os dados do memorial (empresa.txt, logo e figuras). |
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
+
+O botão **Configurações** (`FIBRA_CONFIGURACOES`) muda o que o plugin coloca sozinho no desenho. Vale para todos os
+projetos (não fica no DWG):
+
+| Aba | Função |
+|---|---|
+| Cabos | Tabela do `cabos.csv`: acrescente, edite ou remova cabos e escolha a **cor** de cada um (paleta com as 255 cores do AutoCAD; sem cor própria, usa a cor padrão dos cabos). Ao salvar, as layers dos cabos já lançados no desenho aberto mudam de cor. Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com a planilha. |
+| Postes | Tabela do `postes.csv`: modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). |
+| Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
+| Tamanhos e cores | Altura dos textos, símbolo da CTO/CEO e seta de esforço (em mm no papel na escala 1:1000), afastamento do cabo no roteamento automático (1,8 m) e cores das layers dos cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. **Restaurar padrão** volta aos valores originais. |
+
+Cabos e postes continuam nas planilhas da pasta Dados (dá para editar no Excel também); o resto fica em
+`Documentos\Fiber Plugin\configuracoes.txt`. Uma planilha só é regravada se mudou na janela; aberta no Excel, a
+janela avisa e continua aberta para tentar de novo.
 
 ### Só pela linha de comando
 | Comando | Função |

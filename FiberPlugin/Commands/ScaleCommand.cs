@@ -94,6 +94,29 @@ namespace FiberPlugin.Commands
             return found;
         }
 
+        /// <summary>
+        /// Altura dos textos mudada na janela Configurações: pergunta se ajusta os textos dos vãos e dos postes/CTO/CEO
+        /// já desenhados (altura multiplicada por <paramref name="ratio"/>, mantendo o lugar de cada um).
+        /// </summary>
+        internal static void ResizeTexts(Editor ed, Database db, double ratio)
+        {
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                Annotations existing = FindAnnotations(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                int count = existing.SpanLabels.Count + existing.PointLabels.Count;
+                if (count == 0 || !CadHelpers.AskYes(ed, $"\nAjustar a altura dos {count} textos já desenhados neste desenho? [Sim/Nao] <Sim>: "))
+                {
+                    tr.Commit();
+                    return;
+                }
+
+                RescaleTexts(tr, existing, ratio);
+                tr.Commit();
+                ed.WriteMessage($"\n[INFO]: {count} texto(s) ajustado(s).");
+            }
+            ed.Regen();
+        }
+
         private static int Rescale(Transaction tr, Annotations annotations, double ratio)
         {
             // Setas de esforço (seta + textos, ou bloco): escala em torno do centro do poste
@@ -103,11 +126,17 @@ namespace FiberPlugin.Commands
                 ent.TransformBy(Matrix3d.Scaling(ratio, pole));
             }
 
+            RescaleTexts(tr, annotations, ratio);
+            return annotations.Count;
+        }
+
+        private static void RescaleTexts(Transaction tr, Annotations annotations, double ratio)
+        {
             // Textos dos vãos: altura nova e afastamento da linha proporcional, sem mudar de vão
             foreach (ObjectId id in annotations.SpanLabels)
             {
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
-                double extraGap = txt.TextHeight * (FiberSettings.LabelGap / FiberSettings.TextHeight) * (ratio - 1);
+                double extraGap = txt.TextHeight * FiberSettings.LabelGapRatio * (ratio - 1);
                 var up = new Vector3d(-Math.Sin(txt.Rotation), Math.Cos(txt.Rotation), 0);
 
                 if (txt.Attachment == AttachmentPoint.BottomCenter) txt.Location += up * extraGap;
@@ -122,9 +151,6 @@ namespace FiberPlugin.Commands
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 txt.TextHeight *= ratio;
             }
-
-            return annotations.Count;
         }
-
     }
 }

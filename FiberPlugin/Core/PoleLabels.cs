@@ -88,7 +88,7 @@ namespace FiberPlugin.Core
             }
             if (existing.Count > 0) return;
 
-            CadHelpers.EnsureLayer(tr, db, layer, 7);
+            CadHelpers.EnsureLayer(tr, db, layer, below ? UserSettings.Current.BoxLabelColor : UserSettings.Current.PoleLabelColor);
             double factor = DrawingScale.Factor(db);
             Point3d anchor = Anchor(ExtentsOf(owner, Offset * factor), below, Gap * factor);
             MText label = CadHelpers.AddText(tr, space, anchor, contents, 0,

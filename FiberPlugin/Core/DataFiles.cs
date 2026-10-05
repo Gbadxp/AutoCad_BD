@@ -10,6 +10,26 @@ namespace FiberPlugin.Core
     /// </summary>
     public static class DataFiles
     {
+        /// <summary>Números gravados nas planilhas: vírgula decimal, como o Excel em português.</summary>
+        public static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
+
+        /// <summary>
+        /// Grava uma planilha da pasta Dados em UTF-8 com BOM (o Excel abre com os acentos certos). Retorna o erro
+        /// (null se gravou), por exemplo com a planilha aberta no Excel.
+        /// </summary>
+        public static string? Write(string fileName, string content)
+        {
+            string? path = PluginPaths.DataFile(fileName);
+            if (path == null) return $"pasta {PluginPaths.DataFolderName} não encontrada";
+            try
+            {
+                File.WriteAllText(path, content, new UTF8Encoding(true));
+                return null;
+            }
+            catch (IOException ex) { return $"{fileName}: {ex.Message} Feche a planilha no Excel e tente de novo."; }
+            catch (UnauthorizedAccessException ex) { return $"{fileName}: {ex.Message}"; }
+        }
+
         /// <summary>Lê todas as linhas, mesmo com o arquivo aberto no Excel.</summary>
         public static string[] ReadAllLines(string path)
         {

@@ -43,6 +43,9 @@ namespace FiberPlugin.Core
             return FiberSettings.CableLayerPrefix + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));
         }
 
+        /// <summary>Cor da layer do cabo: a da planilha (coluna Cor) ou a cor padrão dos cabos da janela Configurações.</summary>
+        public static short ColorFor(CableModel cable) => cable.Color ?? UserSettings.Current.CableColor;
+
         /// <summary>Comprimento de cada vão de uma sequência de pontos.</summary>
         public static List<double> SpanLengths(IList<Point3d> points)
         {
@@ -58,7 +61,7 @@ namespace FiberPlugin.Core
             IList<Point3d> vertices, IList<double> spanLengths, CableModel cable)
         {
             string layer = LayerFor(cable);
-            CadHelpers.EnsureLayer(tr, db, layer, 3); // 3 = Verde
+            CadHelpers.EnsureLayer(tr, db, layer, ColorFor(cable));
 
             var poly = new Polyline { Layer = layer };
             for (int i = 0; i < vertices.Count; i++)

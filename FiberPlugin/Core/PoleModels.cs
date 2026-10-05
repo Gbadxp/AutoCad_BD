@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using Autodesk.AutoCAD.EditorInput;
 
 namespace FiberPlugin.Core
@@ -11,14 +12,26 @@ namespace FiberPlugin.Core
     public static class PoleModels
     {
         public const string FileName = "postes.csv";
+        public const string Header = "Tipo;Altura_m;Esforco_daN";
 
         public static List<PoleData> Load(Editor? ed = null)
         {
+            var warnings = new List<string>();
+            List<PoleData> models = Read(warnings, out string? error);
+            if (error != null) ed?.WriteMessage($"\n[ERRO]: {error}");
+            foreach (string warning in warnings) ed?.WriteMessage($"\n[AVISO] {FileName}: {warning}");
+            return models;
+        }
+
+        /// <summary>Modelos da planilha, sem depender do AutoCAD (linhas ignoradas em <paramref name="warnings"/>).</summary>
+        public static List<PoleData> Read(List<string> warnings, out string? error)
+        {
+            error = null;
             var models = new List<PoleData>();
             string? path = PluginPaths.DataFile(FileName);
             if (path == null || !File.Exists(path))
             {
-                ed?.WriteMessage($"\n[ERRO]: Planilha de postes não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}).");
+                error = $"Planilha de postes não encontrada ({path ?? PluginPaths.DataFolderName + "/" + FileName}).";
                 return models;
             }
 
@@ -34,12 +47,12 @@ namespace FiberPlugin.Core
 
                     if (!validNumbers)
                     {
-                        if (lineNumber > 1) ed?.WriteMessage($"\n[AVISO] {FileName}: linha {lineNumber} ignorada (altura ou esforço inválido).");
+                        if (lineNumber > 1) warnings.Add($"linha {lineNumber} ignorada (altura ou esforço inválido).");
                         continue;
                     }
                     if (type != PoleData.DoubleT && type != PoleData.Circular)
                     {
-                        ed?.WriteMessage($"\n[AVISO] {FileName}: linha {lineNumber} ignorada (tipo '{cols[0]}': use DT ou CC).");
+                        warnings.Add($"linha {lineNumber} ignorada (tipo '{cols[0]}': use DT ou CC).");
                         continue;
                     }
 
@@ -48,11 +61,27 @@ namespace FiberPlugin.Core
             }
             catch (IOException ex)
             {
-                ed?.WriteMessage($"\n[ERRO]: Não foi possível ler '{path}' ({ex.Message}).");
+                error = $"Não foi possível ler '{path}' ({ex.Message}).";
             }
 
             return models;
         }
+
+        /// <summary>Conteúdo da planilha para estes modelos (números com vírgula, como o Excel em português).</summary>
+        public static string ToCsv(IEnumerable<PoleData> models)
+        {
+            var sb = new StringBuilder(Header + "\r\n");
+            foreach (PoleData m in models)
+            {
+                sb.Append(m.Type).Append(';')
+                  .Append(m.HeightM.ToString("0.###", DataFiles.Br)).Append(';')
+                  .Append(m.EffortDaN.ToString("0.###", DataFiles.Br)).Append("\r\n");
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Grava a planilha de postes. Retorna o erro (null se gravou).</summary>
+        public static string? Save(IEnumerable<PoleData> models) => DataFiles.Write(FileName, ToCsv(models));
 
         /// <summary>
         /// Bloco da biblioteca para o tipo de poste. Ordem de procura:

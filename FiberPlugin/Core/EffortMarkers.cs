@@ -44,7 +44,7 @@ namespace FiberPlugin.Core
             _scale = DrawingScale.Factor(db);
             _attachHeight = CalcSettings.Get(db).AttachHeightM;
 
-            CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, 4); // 4 = Ciano, como no modelo de projeto
+            CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, UserSettings.Current.EffortColor);
 
             foreach (ObjectId id in space)
             {
