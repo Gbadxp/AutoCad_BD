@@ -11,10 +11,11 @@ namespace FiberPlugin.Commands
     public class AutoNumberCommand
     {
         /// <summary>
-        /// Numera os postes sozinho: clica-se no primeiro e a numeração segue os cabos (o mesmo cabo até o fim, depois as
-        /// derivações); postes sem cabo entram no fim, pela proximidade. As CTO e CEO podem ser renumeradas junto, na
-        /// ordem dos postes em que estão. Em todos os postes do desenho ou só nos selecionados (os números dos outros
-        /// são pulados). Desfaz com U, como qualquer comando.
+        /// Numera os postes sozinho: clica-se no primeiro (no poste ou no texto dele), digita-se o número dele (1, P1 ou
+        /// P-01) e a numeração segue os cabos (o mesmo cabo até o fim, depois as derivações); postes sem cabo entram no
+        /// fim, pela proximidade. As CTO e CEO podem ser renumeradas junto, na ordem dos postes em que estão. Em todos os
+        /// postes do desenho ou, com Selecionar antes do clique, só nos selecionados (os números dos outros são pulados).
+        /// Desfaz com U, como qualquer comando.
         /// </summary>
         [CommandMethod("FIBRA_NUMERAR_AUTO")]
         public void AutoNumber()
@@ -23,19 +24,7 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            // 1. Quais postes
-            string? scope = CadHelpers.AskKeyword(ed, "\nNumeração automática dos postes [Todos/Selecionar] <Todos>: ", "Todos Selecionar", "Todos");
-            if (scope == null) return;
-            HashSet<ObjectId>? selected = null;
-            if (scope == "Selecionar")
-            {
-                var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "INSERT") });
-                PromptSelectionResult psr = ed.GetSelection(new PromptSelectionOptions { MessageForAdding = "\nSelecione os postes a numerar: " }, filter);
-                if (psr.Status != PromptStatus.OK) return;
-                selected = new HashSet<ObjectId>(psr.Value.GetObjectIds());
-            }
-
-            List<PoleInfo> all, poles;
+            List<PoleInfo> all;
             List<BoxInfo> boxes;
             var cables = new List<List<Point3d>>();
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -50,31 +39,53 @@ namespace FiberPlugin.Commands
                 }
                 tr.Commit();
             }
-            poles = selected == null ? all : all.Where(p => selected.Contains(p.Id)).ToList();
-            if (poles.Count == 0)
+            if (all.Count == 0)
             {
-                ed.WriteMessage(selected == null
-                    ? "\n[AVISO]: Nenhum poste inserido pelo plugin no desenho (Inserir Postes)."
-                    : "\n[AVISO]: Nenhum poste do plugin na seleção.");
+                ed.WriteMessage("\n[AVISO]: Nenhum poste inserido pelo plugin no desenho (Inserir Postes).");
                 return;
             }
 
-            // 2. Primeiro poste: o mais perto do clique (pode clicar no texto dele)
+            // 1. Primeiro poste: o clique já é a primeira pergunta (todos os postes do desenho); Selecionar limita a numeração.
+            //    Vale o poste mais perto do clique, ou o do texto em que se clicou
+            List<PoleInfo> poles = all;
+            HashSet<ObjectId>? selected = null;
             PoleInfo? first = null;
             while (first == null)
             {
-                PromptPointResult ppr = ed.GetPoint("\nClique no primeiro poste da numeração: ");
+                PromptPointOptions ppo = selected == null
+                    ? new PromptPointOptions($"\nClique no primeiro poste da numeração ({all.Count} postes do desenho) [Selecionar]: ", "Selecionar")
+                    : new PromptPointOptions($"\nClique no primeiro poste da numeração ({poles.Count} postes selecionados): ");
+                PromptPointResult ppr = ed.GetPoint(ppo);
+                if (ppr.Status == PromptStatus.Keyword)
+                {
+                    var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "INSERT") });
+                    PromptSelectionResult psr = ed.GetSelection(new PromptSelectionOptions { MessageForAdding = "\nSelecione os postes a numerar: " }, filter);
+                    if (psr.Status != PromptStatus.OK) return;
+                    var ids = new HashSet<ObjectId>(psr.Value.GetObjectIds());
+                    List<PoleInfo> chosen = all.Where(p => ids.Contains(p.Id)).ToList();
+                    if (chosen.Count == 0)
+                    {
+                        ed.WriteMessage("\n[AVISO]: Nenhum poste do plugin na seleção.");
+                        continue;
+                    }
+                    selected = ids;
+                    poles = chosen;
+                    continue;
+                }
                 if (ppr.Status != PromptStatus.OK) return;
-                first = Poles.Nearest(poles, ppr.Value.TransformBy(ed.CurrentUserCoordinateSystem), FiberSettings.PoleLinkRadius);
-                if (first == null) ed.WriteMessage($"\n[AVISO]: Nenhum poste a numerar a até {FiberSettings.PoleLinkRadius:F0} m do clique.");
-            }
 
-            // 3. Número do primeiro (os números dos postes que ficam de fora são pulados)
+                Point3d point = ppr.Value.TransformBy(ed.CurrentUserCoordinateSystem);
+                first = Poles.Nearest(poles, point, FiberSettings.PoleLinkRadius) ?? PoleOfLabelAt(db, point, poles);
+                if (first == null) ed.WriteMessage($"\n[AVISO]: Nenhum poste a numerar no clique: clique no poste (até {FiberSettings.PoleLinkRadius:F0} m dele) ou no texto dele.");
+            }
+            ed.WriteMessage($"\n[INFO]: Primeiro poste: o que hoje é {PoleData.NumberText(first.Data!.Number)}.");
+
+            // 2. Número do primeiro: 1, P1 ou P-01 (os números dos postes que ficam de fora são pulados)
             var others = new HashSet<int>(all.Where(p => !poles.Contains(p)).Select(p => p.Data!.Number));
             int? start = Poles.AskNumber(ed, Poles.NextFree(others, selected == null ? 1 : poles.Min(p => p.Data!.Number)), "do primeiro poste");
             if (start == null) return;
 
-            // 4. CTO e CEO dos postes numerados
+            // 3. CTO e CEO dos postes numerados
             // Poste gravado na caixa; se ele estiver longe dela (desenho copiado: o handle é do poste original), o mais perto
             var poleByHandle = all.ToDictionary(p => p.Id.Handle.ToString());
             PoleInfo? PoleOf(BoxInfo box) =>
@@ -90,7 +101,7 @@ namespace FiberPlugin.Commands
             bool renumberBoxes = ownBoxes.Count > 0 &&
                 CadHelpers.AskYes(ed, $"\nNumerar também as {ownBoxes.Count} CTO/CEO desses postes, na ordem deles? [Sim/Nao] <Sim>: ");
 
-            // 5. Ordem pelos cabos e números novos (os postes fora da seleção só dão passagem ao cabo)
+            // 4. Ordem pelos cabos e números novos (os postes fora da seleção só dão passagem ao cabo)
             var (order, withoutCable) = AutoNumbering.Order(poles.Select(p => p.Position).ToList(), poles.IndexOf(first), cables,
                 FiberSettings.PoleLinkRadius, all.Where(p => !poles.Contains(p)).Select(p => p.Position).ToList());
             var newNumber = new Dictionary<PoleInfo, int>();
@@ -118,7 +129,7 @@ namespace FiberPlugin.Commands
                 }
             }
 
-            // 6. Grava (um bloco por transação: com o texto em layer travada, o bloco também fica como estava). O texto de cada
+            // 5. Grava (um bloco por transação: com o texto em layer travada, o bloco também fica como estava). O texto de cada
             // bloco é levantado uma vez, já com o desenho copiado resolvido (veja PoleLabels.IndexLabels)
             Dictionary<string, List<ObjectId>> labels;
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -146,7 +157,7 @@ namespace FiberPlugin.Commands
                       ref changedBoxes);
             }
 
-            // 7. Resumo
+            // 6. Resumo
             ed.WriteMessage($"\n[SUCESSO]: {changedPoles} poste(s) numerado(s) de {PoleData.NumberText(newNumber.Values.Min())} a {PoleData.NumberText(newNumber.Values.Max())}, " +
                             $"seguindo os cabos a partir do {PoleData.NumberText(newNumber[first])}.");
             if (withoutCable > 0)
@@ -165,6 +176,31 @@ namespace FiberPlugin.Commands
         }
 
         private const string LockedLayer = "layer travada";
+
+        /// <summary>
+        /// Poste do texto de identificação em que se clicou (o texto pode estar longe do poste): pelo vínculo gravado no
+        /// texto ou, se ele não bater com um dos postes, pelo número escrito na primeira linha. Null se o clique não está
+        /// num texto de poste.
+        /// </summary>
+        private static PoleInfo? PoleOfLabelAt(Database db, Point3d point, List<PoleInfo> poles)
+        {
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                foreach (ObjectId id in CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead))
+                {
+                    if (tr.GetObject(id, OpenMode.ForRead) is not MText txt || XDataTags.GetPoleLabelOwner(txt) is not string owner) continue;
+                    Extents3d e;
+                    try { e = txt.GeometricExtents; }
+                    catch (Autodesk.AutoCAD.Runtime.Exception) { continue; }
+                    if (point.X < e.MinPoint.X || point.X > e.MaxPoint.X || point.Y < e.MinPoint.Y || point.Y > e.MaxPoint.Y) continue;
+
+                    string firstLine = txt.Contents.Split(new[] { "\\P" }, StringSplitOptions.None)[0].Trim();
+                    return poles.FirstOrDefault(p => string.Equals(p.Id.Handle.ToString(), owner, StringComparison.OrdinalIgnoreCase))
+                        ?? poles.FirstOrDefault(p => string.Equals(PoleData.NumberText(p.Data!.Number), firstLine, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            return null;
+        }
 
         /// <summary>
         /// Abre o bloco para escrita e grava numa transação só dele. Retorna null se gravou; se não (e então nada muda no

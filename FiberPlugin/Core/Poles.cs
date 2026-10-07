@@ -205,10 +205,32 @@ namespace FiberPlugin.Core
             return n;
         }
 
-        /// <summary>Pergunta o número do próximo poste. Null se o usuário cancelar.</summary>
+        /// <summary>
+        /// Pergunta o número do próximo poste. Aceita o número sozinho ou escrito como no desenho: "1", "P1", "P-01",
+        /// "CTO-03" (vale o número do fim). Enter = o sugerido. Null se o usuário cancelar.
+        /// </summary>
         /// <param name="what">O que está sendo numerado, com o artigo: "do próximo poste", "da próxima CTO".</param>
-        public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste") =>
-            CadHelpers.AskInt(ed, $"\nNúmero {what} <{suggested}>: ", suggested);
+        public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste")
+        {
+            while (true)
+            {
+                var pso = new Autodesk.AutoCAD.EditorInput.PromptStringOptions($"\nNúmero {what} <{suggested}>: ") { AllowSpaces = false };
+                Autodesk.AutoCAD.EditorInput.PromptResult res = ed.GetString(pso);
+                if (res.Status != Autodesk.AutoCAD.EditorInput.PromptStatus.OK) return null;
+
+                string text = (res.StringResult ?? "").Trim();
+                if (text.Length == 0) return suggested;
+                if (ParseNumberText(text) is int n && n >= 1) return n;
+                ed.WriteMessage("\n[AVISO]: Digite o número, por exemplo 1, P1 ou P-01.");
+            }
+        }
+
+        /// <summary>Número no fim do texto digitado: "12" → 12, "P12" → 12, "P-012" → 12, "cto-3" → 3. Null se não terminar em número.</summary>
+        public static int? ParseNumberText(string text)
+        {
+            Match m = Regex.Match(text, @"(\d+)\s*$");
+            return m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : null;
+        }
 
         /// <summary>"DT 11/200" ou "CC 12/600daN" → 200 / 600.</summary>
         public static double? ParseNominalDaN(string name)
