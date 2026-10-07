@@ -61,6 +61,8 @@ namespace FiberPlugin.Commands
             int changed = 0, locked = 0;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
+                // Textos de identificação levantados uma vez (e não a cada bloco)
+                Dictionary<string, List<ObjectId>> labels = PoleLabels.IndexLabels(tr, (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForRead));
                 foreach (ObjectId id in ids)
                 {
                     var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
@@ -70,7 +72,7 @@ namespace FiberPlugin.Commands
                     double ratio = factor ?? size!.Value / Longest(before.Value);
                     if (Math.Abs(ratio - 1) < 1e-9) continue;
 
-                    if (Scale(tr, br, ratio)) changed++;
+                    if (Scale(tr, br, ratio, labels)) changed++;
                     else locked++;
                 }
                 tr.Commit();

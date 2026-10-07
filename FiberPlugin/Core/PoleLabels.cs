@@ -57,6 +57,8 @@ namespace FiberPlugin.Core
         public static Dictionary<string, List<ObjectId>> IndexLabels(Transaction tr, BlockTableRecord space)
         {
             Database db = space.Database;
+            UserSettings settings = UserSettings.Current;
+            double poleFactor = DrawingScale.Factor(db, ScaleItem.PoleText), boxFactor = DrawingScale.Factor(db, ScaleItem.BoxText);
             var owners = new List<LabelOwner>();
             var labels = new List<LabelText>();
             foreach (ObjectId id in space)
@@ -68,28 +70,36 @@ namespace FiberPlugin.Core
                     bool boxLayer = txt.Layer.Equals(BoxLayer, StringComparison.OrdinalIgnoreCase);
                     // Texto sem dono só entra se estiver numa das layers dos textos (versões antigas, sem o XData)
                     if (owner == null && !boxLayer && !txt.Layer.Equals(Layer, StringComparison.OrdinalIgnoreCase)) continue;
+                    string firstLine = txt.Contents.Split(new[] { LineBreak }, StringSplitOptions.None)[0].Trim();
                     labels.Add(new LabelText
                     {
-                        Id = id, Owner = owner ?? "", IsBox = boxLayer, At = txt.Location,
-                        FirstLine = txt.Contents.Split(new[] { LineBreak }, StringSplitOptions.None)[0].Trim()
+                        Id = id, Owner = owner ?? "", IsBox = boxLayer, At = txt.Location, FirstLine = firstLine,
+                        // Texto do plugin: o do poste tem as coordenadas; o da caixa começa com CTO-/CEO-
+                        LooksLikeLabel = boxLayer
+                            ? firstLine.StartsWith(settings.CtoPrefix, StringComparison.OrdinalIgnoreCase) ||
+                              firstLine.StartsWith(settings.CeoPrefix, StringComparison.OrdinalIgnoreCase)
+                            : txt.Contents.Contains(" m E")
                     });
                 }
                 else if (obj is BlockReference br)
                 {
-                    string? name = XDataTags.ReadPole(br) is PoleData pole ? PoleData.NumberText(pole.Number)
-                                 : XDataTags.ReadBox(br) is BoxData box ? box.Id : null;
-                    if (name == null) continue;
-                    Extents3d e = ExtentsOf(br, 0);
+                    PoleData? pole = XDataTags.ReadPole(br);
+                    BoxData? box = pole == null ? XDataTags.ReadBox(br) : null;
+                    if (pole == null && box == null) continue;
+                    bool below = box != null;
+                    double factor = below ? boxFactor : poleFactor;
+                    Extents3d e = ExtentsOf(br, Offset * factor);
                     owners.Add(new LabelOwner
                     {
-                        Handle = br.Handle.ToString(), IsBox = XDataTags.ReadBox(br) != null, Name = name,
-                        MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y
+                        Handle = br.Handle.ToString(), IsBox = below, Name = box?.Id ?? PoleData.NumberText(pole!.Number),
+                        MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y,
+                        Default = Anchor(e, below, Gap * factor)
                     });
                 }
             }
 
             double textHeight = Math.Max(DrawingScale.TextHeight(db, ScaleItem.PoleText), DrawingScale.TextHeight(db, ScaleItem.BoxText));
-            var (byOwner, duplicates) = LabelMatching.Resolve(owners, labels, reach: 3 * textHeight, tolerance: textHeight);
+            var (byOwner, duplicates) = LabelMatching.Resolve(owners, labels, reach: 3 * textHeight, wideReach: 15 * textHeight);
 
             foreach (int i in duplicates)
             {
@@ -155,7 +165,16 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
-        /// <summary>Texto do bloco: pelo índice já levantado ou, sem ele, levantando agora (mesma regra, veja IndexLabels).</summary>
+        /// <summary>
+        /// Índice vazio, para bloco que acabou de ser inserido: ele ainda não tem texto, e assim não se levanta o desenho
+        /// inteiro a cada poste inserido (Inserir Postes, importar KML).
+        /// </summary>
+        public static Dictionary<string, List<ObjectId>> NewBlock => new Dictionary<string, List<ObjectId>>();
+
+        /// <summary>
+        /// Texto do bloco: pelo índice já levantado ou, sem ele, levantando agora (mesma regra, veja IndexLabels). Quem mexe
+        /// em muitos blocos passa o índice pronto; bloco recém-inserido passa NewBlock.
+        /// </summary>
         private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner, Dictionary<string, List<ObjectId>>? index)
         {
             index ??= IndexLabels(tr, space);

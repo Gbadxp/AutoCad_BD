@@ -131,7 +131,7 @@ namespace FiberPlugin.Commands
             }, DrawingScale.Factor(db, ScaleItem.PoleIcon));
 
             XDataTags.TagPole(tr, db, br, data);
-            PoleLabels.Place(tr, db, space, br, data);
+            PoleLabels.Place(tr, db, space, br, data, PoleLabels.NewBlock);
         }
 
         internal static PoleData? ChooseModel(List<PoleData> models)

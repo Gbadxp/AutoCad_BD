@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.46.msi`](Instalador/FiberPlugin-1.9.46.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.47.msi`](Instalador/FiberPlugin-1.9.47.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -478,9 +478,12 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 
 ## Identificação dos elementos
 Cabos, postes (inclusive esforço existente e ID Energisa), CTO/CEO e setas de esforço guardam seus dados em XData (aplicação `FIBRA_PLUGIN`), então
-renomear layers não quebra os cálculos nem o relatório. O texto de cada poste e CTO/CEO guarda o bloco a que pertence;
-em desenho copiado (COPY, ou copiar e colar de outro DWG) esse vínculo fica apontando para o bloco original, então o
-plugin acha o texto pela posição (e pelo número escrito nele) e corrige o vínculo, em vez de criar outro texto por
-cima. Texto repetido exatamente em cima de outro (sobra das versões até a 1.9.45) é apagado na próxima numeração,
-troca de coordenadas ou de escala. Cabos desenhados por versões antigas do plugin
+renomear layers não quebra os cálculos nem o relatório.
+
+**Texto de cada poste e CTO/CEO**: ele guarda o bloco a que pertence como handle do AutoCAD, que o COPY e o copiar e
+colar acompanham; pode mover o texto para onde quiser que a numeração, o Atualizar Coordenadas, a troca de nomes e a
+escala continuam atualizando ele. Nos textos feitos até a 1.9.46 esse vínculo era texto puro e, em desenho copiado,
+ficava apontando para o bloco original; aí o plugin acha o texto pelo lugar (até 30 m em 1:1000, o do poste mais
+perto) e pelo número escrito nele, e corrige o vínculo. Se ele tinha criado um texto novo no lugar padrão por cima
+disso, fica o texto que você moveu e o do lugar padrão é apagado; texto repetido exatamente em cima de outro também. Cabos desenhados por versões antigas do plugin
 continuam sendo reconhecidos pelo nome da layer (`FIBRA_CABO_...`).

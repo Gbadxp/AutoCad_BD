@@ -38,7 +38,6 @@ namespace FiberPlugin.Commands
             List<PoleInfo> all, poles;
             List<BoxInfo> boxes;
             var cables = new List<List<Point3d>>();
-            Dictionary<string, List<ObjectId>> labels;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
@@ -49,7 +48,6 @@ namespace FiberPlugin.Commands
                     if (tr.GetObject(id, OpenMode.ForRead) is Polyline poly && XDataTags.GetCableName(poly) != null)
                         cables.Add(Enumerable.Range(0, poly.NumberOfVertices).Select(poly.GetPoint3dAt).ToList());
                 }
-                labels = PoleLabels.IndexLabels(tr, modelSpace);
                 tr.Commit();
             }
             poles = selected == null ? all : all.Where(p => selected.Contains(p.Id)).ToList();
@@ -77,10 +75,13 @@ namespace FiberPlugin.Commands
             if (start == null) return;
 
             // 4. CTO e CEO dos postes numerados
+            // Poste gravado na caixa; se ele estiver longe dela (desenho copiado: o handle é do poste original), o mais perto
             var poleByHandle = all.ToDictionary(p => p.Id.Handle.ToString());
             PoleInfo? PoleOf(BoxInfo box) =>
-                box.Data.PoleHandle.Length > 0 && poleByHandle.TryGetValue(box.Data.PoleHandle, out PoleInfo? p) ? p
-                : Poles.Nearest(all, box.Position, FiberSettings.PoleLinkRadius);
+                box.Data.PoleHandle.Length > 0 && poleByHandle.TryGetValue(box.Data.PoleHandle, out PoleInfo? p) &&
+                p.Position.DistanceTo(box.Position) <= FiberSettings.PoleLinkRadius
+                    ? p
+                    : Poles.Nearest(all, box.Position, FiberSettings.PoleLinkRadius);
             List<(BoxInfo Box, PoleInfo Pole)> ownBoxes = boxes
                 .Select(b => (Box: b, Pole: PoleOf(b)))
                 .Where(x => x.Pole != null && poles.Contains(x.Pole))
@@ -117,17 +118,32 @@ namespace FiberPlugin.Commands
                 }
             }
 
-            // 6. Grava (um bloco por transação: com o texto em layer travada, o bloco também fica como estava)
-            int changedPoles = 0, changedBoxes = 0, locked = 0;
+            // 6. Grava (um bloco por transação: com o texto em layer travada, o bloco também fica como estava). O texto de cada
+            // bloco é levantado uma vez, já com o desenho copiado resolvido (veja PoleLabels.IndexLabels)
+            Dictionary<string, List<ObjectId>> labels;
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                labels = PoleLabels.IndexLabels(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                tr.Commit();
+            }
+            ed.WriteMessage($"\n[INFO]: Numerando {newNumber.Count} poste(s)" + (newBoxNumber.Count > 0 ? $" e {newBoxNumber.Count} CTO/CEO..." : "..."));
+            int changedPoles = 0, changedBoxes = 0, locked = 0, failed = 0;
+            string? firstError = null;
+            void Count(string? error, ref int changed)
+            {
+                if (error == null) changed++;
+                else if (error == LockedLayer) locked++;
+                else { failed++; firstError ??= error; }
+            }
             foreach (var pair in newNumber)
             {
-                if (Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WritePoleNumber(tr, db, space, br, pair.Key.Data!, pair.Value, labels))) changedPoles++;
-                else locked++;
+                Count(Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WritePoleNumber(tr, db, space, br, pair.Key.Data!, pair.Value, labels)),
+                      ref changedPoles);
             }
             foreach (var pair in newBoxNumber)
             {
-                if (Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WriteBoxNumber(tr, db, space, br, pair.Key.Data, pair.Value, labels))) changedBoxes++;
-                else locked++;
+                Count(Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WriteBoxNumber(tr, db, space, br, pair.Key.Data, pair.Value, labels)),
+                      ref changedBoxes);
             }
 
             // 7. Resumo
@@ -144,14 +160,17 @@ namespace FiberPlugin.Commands
                                 $"{UserSettings.Current.Name(UserSettings.Current.BoxPrefix(kind.Key), kind.Max(k => k.Value))}).");
             }
             if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} bloco(s) em layer travada ficaram com o número antigo.");
+            if (failed > 0) ed.WriteMessage($"\n[ERRO]: {failed} bloco(s) não puderam ser numerados ({firstError}).");
             ed.Regen();
         }
 
+        private const string LockedLayer = "layer travada";
+
         /// <summary>
-        /// Abre o bloco para escrita e grava numa transação só dele. False (e nada muda no bloco) se ele ou o texto dele
-        /// está em layer travada.
+        /// Abre o bloco para escrita e grava numa transação só dele. Retorna null se gravou; se não (e então nada muda no
+        /// bloco), o motivo: LockedLayer quando ele ou o texto dele está em layer travada, ou a mensagem do AutoCAD.
         /// </summary>
-        private static bool Write(Database db, ObjectId id, Action<Transaction, BlockReference, BlockTableRecord> write)
+        private static string? Write(Database db, ObjectId id, Action<Transaction, BlockReference, BlockTableRecord> write)
         {
             try
             {
@@ -161,11 +180,11 @@ namespace FiberPlugin.Commands
                     write(tr, br, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite));
                     tr.Commit();
                 }
-                return true;
+                return null;
             }
-            catch (Autodesk.AutoCAD.Runtime.Exception ex) when (ex.ErrorStatus == ErrorStatus.OnLockedLayer)
+            catch (Autodesk.AutoCAD.Runtime.Exception ex)
             {
-                return false;
+                return ex.ErrorStatus == ErrorStatus.OnLockedLayer ? LockedLayer : ex.Message;
             }
         }
     }

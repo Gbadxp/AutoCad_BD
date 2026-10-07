@@ -114,7 +114,7 @@ namespace FiberPlugin.Commands
                     }, scale);
 
                     XDataTags.TagBox(tr, db, br, data);
-                    PoleLabels.PlaceBox(tr, db, space, br, data);
+                    PoleLabels.PlaceBox(tr, db, space, br, data, PoleLabels.NewBlock);
                     tr.Commit();
                 }
 

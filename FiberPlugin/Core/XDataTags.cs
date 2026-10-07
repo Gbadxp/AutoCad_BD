@@ -55,11 +55,20 @@ namespace FiberPlugin.Core
             };
         }
 
-        /// <summary>Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence.</summary>
+        /// <summary>
+        /// Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence. Gravado como handle
+        /// do AutoCAD (código 1005), que o COPY, o copiar e colar e o INSERT traduzem junto: copiando poste e texto, a cópia
+        /// do texto aponta para a cópia do poste. Até a 1.9.46 ia como texto puro (1000), que a cópia não acompanha.
+        /// </summary>
         public static void TagPoleLabel(Transaction tr, Database db, Entity ent, string ownerHandle) =>
-            Write(tr, db, ent, PoleLabelKind, Text(ownerHandle));
+            Write(tr, db, ent, PoleLabelKind, new TypedValue((int)DxfCode.ExtendedDataHandle, ownerHandle));
 
-        public static string? GetPoleLabelOwner(Entity ent) => Read(ent, PoleLabelKind, 1)?[0].Value as string;
+        /// <summary>Handle do bloco dono do texto (dos dois jeitos de gravar). Null se não for texto de identificação.</summary>
+        public static string? GetPoleLabelOwner(Entity ent)
+        {
+            string? owner = Read(ent, PoleLabelKind, 1)?[0].Value?.ToString();
+            return owner == "0" ? "" : owner; // O AUDIT zera handle que não existe mais
+        }
 
         /// <summary>Marca o retângulo/nome de uma folha no quadro de articulação (Model), com o prefixo das folhas.</summary>
         public static void TagSheetIndex(Transaction tr, Database db, Entity ent, string prefix) =>
