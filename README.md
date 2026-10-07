@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.43.msi`](Instalador/FiberPlugin-1.9.43.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.44.msi`](Instalador/FiberPlugin-1.9.44.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -161,6 +161,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 | Renumerar | `FIBRA_RENUMERAR` | Corrige a numeração: clique nos blocos na ordem desejada. No primeiro de cada tipo você digita o número; os seguintes recebem o próximo automaticamente. Funciona em postes, CTO, CEO e qualquer bloco com atributo NÚMERO/ID; atualiza atributo, texto de identificação (sem mudar de lugar) e dados do relatório. **N** define o próximo número; avisa se o número já existir em outro bloco. |
+| Numerar Auto | `FIBRA_NUMERAR_AUTO` | Numeração automática: escolha todos os postes ou só os selecionados, clique no primeiro e digite o número dele. A numeração segue os cabos: continua pelo mesmo cabo até o fim (na esquina também) e depois entra nas derivações, como na numeração feita à mão; postes sem cabo entram no fim, pelo mais próximo. Pergunta se numera também as CTO e CEO desses postes, na ordem deles (CTO-01 no primeiro poste que tem CTO...). Com seleção, os números dos postes de fora são pulados. Atualiza atributo, texto e dados; **U** desfaz. |
 | Tamanho | `FIBRA_TAMANHO_BLOCO` | Muda o tamanho de blocos já inseridos: selecione um ou vários e digite o novo tamanho (maior lado, em m) ou use **Fator** (2 = dobro, 0,5 = metade). Cada bloco continua no ponto em que foi inserido (CTO/CEO: no centro do símbolo) e o texto de identificação acompanha. Também funciona selecionando antes. |
 
 ### Esforços
@@ -202,8 +203,9 @@ na aba **Projeto**, com tudo o que é deste desenho (o comando `FIBRA_DADOS_PROJ
 | Aba Projeto | Função |
 |---|---|
 | Percurso, endereço, contrato, ART, início e prazo | Dados dos documentos (Memorial Descritivo, de Esforço e Coordenadas), que já abrem com eles preenchidos (veja abaixo). |
-| Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Ao trocar, oferece atualizar os textos dos postes já inseridos. Num desenho sem zona, a janela sugere a do último projeto. |
-| Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. |
+| Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Não sabe a zona do lugar? Cole a coordenada dele no campo ao lado (ex.: `-8.7612, -63.9004` do Google Maps) e a zona e o hemisfério se preenchem sozinhos. Ao salvar com zona nova, as coordenadas dos postes e dos blocos com `COORDENADA_X`/`COORDENADA_Y`/`ZONA` são reescritas sozinhas, sem perguntar. Num desenho sem zona, a janela sugere a do último projeto. |
+| Atualizar Coordenadas | Para projeto levado para outro lugar ou postes movidos: salva a janela (com a zona digitada) e reescreve, pela posição atual de cada bloco, o texto dos postes e os atributos de coordenada de todos os blocos. Se o desenho tiver geolocalização do AutoCAD em outra zona, ela passa para a do projeto. |
+| Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. **Por elemento...** abre a escala de cada elemento (veja Escala das anotações). |
 | Pasta de Dados | Abre `Documentos\Fiber Plugin`, com o logo e as figuras do memorial (`Dados\Memorial`). |
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
@@ -248,7 +250,8 @@ um aviso na linha de comando.
 | FEX | Esforço Existente | FAB | Atualizar Blocos |
 | FVP | Verificar Projeto | FXB | Exportar Blocos |
 | FRE | Gerar Relatório | FSO | Sobre o plugin |
-| FNO | Norma NDU 009 | | |
+| FNO | Norma NDU 009 | FNA | Numeração Automática |
+| FUC | Atualizar Coordenadas | | |
 
 ### Só pela linha de comando
 | Comando | Função |
@@ -256,7 +259,7 @@ um aviso na linha de comando.
 | `FIBRA` | Menu com todas as ferramentas, com busca. |
 | `FIBRA_CALCULAR_ESFORCO` | Esforço de um único cabo numa sequência de postes clicados. |
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg` escolhido no Atualizar Blocos. |
-| `FIBRA_ZONA_UTM`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da aba Projeto de Configurações, pela linha de comando. |
+| `FIBRA_ZONA_UTM`, `FIBRA_ATUALIZAR_COORDENADAS`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da aba Projeto de Configurações, pela linha de comando. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
 | `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID. Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
@@ -401,6 +404,21 @@ A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:100
 Ao trocar a escala, o comando oferece ajustar as anotações já desenhadas: altura dos textos,
 afastamento dos textos em relação ao cabo e tamanho das setas, sempre em torno do poste.
 Os blocos já inseridos não mudam de tamanho; para isso use o botão **Tamanho**.
+
+**Escala por elemento** (botão **Por elemento...** ao lado da escala): cada elemento pode ter a sua escala 1:X, com o
+**ícone** e o **texto** separados. Campo vazio = escala do desenho.
+
+| Elemento | Ícone | Texto |
+|---|---|---|
+| Postes | bloco do poste (padrão 1:1000, o tamanho em que foi desenhado no `BLOCOS.dwg`) | número, 11/300 e coordenadas |
+| CTO e CEO | símbolo | CTO-01, CEO-01 |
+| Cabos | — | nome e metragem nos vãos |
+| Setas de esforço | seta com os textos | — |
+
+A linha **Todos** preenche a coluna inteira de uma vez (todos os ícones ou todos os textos). As escalas ficam
+gravadas no DWG. Ao salvar com escala nova (do desenho ou de algum elemento), o plugin pergunta se ajusta o que já está
+desenhado: cada tipo muda na proporção da sua escala, inclusive os blocos dos postes e das CTO/CEO (no lugar, com o
+texto acompanhando).
 
 ## Verificação com a NDU 009
 

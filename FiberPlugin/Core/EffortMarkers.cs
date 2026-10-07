@@ -55,7 +55,7 @@ namespace FiberPlugin.Core
             _db = db;
             _space = space;
             _arrowBlockId = arrowBlockId;
-            _scale = DrawingScale.Factor(db);
+            _scale = DrawingScale.Factor(db, ScaleItem.Effort);
             _attachHeight = CalcSettings.Get(db).AttachHeightM;
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, UserSettings.Current.EffortColor);
@@ -161,8 +161,9 @@ namespace FiberPlugin.Core
             double textAngle = CadHelpers.ReadableAngle(angle);
             var up = new Vector3d(-Math.Sin(textAngle), Math.Cos(textAngle), 0) * (FiberSettings.LabelGap * _scale);
 
-            yield return CadHelpers.AddText(_tr, _space, mid + up, effortText, textAngle, AttachmentPoint.BottomCenter, FiberSettings.EffortLayer);
-            yield return CadHelpers.AddText(_tr, _space, mid - up, angleText, textAngle, AttachmentPoint.TopCenter, FiberSettings.EffortLayer);
+            double height = FiberSettings.TextHeight * _scale;
+            yield return CadHelpers.AddText(_tr, _space, mid + up, effortText, textAngle, AttachmentPoint.BottomCenter, FiberSettings.EffortLayer, height);
+            yield return CadHelpers.AddText(_tr, _space, mid - up, angleText, textAngle, AttachmentPoint.TopCenter, FiberSettings.EffortLayer, height);
         }
 
         private static double NormalizeDegrees(double radians)

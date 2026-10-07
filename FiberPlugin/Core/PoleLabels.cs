@@ -89,10 +89,11 @@ namespace FiberPlugin.Core
             if (existing.Count > 0) return;
 
             CadHelpers.EnsureLayer(tr, db, layer, below ? UserSettings.Current.BoxLabelColor : UserSettings.Current.PoleLabelColor);
-            double factor = DrawingScale.Factor(db);
+            ScaleItem item = below ? ScaleItem.BoxText : ScaleItem.PoleText;
+            double factor = DrawingScale.Factor(db, item);
             Point3d anchor = Anchor(ExtentsOf(owner, Offset * factor), below, Gap * factor);
             MText label = CadHelpers.AddText(tr, space, anchor, contents, 0,
-                below ? AttachmentPoint.TopCenter : AttachmentPoint.BottomLeft, layer);
+                below ? AttachmentPoint.TopCenter : AttachmentPoint.BottomLeft, layer, DrawingScale.TextHeight(db, item));
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 

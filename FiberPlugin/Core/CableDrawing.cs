@@ -84,7 +84,8 @@ namespace FiberPlugin.Core
         private static void LabelSpans(Transaction tr, BlockTableRecord space, IList<Point3d> vertices,
             IList<double> spanLengths, string cableName, string layer)
         {
-            double gap = DrawingScale.LabelGap(space.Database);
+            double gap = DrawingScale.LabelGap(space.Database, ScaleItem.CableText);
+            double height = DrawingScale.TextHeight(space.Database, ScaleItem.CableText);
 
             for (int i = 0; i < vertices.Count - 1; i++)
             {
@@ -98,9 +99,9 @@ namespace FiberPlugin.Core
 
                 if (i % 2 == 0)
                 {
-                    CadHelpers.AddText(tr, space, mid + up, cableName, angle, AttachmentPoint.BottomCenter, layer);
+                    CadHelpers.AddText(tr, space, mid + up, cableName, angle, AttachmentPoint.BottomCenter, layer, height);
                 }
-                CadHelpers.AddText(tr, space, mid - up, $"{spanLengths[i]:F1}m", angle, AttachmentPoint.TopCenter, layer);
+                CadHelpers.AddText(tr, space, mid - up, $"{spanLengths[i]:F1}m", angle, AttachmentPoint.TopCenter, layer, height);
             }
         }
     }

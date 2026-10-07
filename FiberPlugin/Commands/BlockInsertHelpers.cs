@@ -99,13 +99,14 @@ namespace FiberPlugin.Commands
         /// Mostra o bloco no ponto e o gira acompanhando o mouse (como o INSERT do AutoCAD).
         /// Retorna a rotação em radianos (coordenadas do mundo): 0 com Enter, null se o usuário cancelar.
         /// </summary>
-        public static double? DragRotation(Editor ed, ObjectId blockId, Point3d positionWcs, string prompt)
+        /// <param name="scale">Escala do bloco na prévia (a mesma com que ele vai ser inserido).</param>
+        public static double? DragRotation(Editor ed, ObjectId blockId, Point3d positionWcs, string prompt, double scale = 1.0)
         {
             Matrix3d ucs = ed.CurrentUserCoordinateSystem;
             Vector3d ucsX = ucs.CoordinateSystem3d.Xaxis;
             double ucsRotation = Math.Atan2(ucsX.Y, ucsX.X);
 
-            using (var preview = new BlockReference(positionWcs, blockId))
+            using (var preview = new BlockReference(positionWcs, blockId) { ScaleFactors = new Scale3d(scale) })
             {
                 var jig = new RotateBlockJig(preview, positionWcs, ucsRotation, prompt);
                 PromptResult res = ed.Drag(jig);

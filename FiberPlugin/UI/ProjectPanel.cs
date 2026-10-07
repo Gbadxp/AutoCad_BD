@@ -5,8 +5,9 @@ namespace FiberPlugin.UI
 {
     /// <summary>
     /// Aba Projeto da janela Configurações (era a janela Dados do Projeto): percurso, endereço, contrato, ART, início e
-    /// prazo (usados nos documentos), zona UTM e escala deste desenho, e os atalhos para a pasta de dados e o Atualizar
-    /// Blocos. Confere enquanto o usuário digita (Error); quem grava e atualiza o desenho é o comando, depois do Salvar.
+    /// prazo (usados nos documentos), zona UTM (com a zona achada pela coordenada do local e o Atualizar Coordenadas),
+    /// escala deste desenho (com a escala por elemento), e os atalhos para a pasta de dados e o Atualizar Blocos.
+    /// Confere enquanto o usuário digita (Error); quem grava e atualiza o desenho é o comando, depois do Salvar.
     /// </summary>
     internal class ProjectPanel : TableLayoutPanel
     {
@@ -17,8 +18,10 @@ namespace FiberPlugin.UI
         private readonly LabeledInput _route, _address, _contract, _art, _start, _deadline;
         private readonly InputBox _zone;
         private readonly ChoiceBar _hemisphere;
+        private readonly InputBox _place;
         private readonly InputBox _scale;
         private readonly ChoiceBar _scalePresets;
+        private readonly Label _scalesHint;
         private readonly Label _filesHint;
         private bool _syncing;
 
@@ -27,6 +30,12 @@ namespace FiberPlugin.UI
 
         /// <summary>O usuário clicou em Atualizar Blocos: a janela salva e o comando roda o FIBRA_ATUALIZAR_BLOCOS depois.</summary>
         public event EventHandler? UpdateBlocksClicked;
+
+        /// <summary>O usuário clicou em Atualizar Coordenadas: a janela salva e o comando reescreve as coordenadas depois.</summary>
+        public event EventHandler? UpdateCoordinatesClicked;
+
+        /// <summary>Escala de cada elemento (botão Por elemento).</summary>
+        public ElementScales ElementScales { get; private set; }
 
         /// <summary>Abre a pasta de dados no Explorer; devolve a pasta ou null se ela não existir.</summary>
         public Func<string?>? OpenDataFolder { get; set; }
@@ -44,10 +53,12 @@ namespace FiberPlugin.UI
         public string Summary { get; private set; } = "";
 
         /// <param name="drawingHasZone">O desenho já tem zona: ela pode mudar, mas não ficar vazia.</param>
-        public ProjectPanel(ProjectInfo info, int scale, bool drawingHasZone)
+        /// <param name="elementScales">Escala de cada elemento (null = padrão).</param>
+        public ProjectPanel(ProjectInfo info, int scale, bool drawingHasZone, ElementScales? elementScales = null)
         {
             _drawingHasZone = drawingHasZone;
             _zoneFromFile = info.ZoneFromFile;
+            ElementScales = elementScales?.Clone() ?? new ElementScales();
             ColumnCount = 1;
             BackColor = Theme.Background;
             Padding = new Padding(0, 4, 0, 0);
@@ -61,9 +72,14 @@ namespace FiberPlugin.UI
             _deadline = new LabeledInput("Prazo de execução", "Ex.: 60 dias");
 
             _zone = new InputBox("20", searchIcon: false) { Size = new Size(56, 28), Margin = new Padding(0, 4, 6, 0) };
-            _hemisphere = new ChoiceBar("Sul", "Norte") { Margin = new Padding(0, 4, 0, 0) };
+            _hemisphere = new ChoiceBar("Sul", "Norte") { Margin = new Padding(0, 4, 8, 0) };
+            // Coordenada do lugar (ex.: colada do Google Maps): a zona e o hemisfério saem dela
+            _place = new InputBox("ou cole a lat, long do local", searchIcon: false) { Size = new Size(200, 28), Margin = new Padding(0, 4, 8, 0) };
+            var coordinates = new ThemedButton("Atualizar Coordenadas", false) { Margin = new Padding(0, 4, 0, 0) };
             _scale = new InputBox("1000", searchIcon: false) { Size = new Size(80, 28), Margin = new Padding(0, 4, 6, 0) };
-            _scalePresets = new ChoiceBar(Scales.Select(s => "1:" + s.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))).ToArray()) { Margin = new Padding(0, 4, 0, 0) };
+            _scalePresets = new ChoiceBar(Scales.Select(s => "1:" + s.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))).ToArray()) { Margin = new Padding(0, 4, 8, 0) };
+            var perElement = new ThemedButton("Por elemento...", false) { Margin = new Padding(0, 4, 0, 0) };
+            _scalesHint = InlineHint("");
 
             var folder = new ThemedButton("Pasta de Dados", false) { Margin = new Padding(0, 4, 8, 0) };
             var blocks = new ThemedButton("Atualizar Blocos", false) { Margin = new Padding(0, 4, 8, 0) };
@@ -73,11 +89,12 @@ namespace FiberPlugin.UI
             {
                 (new SectionLabel("Projeto deste desenho"), 26), (_route, 54), (_address, 54),
                 (FormLayout.Row(_contract, _art), 54), (FormLayout.Row(_start, _deadline), 54),
-                (new SectionLabel("Desenho"), 32), (LabeledRow("Zona UTM", _zone, _hemisphere), 40),
-                (LabeledRow("Escala   1:", _scale, _scalePresets), 40),
+                (new SectionLabel("Desenho"), 32), (LabeledRow("Zona UTM", _zone, _hemisphere, _place, coordinates), 40),
+                (LabeledRow("Escala   1:", _scale, _scalePresets, perElement, _scalesHint), 40),
                 (new SectionLabel("Arquivos do plugin"), 32), (LabeledRow("", folder, blocks, _filesHint), 40),
                 (FormLayout.Hint("Ficam no desenho e também em Documentos\\Fiber Plugin\\projeto.txt: o próximo desenho já abre com eles. " +
-                                 "Ao salvar com zona ou escala nova, o plugin pergunta se atualiza os postes e as anotações já desenhados."), 40)
+                                 "Com zona nova, ou no Atualizar Coordenadas, as coordenadas dos postes saem da posição atual de cada um. " +
+                                 "Com escala nova, o plugin pergunta se ajusta o que já está desenhado."), 40)
             })
             {
                 RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -115,6 +132,17 @@ namespace FiberPlugin.UI
                 if (_syncing || _scalePresets.SelectedIndex < 0) return;
                 _scale.Input.Text = Scales[_scalePresets.SelectedIndex].ToString(CultureInfo.InvariantCulture);
             };
+            _place.Input.TextChanged += (s, e) => ZoneFromPlace();
+            coordinates.Click += (s, e) => UpdateCoordinatesClicked?.Invoke(this, EventArgs.Empty);
+            perElement.Click += (s, e) =>
+            {
+                using (var form = new ElementScalesForm(ElementScales, ScaleDenominator > 0 ? ScaleDenominator : DrawingScale.Default))
+                {
+                    if (form.ShowDialog(FindForm()) != DialogResult.OK) return;
+                    ElementScales = form.Result;
+                }
+                Check();
+            };
             folder.Click += (s, e) =>
             {
                 string? dir = OpenDataFolder?.Invoke();
@@ -139,10 +167,29 @@ namespace FiberPlugin.UI
                     ArtNumber = _art.Value, StartDate = _start.Value, Deadline = _deadline.Value, Zone = zone
                 };
                 ScaleDenominator = scale;
+                string own = ElementScales.Summary(scale);
                 Summary = (zone == null ? "sem zona UTM" : $"zona {zone.Zone} {(zone.South ? "Sul" : "Norte")}" + (_zoneFromFile ? " (do último projeto)" : "")) +
-                          $" · 1:{scale.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))}";
+                          $" · 1:{scale.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))}" + (own.Length > 0 ? " · " + own : "");
+                _scalesHint.Text = own.Length > 0 ? "Próprias: " + own : "Tudo na escala do desenho";
             }
             Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Coordenada do lugar colada no campo ("-8.7612, -63.9004" do Google Maps, "8.76 S, 63.90 O"): preenche a zona e
+        /// o hemisfério sozinha. O que não for uma latitude e longitude válidas é ignorado.
+        /// </summary>
+        private void ZoneFromPlace()
+        {
+            var pair = Coordinates.SplitPair(_place.Query);
+            if (pair == null) return;
+            if (Coordinates.ParseDegrees(pair.Value.A, latitude: true) is not double lat ||
+                Coordinates.ParseDegrees(pair.Value.B, latitude: false) is not double lon) return;
+            if (Math.Abs(lat) > 84 || Math.Abs(lon) > 180) return;
+
+            UtmSettings zone = UtmZone.ForLocation(lat, lon);
+            _zone.Input.Text = zone.Zone.ToString(CultureInfo.InvariantCulture);
+            _hemisphere.SelectedIndex = zone.South ? 0 : 1;
         }
 
         private string? Read(out UtmSettings? zone, out int scale)

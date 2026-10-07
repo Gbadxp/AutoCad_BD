@@ -40,7 +40,7 @@ namespace FiberPlugin.Commands
             if (blockId.IsNull) return;
 
             // Símbolo no tamanho padrão e centrado no clique, seja qual for a unidade do bloco no BLOCOS.dwg
-            double symbolSize = FiberSettings.BoxSymbolSize * DrawingScale.Factor(db);
+            double symbolSize = FiberSettings.BoxSymbolSize * DrawingScale.Factor(db, ScaleItem.BoxIcon);
             var (scale, centerOffset) = BlockInsertHelpers.FitSymbol(db, blockId, symbolSize);
 
             HashSet<int> used;

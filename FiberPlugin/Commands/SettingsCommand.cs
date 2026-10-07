@@ -37,6 +37,7 @@ namespace FiberPlugin.Commands
             ProjectInfo projectBefore = ProjectInfo.Load(db);
             UtmSettings? zoneBefore = UtmZone.Get(db);
             int scaleBefore = DrawingScale.Get(db);
+            ElementScales elementsBefore = DrawingScale.GetElements(db);
 
             UserSettings.Reload();
             UserSettings before = UserSettings.Current.Clone();
@@ -59,11 +60,12 @@ namespace FiberPlugin.Commands
             bool confirmed;
             ProjectInfo project;
             int scale;
-            bool updateBlocks;
+            ElementScales elements;
+            bool updateBlocks, updateCoordinates;
             using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
                        projectBefore, scaleBefore, zoneBefore != null,
                        Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab,
-                       shortcutsBefore, ShortcutRegistry.Conflict)
+                       shortcutsBefore, ShortcutRegistry.Conflict, elementsBefore)
                    { OpenDataFolder = PluginCommands.ShowDataFolder })
             {
                 // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga
@@ -91,7 +93,9 @@ namespace FiberPlugin.Commands
                 confirmed = AcApp.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK;
                 project = form.Project;
                 scale = form.ScaleDenominator;
+                elements = form.ElementScales;
                 updateBlocks = confirmed && form.UpdateBlocksAfter;
+                updateCoordinates = confirmed && form.UpdateCoordinatesAfter;
             }
 
             if (!confirmed)
@@ -111,9 +115,10 @@ namespace FiberPlugin.Commands
                 UI.FiberRibbon.RefreshShortcuts();
             }
 
-            // Aba Projeto: grava só se algo mudou (ou para o Atualizar Blocos), como fazia a janela Dados do Projeto
-            if (confirmed && (updateBlocks || !project.SameAs(projectBefore) || scale != scaleBefore))
-                ApplyProject(doc, project, zoneBefore, scaleBefore, scale);
+            // Aba Projeto: grava só se algo mudou (ou para o Atualizar Blocos/Coordenadas), como fazia a janela Dados do Projeto
+            if (confirmed && (updateBlocks || updateCoordinates || !project.SameAs(projectBefore) || scale != scaleBefore ||
+                              !elements.SameAs(elementsBefore)))
+                ApplyProject(doc, project, zoneBefore, scaleBefore, elementsBefore, scale, elements, updateCoordinates);
 
             if (confirmed)
             {
@@ -134,10 +139,13 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>
-        /// Grava os dados do projeto (no desenho e no projeto.txt) e, se a zona ou a escala mudaram, grava no desenho e
-        /// oferece atualizar os postes e as anotações já desenhados (mesmo caminho dos comandos FIBRA_ZONA_UTM e FIBRA_ESCALA).
+        /// Grava os dados do projeto (no desenho e no projeto.txt). Com zona nova (ou o botão Atualizar Coordenadas),
+        /// grava a zona e reescreve as coordenadas dos postes e blocos sem perguntar; com escala nova (do desenho ou de
+        /// algum elemento), grava e oferece ajustar o que já está desenhado (mesmo caminho dos comandos FIBRA_ZONA_UTM,
+        /// FIBRA_ATUALIZAR_COORDENADAS e FIBRA_ESCALA).
         /// </summary>
-        private static void ApplyProject(Document doc, ProjectInfo info, UtmSettings? zoneBefore, int scaleBefore, int scale)
+        private static void ApplyProject(Document doc, ProjectInfo info, UtmSettings? zoneBefore, int scaleBefore, ElementScales elementsBefore,
+            int scale, ElementScales elements, bool updateCoordinates)
         {
             Database db = doc.Database;
             Editor ed = doc.Editor;
@@ -146,21 +154,23 @@ namespace FiberPlugin.Commands
             ed.WriteMessage("\n[SUCESSO]: Dados do projeto salvos. O Memorial Descritivo, o de Esforço e as Coordenadas já abrem com eles preenchidos.");
             if (error != null) ed.WriteMessage($"\n[AVISO]: Salvos só neste desenho; não foi possível gravar {ProjectInfo.FilePath} ({error}).");
 
-            // Zona nova (ou definida agora): grava no desenho e oferece atualizar as coordenadas dos postes
+            // Zona nova (ou definida agora): grava no desenho e atualiza as coordenadas
             UtmSettings? zone = info.Zone;
-            if (zone != null && (zoneBefore == null || zoneBefore.Zone != zone.Zone || zoneBefore.South != zone.South))
+            bool zoneChanged = zone != null && (zoneBefore == null || zoneBefore.Zone != zone.Zone || zoneBefore.South != zone.South);
+            if (zoneChanged)
             {
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    UtmZone.Set(tr, db, zone);
+                    UtmZone.Set(tr, db, zone!);
                     tr.Commit();
                 }
-                ed.WriteMessage($"\n[SUCESSO]: Zona UTM do projeto: {zone.Zone}, hemisfério {(zone.South ? "Sul" : "Norte")}.");
-                UtmZoneCommand.UpdatePoles(ed, db, zone);
+                ed.WriteMessage($"\n[SUCESSO]: Zona UTM do projeto: {zone!.Zone}, hemisfério {(zone.South ? "Sul" : "Norte")}.");
             }
+            if (zone != null && (zoneChanged || updateCoordinates)) UtmZoneCommand.UpdateCoordinates(ed, db, zone);
+            else if (updateCoordinates) ed.WriteMessage("\n[AVISO]: Defina a zona UTM do projeto (ou cole a coordenada do local) para atualizar as coordenadas.");
 
-            // Escala nova: grava e oferece ajustar as anotações já desenhadas
-            if (scale != scaleBefore) ScaleCommand.Apply(ed, db, scaleBefore, scale);
+            // Escala nova, do desenho ou de algum elemento: grava e oferece ajustar o que já está desenhado
+            if (scale != scaleBefore || !elements.SameAs(elementsBefore)) ScaleCommand.Apply(ed, db, scaleBefore, elementsBefore, scale, elements);
         }
 
         /// <summary>Precisa gravar: mudou na janela ou ainda está na planilha antiga (sem o arquivo do plugin).</summary>

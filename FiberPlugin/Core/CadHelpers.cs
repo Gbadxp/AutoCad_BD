@@ -264,14 +264,15 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <param name="height">Altura do texto; null = a padrão na escala do desenho.</param>
         public static MText AddText(Transaction tr, BlockTableRecord space, Point3d location, string contents,
-            double rotation, AttachmentPoint attachment, string layer)
+            double rotation, AttachmentPoint attachment, string layer, double? height = null)
         {
             return Append(tr, space, new MText
             {
                 Location = location,
                 Contents = contents,
-                TextHeight = DrawingScale.TextHeight(space.Database),
+                TextHeight = height ?? DrawingScale.TextHeight(space.Database),
                 Rotation = rotation,
                 Attachment = attachment,
                 Layer = layer

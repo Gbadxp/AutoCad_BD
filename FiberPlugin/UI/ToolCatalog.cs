@@ -35,6 +35,7 @@ namespace FiberPlugin.UI
             ("FIBRA_CALCULAR_ESFORCO", "Esforço de 1 Cabo"),
             ("FIBRA_ID_ENERGISA", "ID Energisa dos Postes"),
             ("FIBRA_ZONA_UTM", "Zona UTM"),
+            ("FIBRA_ATUALIZAR_COORDENADAS", "Atualizar Coordenadas"),
             ("FIBRA_ESCALA", "Escala do Desenho"),
             ("FIBRA_ABRIR_PASTA", "Pasta de Dados"),
             ("FIBRA_ATUALIZAR_BLOCOS", "Atualizar Blocos"),
@@ -64,6 +65,7 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false),
                 new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false),
+                new Tool("FIBRA_NUMERAR_AUTO", "Numeração Automática", "Clique no primeiro poste: a numeração segue os cabos (e as CTO/CEO junto)", "Numerar Auto", largeOnRibbon: false),
                 new Tool("FIBRA_TAMANHO_BLOCO", "Tamanho do Bloco", "Muda o tamanho dos blocos selecionados", "Tamanho", largeOnRibbon: false)
             }),
             ("Esforços", new[]

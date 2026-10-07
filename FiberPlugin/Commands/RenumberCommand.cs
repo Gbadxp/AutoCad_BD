@@ -150,19 +150,13 @@ namespace FiberPlugin.Commands
         {
             if (target.Pole != null)
             {
-                target.Pole.Number = number;
-                XDataTags.TagPole(tr, db, br, target.Pole);
-                SetNumberAttribute(tr, br, PoleData.NumberText(number));
-                PoleLabels.Place(tr, db, space, br, target.Pole);
+                WritePoleNumber(tr, db, space, br, target.Pole, number);
                 return PoleData.NumberText(number);
             }
 
             if (target.Box != null)
             {
-                target.Box.Number = number;
-                XDataTags.TagBox(tr, db, br, target.Box);
-                SetNumberAttribute(tr, br, target.Box.Id);
-                PoleLabels.PlaceBox(tr, db, space, br, target.Box);
+                WriteBoxNumber(tr, db, space, br, target.Box, number);
                 return target.Box.Id;
             }
 
@@ -177,6 +171,24 @@ namespace FiberPlugin.Commands
 
             SetNumberAttribute(tr, br, value);
             return value;
+        }
+
+        /// <summary>Número novo no poste (aberto para escrita): XData, atributo de número e texto ao lado.</summary>
+        internal static void WritePoleNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, PoleData pole, int number)
+        {
+            pole.Number = number;
+            XDataTags.TagPole(tr, db, br, pole);
+            SetNumberAttribute(tr, br, PoleData.NumberText(number));
+            PoleLabels.Place(tr, db, space, br, pole);
+        }
+
+        /// <summary>Número novo na CTO/CEO (aberta para escrita): XData, atributo de número e texto embaixo.</summary>
+        internal static void WriteBoxNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, BoxData box, int number)
+        {
+            box.Number = number;
+            XDataTags.TagBox(tr, db, br, box);
+            SetNumberAttribute(tr, br, box.Id);
+            PoleLabels.PlaceBox(tr, db, space, br, box);
         }
 
         private static void SetNumberAttribute(Transaction tr, BlockReference br, string value) =>

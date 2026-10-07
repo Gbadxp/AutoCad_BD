@@ -71,6 +71,7 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
+            ["FIBRA_NUMERAR_AUTO"] = PaintAutoNumber,
             ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
@@ -277,6 +278,23 @@ namespace FiberPlugin.UI
 
             dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.4), G("M27,19 A5.5,5.5 0 1 1 19.8,27"));
             Arrow(dc, ink.Green, 21.5, 28.6, 17.2, 23.6, 2.0);
+        }
+
+        private static void PaintAutoNumber(M.DrawingContext dc, Ink ink)
+        {
+            // Postes ligados pelo cabo e numerados em sequência, a partir do primeiro (azul), com a seta do sentido
+            dc.DrawGeometry(null, Ink.Pen(ink.Fiber, 2.6), G("M6.5,24.5 L16,16 L25,9"));
+            var font = new M.Typeface(new M.FontFamily("Segoe UI"), W.FontStyles.Normal, W.FontWeights.Bold, W.FontStretches.Normal);
+            var centers = new[] { new W.Point(6.5, 24.5), new W.Point(16, 16), new W.Point(25, 9) };
+            for (int i = 0; i < centers.Length; i++)
+            {
+                bool first = i == 0;
+                dc.DrawEllipse(first ? ink.Blue : ink.Paper, Ink.Pen(ink.Blue, 1.8), centers[i], 5.6, 5.6);
+                var number = new M.FormattedText((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    System.Globalization.CultureInfo.InvariantCulture, W.FlowDirection.LeftToRight, font, 9, first ? ink.White : ink.Blue, 1.0);
+                dc.DrawText(number, new W.Point(centers[i].X - number.Width / 2, centers[i].Y - number.Height / 2));
+            }
+            Arrow(dc, ink.Green, 20, 28.5, 30, 28.5, 2.2);
         }
 
         private static void PaintBlockSize(M.DrawingContext dc, Ink ink)

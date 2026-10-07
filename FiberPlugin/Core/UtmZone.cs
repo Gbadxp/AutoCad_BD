@@ -126,6 +126,37 @@ namespace FiberPlugin.Core
             return null;
         }
 
+        /// <summary>
+        /// Projeto que mudou de zona: passa a geolocalização do AutoCAD (se houver, e em outra zona UTM) para a zona do
+        /// projeto, mantendo as coordenadas de grade. Retorna o código gravado; null se não havia o que mudar ou se o
+        /// AutoCAD recusou os dois códigos.
+        /// </summary>
+        public static string? MoveGeoLocation(Database db, UtmSettings utm)
+        {
+            if (!HasGeoLocation(db) || FromGeoLocation(db) is not UtmSettings current) return null;
+            if (current.Zone == utm.Zone && current.South == utm.South) return null;
+
+            string hemisphere = utm.South ? "S" : "N";
+            foreach (string code in new[] { $"SIRGAS2000.UTM-{utm.Zone}{hemisphere}", $"UTM84-{utm.Zone}{hemisphere}" })
+            {
+                try
+                {
+                    using (Transaction tr = db.TransactionManager.StartTransaction())
+                    {
+                        var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForWrite);
+                        geo.CoordinateSystem = code; // Código fora da biblioteca: exceção, e a transação desfaz
+                        tr.Commit();
+                    }
+                    return code;
+                }
+                catch (System.Exception)
+                {
+                    // Tenta o próximo; a geolocalização é um extra e nunca derruba o comando
+                }
+            }
+            return null;
+        }
+
         public static bool HasGeoLocation(Database db)
         {
             try
@@ -159,6 +190,9 @@ namespace FiberPlugin.Core
 
         /// <summary>Zona UTM de uma longitude (-63,9° → 20).</summary>
         public static int ZoneFor(double lonDeg) => Math.Max(1, Math.Min(60, (int)Math.Floor((lonDeg + 180.0) / 6.0) + 1));
+
+        /// <summary>Zona e hemisfério de um lugar (latitude e longitude em graus): -8,76 / -63,90 → 20 Sul.</summary>
+        public static UtmSettings ForLocation(double latDeg, double lonDeg) => new UtmSettings { Zone = ZoneFor(lonDeg), South = latDeg < 0 };
 
         private static double CentralMeridian(int zone) => (zone * 6 - 183) * Math.PI / 180.0;
 

@@ -70,31 +70,41 @@ namespace FiberPlugin.Commands
                     double ratio = factor ?? size!.Value / Longest(before.Value);
                     if (Math.Abs(ratio - 1) < 1e-9) continue;
 
-                    // CTO/CEO: o ponto clicado é o centro do símbolo (o ponto base fica no canto).
-                    // Demais blocos: o ponto de inserção, que guarda a coordenada do poste/item.
-                    Point3d center = XDataTags.ReadBox(br) != null
-                        ? before.Value.MinPoint + (before.Value.MaxPoint - before.Value.MinPoint) / 2.0
-                        : br.Position;
-
-                    try
-                    {
-                        br.UpgradeOpen();
-                    }
-                    catch (Autodesk.AutoCAD.Runtime.Exception)
-                    {
-                        locked++; // Layer travada
-                        continue;
-                    }
-
-                    br.TransformBy(Matrix3d.Scaling(ratio, center));
-                    PoleLabels.Follow(tr, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead), br, before.Value);
-                    changed++;
+                    if (Scale(tr, br, ratio)) changed++;
+                    else locked++;
                 }
                 tr.Commit();
             }
 
             ed.WriteMessage($"\n[OK]: {changed} bloco(s) com tamanho " + (size != null ? $"{size:0.##} m (maior lado)." : $"x{factor:0.##}."));
             if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} bloco(s) em layer travada não foram alterados.");
+        }
+
+        /// <summary>
+        /// Multiplica o tamanho do bloco por <paramref name="ratio"/> sem tirá-lo do lugar, e o texto de identificação
+        /// acompanha. CTO/CEO crescem em volta do centro do símbolo (o ponto base fica no canto); os demais blocos, em volta
+        /// do ponto de inserção, que guarda a coordenada do poste/item. False se o bloco está em layer travada.
+        /// </summary>
+        internal static bool Scale(Transaction tr, BlockReference br, double ratio)
+        {
+            Extents3d? before = Extents(br);
+            if (before == null) return true;
+            Point3d center = XDataTags.ReadBox(br) != null
+                ? before.Value.MinPoint + (before.Value.MaxPoint - before.Value.MinPoint) / 2.0
+                : br.Position;
+
+            try
+            {
+                br.UpgradeOpen();
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return false; // Layer travada
+            }
+
+            br.TransformBy(Matrix3d.Scaling(ratio, center));
+            PoleLabels.Follow(tr, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead), br, before.Value);
+            return true;
         }
 
         private static Extents3d? Extents(BlockReference br)

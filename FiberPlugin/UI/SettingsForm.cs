@@ -207,8 +207,14 @@ namespace FiberPlugin.UI
         public ProjectInfo Project => _project.Info;
         public int ScaleDenominator => _project.ScaleDenominator;
 
+        /// <summary>Escala de cada elemento (aba Projeto, botão Por elemento).</summary>
+        public ElementScales ElementScales => _project.ElementScales;
+
         /// <summary>O usuário clicou em Atualizar Blocos: depois de salvar, o comando roda o FIBRA_ATUALIZAR_BLOCOS.</summary>
         public bool UpdateBlocksAfter { get; private set; }
+
+        /// <summary>O usuário clicou em Atualizar Coordenadas: depois de salvar, o comando reescreve as coordenadas.</summary>
+        public bool UpdateCoordinatesAfter { get; private set; }
 
         /// <summary>Abre a pasta de dados no Explorer (botão Pasta de Dados da aba Projeto).</summary>
         public Func<string?>? OpenDataFolder { set => _project.OpenDataFolder = value; }
@@ -223,10 +229,11 @@ namespace FiberPlugin.UI
         /// <param name="initialTab">Aba aberta ao mostrar a janela (TabProject para o comando Dados do Projeto).</param>
         /// <param name="shortcuts">Atalhos atuais (comando → atalho); null = os padrões.</param>
         /// <param name="checkConflict">O que já existe no AutoCAD com esse nome (comando, LISP, acad.pgp); null se estiver livre.</param>
+        /// <param name="elementScales">Escala de cada elemento deste desenho (null = padrão).</param>
         public SettingsForm(List<CableModel> cables, List<PoleData> poles, TractionTable traction, CompanyInfo company,
             UserSettings settings, ProjectInfo project, int scale, bool drawingHasZone,
             string? cableNotes = null, string? poleNotes = null, string? tractionNotes = null, int initialTab = TabProject,
-            IDictionary<string, string>? shortcuts = null, Func<string, string?>? checkConflict = null)
+            IDictionary<string, string>? shortcuts = null, Func<string, string?>? checkConflict = null, ElementScales? elementScales = null)
         {
             _conflict = checkConflict;
             Settings = settings.Clone();
@@ -247,13 +254,19 @@ namespace FiberPlugin.UI
             tabBar.Controls.Add(_tabs);
 
             // ---------- Projeto (dados deste desenho) ----------
-            _project = new ProjectPanel(project, scale, drawingHasZone);
+            _project = new ProjectPanel(project, scale, drawingHasZone, elementScales);
             _project.Changed += (s, e) => { if (_ok != null) UpdateStatus(); };
             _project.UpdateBlocksClicked += (s, e) =>
             {
                 UpdateBlocksAfter = true;
                 Save();
                 if (DialogResult != DialogResult.OK) UpdateBlocksAfter = false;
+            };
+            _project.UpdateCoordinatesClicked += (s, e) =>
+            {
+                UpdateCoordinatesAfter = true;
+                Save();
+                if (DialogResult != DialogResult.OK) UpdateCoordinatesAfter = false;
             };
 
             // ---------- Cabos ----------
