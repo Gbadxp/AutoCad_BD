@@ -49,19 +49,54 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Textos de identificação do espaço, pelo handle do bloco dono. Para mexer em muitos blocos de uma vez (numeração,
-        /// coordenadas, escala) sem varrer o desenho inteiro a cada bloco; vale enquanto nenhum texto for apagado.
+        /// Texto de identificação de cada poste e CTO/CEO do espaço, pelo handle do bloco. Vale para mexer em muitos blocos
+        /// de uma vez (numeração, coordenadas, escala) sem varrer o desenho a cada bloco, e também acha o texto certo em
+        /// desenho copiado: veja LabelMatching. Os textos repetidos exatamente em cima de outro (sobra das versões que
+        /// criavam um texto novo por cima) são apagados.
         /// </summary>
         public static Dictionary<string, List<ObjectId>> IndexLabels(Transaction tr, BlockTableRecord space)
         {
-            var index = new Dictionary<string, List<ObjectId>>(StringComparer.OrdinalIgnoreCase);
+            Database db = space.Database;
+            var owners = new List<LabelOwner>();
+            var labels = new List<LabelText>();
             foreach (ObjectId id in space)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not MText txt || XDataTags.GetPoleLabelOwner(txt) is not string owner) continue;
-                if (!index.TryGetValue(owner, out List<ObjectId>? list)) index[owner] = list = new List<ObjectId>();
-                list.Add(id);
+                DBObject obj = tr.GetObject(id, OpenMode.ForRead);
+                if (obj is MText txt)
+                {
+                    string? owner = XDataTags.GetPoleLabelOwner(txt);
+                    bool boxLayer = txt.Layer.Equals(BoxLayer, StringComparison.OrdinalIgnoreCase);
+                    // Texto sem dono só entra se estiver numa das layers dos textos (versões antigas, sem o XData)
+                    if (owner == null && !boxLayer && !txt.Layer.Equals(Layer, StringComparison.OrdinalIgnoreCase)) continue;
+                    labels.Add(new LabelText
+                    {
+                        Id = id, Owner = owner ?? "", IsBox = boxLayer, At = txt.Location,
+                        FirstLine = txt.Contents.Split(new[] { LineBreak }, StringSplitOptions.None)[0].Trim()
+                    });
+                }
+                else if (obj is BlockReference br)
+                {
+                    string? name = XDataTags.ReadPole(br) is PoleData pole ? PoleData.NumberText(pole.Number)
+                                 : XDataTags.ReadBox(br) is BoxData box ? box.Id : null;
+                    if (name == null) continue;
+                    Extents3d e = ExtentsOf(br, 0);
+                    owners.Add(new LabelOwner
+                    {
+                        Handle = br.Handle.ToString(), IsBox = XDataTags.ReadBox(br) != null, Name = name,
+                        MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y
+                    });
+                }
             }
-            return index;
+
+            double textHeight = Math.Max(DrawingScale.TextHeight(db, ScaleItem.PoleText), DrawingScale.TextHeight(db, ScaleItem.BoxText));
+            var (byOwner, duplicates) = LabelMatching.Resolve(owners, labels, reach: 3 * textHeight, tolerance: textHeight);
+
+            foreach (int i in duplicates)
+            {
+                if (CadHelpers.IsOnLockedLayer(tr, labels[i].Id)) continue;
+                tr.GetObject(labels[i].Id, OpenMode.ForWrite).Erase();
+            }
+            return byOwner.ToDictionary(p => p.Key, p => p.Value.Select(i => labels[i].Id).ToList(), StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>Cria o texto do poste ou, se ele já existir, atualiza o conteúdo sem mudar de lugar.</summary>
@@ -93,6 +128,7 @@ namespace FiberPlugin.Core
             {
                 label.UpgradeOpen();
                 label.Location += delta;
+                XDataTags.TagPoleLabel(tr, space.Database, label, owner.Handle.ToString()); // Conserta o vínculo de texto copiado
             }
         }
 
@@ -105,6 +141,8 @@ namespace FiberPlugin.Core
             {
                 txt.UpgradeOpen();
                 txt.Contents = contents;
+                // O texto achado pela posição (desenho copiado) passa a apontar para este bloco
+                XDataTags.TagPoleLabel(tr, db, txt, owner.Handle.ToString());
             }
             if (existing.Count > 0) return;
 
@@ -117,22 +155,13 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
+        /// <summary>Texto do bloco: pelo índice já levantado ou, sem ele, levantando agora (mesma regra, veja IndexLabels).</summary>
         private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner, Dictionary<string, List<ObjectId>>? index)
         {
-            string handle = owner.Handle.ToString();
-            if (index != null)
-            {
-                return index.TryGetValue(handle, out List<ObjectId>? ids)
-                    ? ids.Where(id => !id.IsErased).Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<MText>().ToList()
-                    : new List<MText>();
-            }
-
-            var labels = new List<MText>();
-            foreach (ObjectId id in space)
-            {
-                if (tr.GetObject(id, OpenMode.ForRead) is MText txt && XDataTags.GetPoleLabelOwner(txt) == handle) labels.Add(txt);
-            }
-            return labels;
+            index ??= IndexLabels(tr, space);
+            return index.TryGetValue(owner.Handle.ToString(), out List<ObjectId>? ids)
+                ? ids.Where(id => !id.IsErased).Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<MText>().ToList()
+                : new List<MText>();
         }
 
         /// <summary>Extensão do desenho do bloco (e não o ponto base, que nas CTO/CEO fica no canto).</summary>

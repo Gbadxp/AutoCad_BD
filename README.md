@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.45.msi`](Instalador/FiberPlugin-1.9.45.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.46.msi`](Instalador/FiberPlugin-1.9.46.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -478,5 +478,9 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 
 ## Identificação dos elementos
 Cabos, postes (inclusive esforço existente e ID Energisa), CTO/CEO e setas de esforço guardam seus dados em XData (aplicação `FIBRA_PLUGIN`), então
-renomear layers não quebra os cálculos nem o relatório. Cabos desenhados por versões antigas do plugin
+renomear layers não quebra os cálculos nem o relatório. O texto de cada poste e CTO/CEO guarda o bloco a que pertence;
+em desenho copiado (COPY, ou copiar e colar de outro DWG) esse vínculo fica apontando para o bloco original, então o
+plugin acha o texto pela posição (e pelo número escrito nele) e corrige o vínculo, em vez de criar outro texto por
+cima. Texto repetido exatamente em cima de outro (sobra das versões até a 1.9.45) é apagado na próxima numeração,
+troca de coordenadas ou de escala. Cabos desenhados por versões antigas do plugin
 continuam sendo reconhecidos pelo nome da layer (`FIBRA_CABO_...`).

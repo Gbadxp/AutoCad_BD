@@ -163,6 +163,7 @@ namespace FiberPlugin.Commands
             {
                 foreach (var (id, pole) in annotations.EffortMarkers)
                 {
+                    if (id.IsErased) continue;
                     if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                     var ent = (Entity)tr.GetObject(id, OpenMode.ForWrite);
                     ent.TransformBy(Matrix3d.Scaling(ratios[ScaleItem.Effort], pole));
@@ -196,6 +197,7 @@ namespace FiberPlugin.Commands
             int count = 0;
             foreach (ObjectId id in labels)
             {
+                if (id.IsErased) continue;
                 if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 double extraGap = txt.TextHeight * FiberSettings.LabelGapRatio * (ratio - 1);
@@ -216,6 +218,7 @@ namespace FiberPlugin.Commands
             int count = 0;
             foreach (ObjectId id in labels)
             {
+                if (id.IsErased) continue; // Texto repetido apagado ao levantar os textos (PoleLabels.IndexLabels)
                 if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 txt.TextHeight *= ratio;
