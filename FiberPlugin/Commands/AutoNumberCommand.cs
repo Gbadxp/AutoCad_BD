@@ -175,14 +175,14 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
-        private const string LockedLayer = "layer travada";
+        internal const string LockedLayer = "layer travada";
 
         /// <summary>
         /// Poste do texto de identificação em que se clicou (o texto pode estar longe do poste): pelo vínculo gravado no
         /// texto ou, se ele não bater com um dos postes, pelo número escrito na primeira linha. Null se o clique não está
         /// num texto de poste.
         /// </summary>
-        private static PoleInfo? PoleOfLabelAt(Database db, Point3d point, List<PoleInfo> poles)
+        internal static PoleInfo? PoleOfLabelAt(Database db, Point3d point, List<PoleInfo> poles)
         {
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
@@ -206,7 +206,7 @@ namespace FiberPlugin.Commands
         /// Abre o bloco para escrita e grava numa transação só dele. Retorna null se gravou; se não (e então nada muda no
         /// bloco), o motivo: LockedLayer quando ele ou o texto dele está em layer travada, ou a mensagem do AutoCAD.
         /// </summary>
-        private static string? Write(Database db, ObjectId id, Action<Transaction, BlockReference, BlockTableRecord> write)
+        internal static string? Write(Database db, ObjectId id, Action<Transaction, BlockReference, BlockTableRecord> write)
         {
             try
             {

@@ -29,6 +29,7 @@ namespace FiberPlugin.Core
             ["FIBRA_INSERIR_AMARRACAO"] = "FAM",
             ["FIBRA_RENUMERAR"] = "FRN",
             ["FIBRA_NUMERAR_AUTO"] = "FNA",
+            ["FIBRA_NUMERAR_MANUAL"] = "FNM",
             ["FIBRA_TAMANHO_BLOCO"] = "FTB",
             ["FIBRA_ESFORCO_TOTAL"] = "FET",
             ["FIBRA_ESFORCO_PERCURSO"] = "FEP",

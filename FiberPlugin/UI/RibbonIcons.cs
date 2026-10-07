@@ -72,6 +72,7 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
             ["FIBRA_NUMERAR_AUTO"] = PaintAutoNumber,
+            ["FIBRA_NUMERAR_MANUAL"] = PaintManualNumber,
             ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
@@ -295,6 +296,23 @@ namespace FiberPlugin.UI
                 dc.DrawText(number, new W.Point(centers[i].X - number.Width / 2, centers[i].Y - number.Height / 2));
             }
             Arrow(dc, ink.Green, 20, 28.5, 30, 28.5, 2.2);
+        }
+
+        private static void PaintManualNumber(M.DrawingContext dc, Ink ink)
+        {
+            // Dois postes numerados e o cursor do mouse clicando no próximo
+            var font = new M.Typeface(new M.FontFamily("Segoe UI"), W.FontStyles.Normal, W.FontWeights.Bold, W.FontStretches.Normal);
+            var centers = new[] { new W.Point(7, 8), new W.Point(19, 8) };
+            for (int i = 0; i < centers.Length; i++)
+            {
+                bool first = i == 0;
+                dc.DrawEllipse(first ? ink.Blue : ink.Paper, Ink.Pen(ink.Blue, 1.8), centers[i], 5.6, 5.6);
+                var number = new M.FormattedText((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    System.Globalization.CultureInfo.InvariantCulture, W.FlowDirection.LeftToRight, font, 9, first ? ink.White : ink.Blue, 1.0);
+                dc.DrawText(number, new W.Point(centers[i].X - number.Width / 2, centers[i].Y - number.Height / 2));
+            }
+            // Cursor (seta do mouse) apontando para cima, à esquerda
+            dc.DrawGeometry(ink.White, Ink.Pen(ink.Line, 1.4), G("M15,15 L15,30 L18.6,26.4 L21.2,31.6 L23.8,30.4 L21.2,25.2 L26,25 Z"));
         }
 
         private static void PaintBlockSize(M.DrawingContext dc, Ink ink)
