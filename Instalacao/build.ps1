@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Compila o plugin em Release (AutoCAD 2022-2024 e 2025-2026).
-    2. Monta o FiberPlugin.bundle (DLLs + Dados + Blocos + PackageContents.xml + README) numa pasta
+    2. Monta o FiberPlugin.bundle (DLLs + Dados + Blocos + Normas + PackageContents.xml + README) numa pasta
        temporária de compilação.
     3. Opcional: assina as DLLs com um certificado de assinatura de código.
     4. Gera o .msi na pasta Instalador, apagando os de versões anteriores (fica só a versão atual).
@@ -54,9 +54,9 @@ foreach ($dll in 'FiberPlugin.dll', 'Clipper2Lib.dll') {
     Copy-Item (Join-Path $pluginDir "bin\Release\net8.0-windows\$dll") (Join-Path $contents 'net8')
 }
 
-# Dados (com a subpasta Memorial) e Blocos, sem os temporários e backups que o AutoCAD cria ao salvar
+# Dados (com a subpasta Memorial), Blocos e Normas (NDU 009 em PDF), sem os temporários e backups que o AutoCAD cria ao salvar
 $temporarios = '.bak', '.dwl', '.dwl2', '.tmp', '.sv$'
-foreach ($folder in 'Dados', 'Blocos') {
+foreach ($folder in 'Dados', 'Blocos', 'Normas') {
     $source = Join-Path $pluginDir $folder
     Get-ChildItem $source -Recurse -File |
         Where-Object { $_.Name -notlike '~*' -and $temporarios -notcontains $_.Extension } |

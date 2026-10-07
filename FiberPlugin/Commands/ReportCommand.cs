@@ -113,19 +113,27 @@ namespace FiberPlugin.Commands
 
             sheet.Header("Esforços", "Quantidade");
             sheet.Row("Pontos de esforço calculados", effortPoints.Count);
+            sheet.Row($"Com seta (fim de rede ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°)", effortPoints.Count(e => e.NeedsArrow));
+            sheet.Row("Sem seta (passagem, a NDU 009 dispensa)", effortPoints.Count(e => !e.NeedsArrow));
+            sheet.Row("Setas faltando no desenho", effortPoints.Count(e => e.NeedsArrow && !e.HasArrow));
             sheet.Row("Postes com esforço acima do nominal", effortPoints.Count(e => e.Load.Exceeded));
+            sheet.Row("Postes acima do limite do item 14.2 d (substituir)", effortPoints.Count(e => e.Load.NeedsReplacement));
             sheet.Row("Pontos de esforço sem poste vinculado", effortPoints.Count(e => e.Pole == null));
             if (legacyMarkers > 0) sheet.Row("Setas antigas sem dados (recalcule)", legacyMarkers);
         }
 
+        /// <summary>Seta do ponto no desenho: "Sim", "Falta", "Desatualizada" ou "Dispensada" (NDU 009, Anexo B 2.2.18).</summary>
+        private static string ArrowText(EffortPoint e) =>
+            !e.NeedsArrow ? "Dispensada" : !e.HasArrow ? "Falta" : e.ArrowOutdated ? "Desatualizada" : "Sim";
+
         private static void WritePoles(XlsxWriter workbook, List<PoleInfo> poles, List<EffortPoint> effortPoints, UtmSettings? utm)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Postes")
-                .ColumnWidths(10, 7, 14, 11, 16, 16, 11, 16, 16, 15, 16, 11, 22, 18, 15, 13, 13, 13);
+                .ColumnWidths(10, 7, 14, 11, 16, 16, 11, 16, 16, 15, 16, 11, 22, 14, 18, 15, 15, 13, 13, 13);
 
             sheet.Header("Número", "Tipo", "Descrição", "Altura (m)", "Nominal (daN)", "Nominal (kgf)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)",
-                         "Poste", "Esforço no cabo (kgf)", "Ângulo (°)", "Situação", "A 20 cm do topo (kgf)", "Existente (kgf)", "Total (kgf)",
-                         "Utilização (%)", "Resultado");
+                         "Poste", "Esforço no cabo (kgf)", "Ângulo (°)", "Situação", "Seta", "A 20 cm do topo (kgf)", "Na seta (daN)", "Existente (kgf)",
+                         "Total (kgf)", "Utilização (%)", "Resultado");
 
             foreach (PoleInfo pole in poles)
             {
@@ -143,10 +151,12 @@ namespace FiberPlugin.Commands
                     Math.Round(pole.Position.X, 2),
                     Math.Round(pole.Position.Y, 2),
                     d?.Designation ?? pole.Name,
-                    Round(effort?.Marker.Kgf, 2),
-                    Round(effort?.Marker.AngleDeg, 1),
-                    effort?.Marker.Situation,
+                    Round(effort?.Kgf, 2),
+                    Round(effort?.AngleDeg, 1),
+                    effort?.Situation,
+                    effort != null ? ArrowText(effort) : null,
                     Round(effort?.Load.TopKgf, 2),
+                    Round(effort?.Load.ProjectDaN, 2),
                     Round(effort?.Load.ExistingKgf, 2),
                     Round(effort?.Load.TotalKgf, 2),
                     Round(effort?.Load.Usage, 0),
@@ -180,36 +190,38 @@ namespace FiberPlugin.Commands
         private static void WriteEfforts(XlsxWriter workbook, List<EffortPoint> effortPoints)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Esforços")
-                .ColumnWidths(8, 14, 15, 20, 18, 11, 10, 18, 15, 13, 15, 14, 13, 14, 14, 60);
+                .ColumnWidths(8, 14, 15, 20, 14, 18, 11, 10, 18, 15, 15, 13, 15, 14, 13, 14, 14, 60);
 
-            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Esforço no cabo (kgf)", "Ângulo (°)", "Cabos",
-                         "A 20 cm do topo (kgf)", "Existente (kgf)", "Total (kgf)", "Nominal (kgf)", "Utilização (%)", "Resultado",
+            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Seta", "Esforço no cabo (kgf)", "Ângulo (°)", "Cabos",
+                         "A 20 cm do topo (kgf)", "Na seta (daN)", "Existente (kgf)", "Total (kgf)", "Nominal (kgf)", "Utilização (%)", "Resultado",
                          "Coordenada E", "Coordenada N", "Descrição");
 
             int n = 1;
             foreach (EffortPoint e in effortPoints)
             {
-                EffortMarkerData m = e.Marker;
                 string origin = e.Pole?.Number ?? "Sem poste";
                 string from = e.Pole != null ? $"Cálculo a partir do poste {e.Pole.Number}" : $"Ponto sem poste a até {FiberSettings.PoleLinkRadius:F0} m";
-                string description = $"{from} ({m.Situation}): esforço de {m.Kgf:F2} kgf com ângulo de {m.AngleDeg:F0}°.";
+                string description = $"{from} ({e.Situation}): esforço de {e.Kgf:F2} kgf com ângulo de {e.AngleDeg:F0}°." +
+                                     (e.Load.NeedsReplacement ? $" Passa do limite de {e.Load.ReplacementLimitDaN:F0} daN do item 14.2 d: substituir o poste." : "");
 
                 sheet.Row(
                     n++,
                     origin,
                     e.Pole?.Data?.Designation ?? e.Pole?.Name,
-                    m.Situation,
-                    Math.Round(m.Kgf, 2),
-                    Math.Round(m.AngleDeg, 1),
-                    m.CableCount,
+                    e.Situation,
+                    ArrowText(e),
+                    Math.Round(e.Kgf, 2),
+                    Math.Round(e.AngleDeg, 1),
+                    e.CableCount,
                     Round(e.Load.TopKgf, 2),
+                    Math.Round(e.Load.ProjectDaN, 2),
                     Round(e.Load.ExistingKgf, 2),
                     Round(e.Load.TotalKgf, 2),
                     Round(e.Load.NominalKgf, 2),
                     Round(e.Load.Usage, 0),
                     e.Load.Result,
-                    Math.Round(m.Point.X, 2),
-                    Math.Round(m.Point.Y, 2),
+                    Math.Round(e.Point.X, 2),
+                    Math.Round(e.Point.Y, 2),
                     description);
             }
         }

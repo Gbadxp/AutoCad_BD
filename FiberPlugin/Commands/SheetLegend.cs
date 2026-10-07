@@ -114,7 +114,8 @@ namespace FiberPlugin.Commands
                 arrow.AddVertexAt(1, new Point2d(symbolX + SymbolSize / 2 - 2, y), 0, 1.4, 0);
                 arrow.AddVertexAt(2, new Point2d(symbolX + SymbolSize / 2, y), 0, 0, 0);
                 Add(arrow).ColorIndex = 4;
-                Text("Esforço no poste (kgf e ângulo)", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                // Símbolo do Anexo C da NDU 009; o β vai em Arial porque as fontes SHX não têm letras gregas
+                Text(@"Esforço resultante (E em daN) e ângulo ({\fArial|b0|i0|c0|p34;β})", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
             }
         }
     }

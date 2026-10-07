@@ -55,11 +55,15 @@ namespace FiberPlugin.Commands
                         continue;
                     }
 
-                    PoleLoad load = new EffortMarkers(tr, db, modelSpace, arrowId).Place(polePoint, result, pole);
+                    var markers = new EffortMarkers(tr, db, modelSpace, arrowId);
+                    PoleLoad load = markers.Place(polePoint, result, pole);
                     tr.Commit();
 
+                    string arrow = result.NeedsArrow
+                        ? $"seta E= {load.ProjectDaN:F2} daN, β= {result.AngleDeg:F0}°"
+                        : result.WithoutArrowReason + (markers.Cleared > 0 ? " (a seta anterior foi apagada)" : "") + ": a NDU 009 dispensa (Anexo B 2.2.18)";
                     ed.WriteMessage($"\n[SUCESSO]: {(pole != null ? "Poste " + pole.Number : "Ponto sem poste")} | {result.Situation} | " +
-                                    $"{result.Kgf:F2} kgf no cabo, ANG. {result.AngleDeg:F0}° ({result.CableCount} cabo(s)).");
+                                    $"{result.Kgf:F2} kgf no cabo ({result.CableCount} cabo(s)) | {arrow}.");
 
                     string? status = load.Text(pole);
                     if (status != null) ed.WriteMessage($"\n           Poste {pole!.Number} | {status}");

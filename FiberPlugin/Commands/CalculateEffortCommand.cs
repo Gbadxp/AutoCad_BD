@@ -47,24 +47,22 @@ namespace FiberPlugin.Commands
 
                 ed.WriteMessage("\n--- RESULTADOS DE ESFORÇOS ---");
 
-                // 3. Cálculo de Esforço Vetorial (Tração Resultante)
+                // 3. Cálculo de Esforço Vetorial (Tração Resultante); seta só onde a NDU 009 pede
                 for (int i = 0; i < points.Count; i++)
                 {
                     EffortResult result = EffortCalculator.AtPathIndex(points, i, span => traction.Tension(cable, span));
 
-                    // Poste em suspensão perfeitamente reto (esforço zero): seta perpendicular à linha
-                    Point3d next = i < points.Count - 1 ? points[i + 1] : points[i];
-                    Point3d prev = i < points.Count - 1 ? points[i] : points[i - 1];
-                    double perpendicular = Math.Atan2(next.Y - prev.Y, next.X - prev.X) + Math.PI / 2.0;
-
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
-                    string? status = markers.Place(points[i], result, pole, perpendicular).Text(pole);
+                    PoleLoad load = markers.Place(points[i], result, pole);
                     string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
-                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf" + (status != null ? " | " + status : ""));
+                    string arrow = result.NeedsArrow ? $"seta E= {load.ProjectDaN:F2} daN" : result.WithoutArrowReason!;
+                    string? status = load.Text(pole);
+                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf | {arrow}" + (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();
-                ed.WriteMessage($"\n[INFO]: Esforço gerado em {points.Count} postes.");
+                ed.WriteMessage($"\n[INFO]: Esforço calculado em {points.Count} postes: {markers.Placed} com seta (fim de rede ou ângulo acima de " +
+                                $"{EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} em alinhamento, sem seta (NDU 009, Anexo B 2.2.18).");
                 traction.WriteWarnings(ed);
             }
             ed.UpdateScreen();

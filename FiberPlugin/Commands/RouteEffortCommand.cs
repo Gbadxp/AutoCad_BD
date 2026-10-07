@@ -12,7 +12,9 @@ namespace FiberPlugin.Commands
     public class RouteEffortCommand
     {
         /// <summary>
-        /// Coloca a seta de esforço em todos os postes do percurso dos cabos selecionados.
+        /// Calcula o esforço em todos os postes do percurso dos cabos selecionados e coloca a seta onde a NDU 009 pede:
+        /// fim de rede e deflexão acima de 10°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h). Nos postes de
+        /// passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada.
         /// Modo Total: soma todos os cabos que passam em cada poste (igual ao FIBRA_ESFORCO_TOTAL).
         /// Modo Cabo: considera apenas os cabos selecionados.
         /// </summary>
@@ -65,55 +67,57 @@ namespace FiberPlugin.Commands
                 // Pontos do percurso: cada vértice é vinculado ao poste mais próximo (até PoleLinkRadius);
                 // o esforço é calculado e desenhado a partir desse poste. Sem poste por perto, fica no vértice.
                 List<PoleInfo> poles = Poles.Collect(tr, modelSpace);
-                var stops = new List<(Point3d Point, PoleInfo? Pole, double Tolerance)>();
-                foreach (CableRun run in selectedRuns)
-                {
-                    foreach (Point3d vertex in run.Vertices)
-                    {
-                        PoleInfo? pole = Poles.Nearest(poles, vertex, FiberSettings.PoleLinkRadius);
-                        Point3d point = pole?.Position ?? vertex;
-
-                        // O raio de busca dos cabos precisa alcançar o vértice que levou até este poste
-                        double tolerance = Math.Max(FiberSettings.PoleMatchTolerance, vertex.DistanceTo(point) + 0.1);
-
-                        int existing = stops.FindIndex(s => s.Point.DistanceTo(point) < 0.01);
-                        if (existing >= 0)
-                        {
-                            if (tolerance > stops[existing].Tolerance) stops[existing] = (point, pole, tolerance);
-                            continue;
-                        }
-                        stops.Add((point, pole, tolerance));
-                    }
-                }
+                List<EffortStop> stops = EffortCalculator.Stops(selectedRuns, poles);
 
                 List<CableRun> runsForEffort = onlySelected
                     ? selectedRuns
                     : EffortCalculator.CollectCables(tr, modelSpace, catalog, traction);
 
                 var markers = new EffortMarkers(tr, db, modelSpace, arrowId);
-                int exceeded = 0;
+                int exceeded = 0, replace = 0, withoutPole = 0;
 
                 ed.WriteMessage($"\n--- ESFORÇOS NO PERCURSO ({(onlySelected ? "cabo selecionado" : "total no poste")}) ---");
 
-                foreach (var (point, pole, tolerance) in stops)
+                foreach (EffortStop stop in stops)
                 {
-                    EffortResult result = EffortCalculator.AtPole(runsForEffort, point, tolerance);
+                    PoleInfo? pole = stop.Pole;
+                    EffortResult result = EffortCalculator.AtPole(runsForEffort, stop.Point, stop.Tolerance);
                     if (result.CableCount == 0) continue;
 
-                    PoleLoad load = markers.Place(point, result, pole);
-                    if (load.Exceeded) exceeded++;
+                    // Vértice sem poste em linha reta é só um ponto do desenho do cabo: nem aparece (só perde a seta
+                    // que versões antigas punham ali)
+                    if (pole == null && !result.NeedsArrow)
+                    {
+                        markers.Clear(stop.Point);
+                        continue;
+                    }
+                    if (pole == null) withoutPole++;
 
-                    string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({point.X:F1}; {point.Y:F1})";
+                    PoleLoad load = markers.Place(stop.Point, result, pole);
+                    if (load.Exceeded) exceeded++;
+                    if (load.NeedsReplacement) replace++;
+
+                    string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({stop.Point.X:F1}; {stop.Point.Y:F1})";
+                    string arrow = result.NeedsArrow ? $"seta E= {load.ProjectDaN:F2} daN, β= {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
                     string? status = load.Text(pole);
-                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf no cabo, ANG. {result.AngleDeg:F0}°" +
+                    ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf no cabo | {arrow}" +
                                     (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();
 
-                ed.WriteMessage($"\n[SUCESSO]: Esforço colocado em {stops.Count} ponto(s) do percurso.");
+                ed.WriteMessage($"\n[SUCESSO]: {markers.Placed + markers.Skipped} ponto(s) calculado(s): {markers.Placed} com seta " +
+                                $"(fim de rede ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} sem seta, " +
+                                "que a NDU 009 dispensa (Anexo B 2.2.18 e item 16.3 h).");
+                if (markers.Cleared > 0)
+                    ed.WriteMessage($"\n[INFO]: {markers.Cleared} seta(s) de cálculo anterior apagada(s) de pontos que não precisam dela.");
+                if (withoutPole > 0)
+                    ed.WriteMessage($"\n[AVISO]: {withoutPole} ponto(s) em que o cabo termina ou faz ângulo sem poste a até {FiberSettings.PoleLinkRadius:F0} m: " +
+                                    "insira o poste para o cálculo levar a altura e o nominal.");
                 if (exceeded > 0)
                     ed.WriteMessage($"\n[ATENÇÃO]: {exceeded} poste(s) com esforço ACIMA do nominal.");
+                if (replace > 0)
+                    ed.WriteMessage($"\n[ATENÇÃO]: {replace} poste(s) passam do limite do item 14.2 d da NDU 009 (50 daN até 300 daN, 100 daN a partir de 600 daN): a norma pede a substituição.");
                 traction.WriteWarnings(ed);
             }
             ed.UpdateScreen();

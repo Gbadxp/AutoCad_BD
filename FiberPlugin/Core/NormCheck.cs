@@ -17,8 +17,9 @@ namespace FiberPlugin.Core
 
     /// <summary>
     /// Conferência do projeto com as regras da NDU 009 (Energisa) que dá para verificar pelo desenho:
-    /// esforço acima do nominal, cabo em poste com equipamento da Energisa, CTO/CEO por poste, em esquina ou
-    /// junto a equipamento, altura do cabo ao solo no meio do vão, vãos longos e massa/diâmetro por ponto de fixação.
+    /// esforço acima do nominal e do limite do item 14.2 d, encabeçamento em poste abaixo de 300 daN, cabo em poste com
+    /// equipamento da Energisa, CTO/CEO por poste, em esquina ou junto a equipamento, altura do cabo ao solo no meio do
+    /// vão, vãos longos, massa/diâmetro por ponto de fixação e setas de esforço faltando, desatualizadas ou sobrando.
     /// </summary>
     public static class NormCheck
     {
@@ -32,6 +33,9 @@ namespace FiberPlugin.Core
         public const double LongSpanM = 60;                // Acima disso, considerar vento e temperatura
         public const double MaxMassKgKm = 1680;            // Por ponto de fixação (item 8 i)
         public const double MaxDiameterMm = 65;            // Conjunto de cabos por ponto de fixação (item 8 i)
+        public const double ReplacementLimitLowDaN = 50;   // Esforço do projeto em poste de até 300 daN (item 14.2 d)
+        public const double MinAnchorDaN = 300;            // Nominal mínimo para encabeçar cabo (Anexo B 2.2.19 nota I)
+        private const int MaxArrowIssues = 10;             // Acima disso os avisos de seta viram um só
 
         public static List<NormIssue> Run(ProjectData project)
         {
@@ -56,7 +60,7 @@ namespace FiberPlugin.Core
                 {
                     Severity = NormIssue.Error,
                     Where = e.Pole?.Number ?? "Ponto sem poste",
-                    Point = e.Marker.Point,
+                    Point = e.Point,
                     Message = $"Esforço de {e.Load.TotalKgf:F1} kgf acima do nominal de {e.Load.NominalKgf:F0} kgf ({e.Load.Usage:F0}%)",
                     Rule = "8.1"
                 });
@@ -191,30 +195,102 @@ namespace FiberPlugin.Core
                             Where = where,
                             Point = mid,
                             Message = $"Vão acima de {LongSpanM:F0} m: considerar vento e temperatura no cálculo",
-                            Rule = "16.3"
+                            Rule = "16.3 i"
                         });
                     }
                 }
             }
 
-            // 6. Postes ocupados sem esforço calculado
-            var withEffort = new HashSet<Autodesk.AutoCAD.DatabaseServices.ObjectId>(project.Efforts.Where(e => e.Pole != null).Select(e => e.Pole!.Id));
-            int missing = project.Occupied.Count(o => !withEffort.Contains(o.Pole.Id));
-            if (missing > 0)
+            // 6. Esforço do projeto acima do limite do item 14.2 d (substituição do poste) e encabeçamento em poste fraco
+            foreach (EffortPoint e in project.Efforts.Where(e => e.Pole != null))
             {
+                PoleLoad load = e.Load;
+                if (load.NeedsReplacement)
+                {
+                    issues.Add(new NormIssue
+                    {
+                        Severity = NormIssue.Error,
+                        Where = e.Pole!.Number,
+                        Point = e.Point,
+                        Message = $"Esforço do projeto de {load.ProjectDaN:F1} daN passa do limite de {load.ReplacementLimitDaN:F0} daN " +
+                                  $"para poste de {load.NominalDaN:F0} daN: a norma pede a substituição do poste",
+                        Rule = "14.2 d"
+                    });
+                }
+                else if (load.ReplacementLimitDaN == null && load.NominalDaN != null && load.ProjectDaN > ReplacementLimitLowDaN)
+                {
+                    issues.Add(new NormIssue
+                    {
+                        Severity = NormIssue.Warning,
+                        Where = e.Pole!.Number,
+                        Point = e.Point,
+                        Message = $"Esforço do projeto de {load.ProjectDaN:F1} daN em poste de {load.NominalDaN:F0} daN: a norma limita a " +
+                                  $"{ReplacementLimitLowDaN:F0} daN até 300 daN e a 100 daN a partir de 600 daN; confira com a Energisa",
+                        Rule = "14.2 d"
+                    });
+                }
+            }
+            foreach (var (pole, result) in project.Occupied.Where(o => o.Result.EndCount > 0))
+            {
+                if (pole.NominalDaN is not double nominal || nominal >= MinAnchorDaN) continue;
                 issues.Add(new NormIssue
                 {
-                    Severity = NormIssue.Warning,
-                    Where = "Projeto",
-                    Message = $"{missing} poste(s) com cabo sem esforço calculado: rode o Esforço no Percurso",
-                    Rule = "16.2 e"
+                    Severity = NormIssue.Error,
+                    Where = pole.Number,
+                    Point = pole.Position,
+                    Message = $"Cabo termina (encabeçamento) em poste de {nominal:F0} daN: só é permitido a partir de {MinAnchorDaN:F0} daN",
+                    Rule = "Anexo B 2.2.19 nota I"
                 });
             }
+
+            // 7. Setas de esforço: só em fim de rede e deflexão acima de 10°, com resultante não nula (Anexo B 2.2.18, item 16.3 h)
+            AddArrowIssues(issues,
+                project.Efforts.Where(e => e.NeedsArrow && !e.HasArrow).Select(e => (Where(e), e.Point, $"{e.Situation} sem a seta de esforço")).ToList(),
+                $"ponto(s) de fim de rede ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° sem a seta de esforço",
+                "rode o Esforço no Percurso", "rode o Esforço no Percurso", "Anexo B 2.2.18");
+            AddArrowIssues(issues,
+                project.Efforts.Where(e => e.ArrowOutdated)
+                    .Select(e => (Where(e), e.Point, $"Seta com valor diferente do cálculo atual ({e.Kgf:F2} kgf no cabo), porque o cabo mudou depois dela ou ela é do modo Cabo"))
+                    .ToList(),
+                "seta(s) com valor diferente do cálculo atual, porque o cabo mudou depois delas ou são do modo Cabo",
+                "rode o Esforço no Percurso (Total)", "rode o Esforço no Percurso (Total)", "16.3 h");
+            AddArrowIssues(issues,
+                project.ExtraArrows.Select(p => (Poles.Nearest(project.PoleList, p, 0.01)?.Number ?? "Ponto sem poste", p,
+                    $"Seta em poste de passagem (até {EffortResult.ArrowDeflectionDeg:F0}° ou resultante nula), que a norma dispensa")).ToList(),
+                $"seta(s) em poste de passagem (até {EffortResult.ArrowDeflectionDeg:F0}° ou resultante nula), que a norma dispensa",
+                "rode o Esforço no Percurso para apagá-la", "rode o Esforço no Percurso para apagá-las", "Anexo B 2.2.18");
 
             return issues
                 .OrderBy(i => i.Severity == NormIssue.Error ? 0 : 1)
                 .ThenBy(i => Poles.ParseNumber(i.Where) ?? int.MaxValue)
                 .ToList();
+        }
+
+        private static string Where(EffortPoint e) => e.Pole?.Number ?? "Ponto sem poste";
+
+        /// <summary>
+        /// Avisos das setas: um por ponto, marcado no desenho; acima de MaxArrowIssues (ex.: desenho de versão antiga, com
+        /// seta em todos os postes), um só para o projeto com os primeiros postes, já que um Esforço no Percurso resolve todos.
+        /// </summary>
+        private static void AddArrowIssues(List<NormIssue> issues, List<(string Where, Point3d Point, string Message)> items,
+            string summary, string itemAction, string summaryAction, string rule)
+        {
+            if (items.Count > MaxArrowIssues)
+            {
+                string first = string.Join(", ", items.Select(i => i.Where).Distinct().Take(MaxArrowIssues));
+                issues.Add(new NormIssue
+                {
+                    Severity = NormIssue.Warning,
+                    Where = "Projeto",
+                    Message = $"{items.Count} {summary} ({first} e outros): {summaryAction}",
+                    Rule = rule
+                });
+                return;
+            }
+            foreach (var (where, point, message) in items)
+            {
+                issues.Add(new NormIssue { Severity = NormIssue.Warning, Where = where, Point = point, Message = $"{message}: {itemAction}", Rule = rule });
+            }
         }
 
         /// <summary>Primeiro equipamento do poste cujo nome tem uma das palavras (null se nenhum).</summary>

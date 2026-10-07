@@ -293,7 +293,7 @@ namespace FiberPlugin.Commands
                         ("Modelo", pole.Data?.Designation ?? pole.Name),
                         ("Tipo", pole.Data?.TypeName ?? ""),
                         ("ID Energisa", pole.Data?.EnergisaId ?? ""),
-                        ("Situação", effort?.Marker.Situation ?? ""),
+                        ("Situação", effort?.Situation ?? ""),
                         ("Esforço total", effort != null ? $"{effort.Load.TotalKgf:F2} kgf" : ""),
                         ("Nominal", pole.NominalKgf is double nominal ? $"{nominal:F0} kgf" : ""),
                         ("Resultado", effort != null ? $"{effort.Load.Result} ({effort.Load.Usage:F0}%)" : ""),

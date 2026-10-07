@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.41.msi`](Instalador/FiberPlugin-1.9.41.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.42.msi`](Instalador/FiberPlugin-1.9.42.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -51,6 +51,7 @@ FiberPlugin.bundle/
     ├── net48/FiberPlugin.dll   AutoCAD 2022-2024 (+ Clipper2Lib.dll)
     ├── net8/FiberPlugin.dll    AutoCAD 2025-2026 (+ Clipper2Lib.dll)
     ├── Dados/  Blocos/         conteúdo padrão
+    ├── Normas/                 NDU 009 da Energisa em PDF (botão Norma NDU 009)
     └── README.md               este arquivo
 ```
 
@@ -85,8 +86,8 @@ No AutoCAD, rode `NETLOAD` e escolha a DLL da versão certa:
 - AutoCAD 2022-2024: `FiberPlugin\bin\Debug\net48\FiberPlugin.dll`
 - AutoCAD 2025-2026: `FiberPlugin\bin\Debug\net8.0-windows\FiberPlugin.dll`
 
-Carregado por `NETLOAD`, o plugin usa diretamente as pastas `FiberPlugin/Dados` (figuras do memorial) e
-`FiberPlugin/Blocos` do código-fonte. Se a versão instalada também estiver ativa, desinstale-a antes de testar para não
+Carregado por `NETLOAD`, o plugin usa diretamente as pastas `FiberPlugin/Dados` (figuras do memorial),
+`FiberPlugin/Blocos` e `FiberPlugin/Normas` do código-fonte. Se a versão instalada também estiver ativa, desinstale-a antes de testar para não
 carregar duas cópias.
 
 ## Estrutura de pastas
@@ -100,8 +101,10 @@ AutoCad_BD/
 │   ├── UI/                 aba Fibra, menu e janelas
 │   ├── Dados/
 │   │   └── Memorial/       logo.png e figuras de instalação do memorial
-│   └── Blocos/
-│       └── BLOCOS.dwg      todos os blocos do plugin (a única biblioteca)
+│   ├── Blocos/
+│   │   └── BLOCOS.dwg      todos os blocos do plugin (a única biblioteca)
+│   └── Normas/
+│       └── NDU 009 - ....pdf   a norma da Energisa (versão 8.1), aberta pelo botão Norma NDU 009
 ├── Instalacao/             como gerar o instalador
 │   ├── build.ps1           compila e gera o .msi em Instalador/
 │   ├── PackageContents.xml manifesto do Autoloader do AutoCAD
@@ -136,7 +139,9 @@ Regras dos blocos:
 - **Coordenadas**: atributos `COORDENADA_X`, `COORDENADA_Y` e `ZONA` são preenchidos na inserção
   (postes e elétricos).
 - **Seta de esforço**: se o `BLOCOS.dwg` tiver o bloco `SETA DE ESFORÇO`, ele é usado, com os atributos
-  `ESFORCO_KFG` (valor) e `ANGULO`; sem ele, o plugin desenha a seta.
+  `ESFORCO_KFG` (valor) e `ANGULO` (ou `336`); sem ele, o plugin desenha a seta. Os textos seguem o símbolo
+  "Indicação de esforço resultante/ângulo" do Anexo C da NDU 009: `E= 24,50 daN` e `β= 12°`. Se a fonte do atributo
+  for SHX (sem letras gregas), sai `b= 12°`, como no símbolo impresso da norma.
 
 ## Comandos
 
@@ -162,8 +167,8 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 ### Esforços
 | Botão | Comando | Função |
 |---|---|---|
-| Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. |
-| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Seta de esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo). Cada ponto é vinculado ao poste mais próximo (até 10 m) e guarda a situação (fim de rede, passagem ou ângulo). |
+| Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
+| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha seta e aviso. |
 | Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
 | Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
 
@@ -171,10 +176,11 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Os problemas do mesmo poste ficam num texto só, um embaixo do outro, com o número da lista da linha de comando; textos de postes vizinhos não se sobrepõem. Veja abaixo. |
-| Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, a 20 cm do topo, existente e total), **CTO e CEO**, **Esforços**, **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
+| Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, seta, a 20 cm do topo, valor da seta em daN, existente e total), **CTO e CEO**, **Esforços** (todos os postes ocupados; coluna Seta: Sim, Falta, Desatualizada ou Dispensada), **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
+| Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
@@ -243,6 +249,7 @@ um aviso na linha de comando.
 | FEX | Esforço Existente | FAB | Atualizar Blocos |
 | FVP | Verificar Projeto | FXB | Exportar Blocos |
 | FRE | Gerar Relatório | FSO | Sobre o plugin |
+| FNO | Norma NDU 009 | | |
 
 ### Só pela linha de comando
 | Comando | Função |
@@ -265,13 +272,15 @@ O botão **Memorial Descritivo** gera o PDF que acompanha o pedido de ocupação
    (lances e metragem), postes para aluguel e resumo de pontos de fixação.
 4. **Cálculo de esforços**: parâmetros (normas, tração, flecha, altura de fixação, transferência ao topo),
    dados mecânicos dos cabos (fibras, peso, diâmetro, maior vão e tração), resumo e a **tabela de esforço
-   resultante em cada poste** (intensidade, ângulo, no topo, existente, total, nominal e resultado).
+   resultante em cada poste** ocupado, com ou sem seta (intensidade, ângulo, no topo, valor da seta em daN, existente,
+   total, nominal e resultado; **SUBSTITUIR** quando passa do limite do item 14.2 d).
 5. **Detalhamento de instalação** com as figuras A a E; a plaqueta traz logomarca, telefone, tipo de cabo e
    rota, a 300 mm do poste (a norma admite de 200 a 400 mm).
 6. **Prazo e cronograma**, endereço da obra e responsável técnico, com assinatura.
 
-É o conteúdo pedido no item 16.2 da NDU 009. Postes, CTO/CEO, cabos e esforços são levantados do desenho
-(rode o **Esforço no Percurso** antes). Na janela você informa percurso (vai na capa e na plaqueta), endereço
+É o conteúdo pedido no item 16.2 da NDU 009. Postes, CTO/CEO, cabos e esforços são levantados do desenho: o
+esforço é calculado dos cabos lançados em todos os postes ocupados, inclusive os de passagem, que ficam sem seta (se
+faltar seta em algum fim de rede ou ângulo, o comando avisa para rodar o **Esforço no Percurso**). Na janela você informa percurso (vai na capa e na plaqueta), endereço
 da obra, local e data, **contrato de uso mútuo** (obrigatório na norma), **ART**, início e prazo da obra; esses
 dados ficam gravados no DWG para a próxima vez. O PDF é gerado pelo Microsoft Edge (já vem no Windows),
 sem abrir janela.
@@ -401,14 +410,22 @@ O botão **Verificar Projeto** lista na linha de comando (e na aba *Verificaçã
 | Tipo | O que confere | Item da NDU 009 |
 |---|---|---|
 | Erro | Esforço total (projeto a 20 cm do topo + existente) acima do nominal do poste | 8.1 |
+| Erro | Esforço do projeto acima de 50 daN em poste de até 300 daN ou de 100 daN em poste de 600 daN ou mais: substituição do poste | 14.2 d |
+| Aviso | Esforço do projeto acima de 50 daN em poste entre 300 e 600 daN (a norma não fixa limite para eles) | 14.2 d |
+| Erro | Cabo terminando (encabeçamento) em poste abaixo de 300 daN | Anexo B 2.2.19 nota I |
 | Erro | Cabo em poste com trafo, chave, religador, regulador ou banco de capacitores | 8, nota I |
 | Erro | Mais de uma CTO ou mais de uma CEO no mesmo poste | 17.4 nota IV, 17.5 g |
 | Erro | CTO/CEO em poste com equipamento da Energisa ou para-raios | 17.5 c |
 | Aviso | CTO/CEO em poste com deflexão de 45° ou mais (confira se é esquina) | 17.5 c |
 | Erro | Cabos que somam mais de 1.680 kg/km ou 65 mm num ponto de fixação | 8 i |
 | Erro | Vão em que, com flecha de 1%, o cabo fica abaixo da altura mínima ao solo | Tabela 02 |
-| Aviso | Vão acima de 60 m (considerar vento e temperatura) | 16.3 |
-| Aviso | Postes com cabo sem esforço calculado | 16.2 e |
+| Aviso | Vão acima de 60 m (considerar vento e temperatura) | 16.3 i |
+| Aviso | Fim de rede ou ângulo acima de 10° sem a seta de esforço | Anexo B 2.2.18 |
+| Aviso | Seta com valor diferente do cálculo atual (cabo mudou depois dela, ou seta do modo Cabo) | 16.3 h |
+| Aviso | Seta em poste de passagem, que a norma dispensa (sobra de cálculo anterior) | Anexo B 2.2.18 |
+
+Com mais de 10 avisos do mesmo tipo de seta (por exemplo, num desenho de versão antiga, com seta em todos os postes),
+eles viram um aviso só para o projeto: um **Esforço no Percurso** resolve todos.
 
 Os equipamentos são os blocos do grupo Elétricos, ligados ao poste mais próximo (até 10 m). Não são
 verificados: orientação dos postes DT, drops por vão e afastamentos da rede elétrica.
@@ -420,14 +437,23 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
   vento), por faixa de número de fibras e vão, com interpolação entre os vãos da tabela
   (aba **Tração** do botão Configurações). O número de fibras vem da coluna `Fibras` do cadastro de cabos ou do nome
   ("06F.O"). Em **Parâmetros** dá para usar o peso do cabo: `T = p·L² / (8·f) = 12,5 · p · L` (p em kgf/m).
-- O esforço no poste é a soma vetorial das trações dos vãos que chegam nele (método analítico). De cada cabo é
-  considerado o vértice mais próximo do poste, num raio de 2,5 m.
+- O esforço no poste é a soma vetorial das trações dos vãos que chegam nele (método analítico, Anexo A itens 14 e
+  15). Cada vértice dos cabos é ligado ao poste mais próximo (até 10 m) e o cálculo sai do centro do poste; de cada
+  cabo é considerado o vértice mais próximo dele.
 - O resultado é **transferido a 20 cm do topo**: `Ft = F · hc / h`, com altura útil `h = L − e` e engastamento
   `e = L/10 + 0,60 m`; `hc` é a altura de fixação do cabo (padrão 5,40 m). Num poste de 11 m, Ft = 0,58 · F.
 - O **esforço existente** no poste (redes da Energisa e outras ocupantes) é somado ao do projeto antes de
   comparar com o nominal. A soma é direta (pior caso, os dois no mesmo sentido).
 - O esforço nominal vem do modelo escolhido no `FIBRA_INSERIR_POSTE` (ou, em desenhos antigos, do nome do
   poste). Ele segue a norma em daN e é convertido para kgf: `DT 11/200` → 200 daN = 204 kgf.
+- **Limite do item 14.2 d**: o esforço do projeto no poste (o valor da seta, a 20 cm do topo) acima de 50 daN em
+  poste de até 300 daN, ou de 100 daN em poste de 600 daN ou mais, exige a substituição do poste.
+- **Onde vai a seta** (Anexo B, 2.2.18): a representação do esforço é obrigatória em todo poste de **fim de rede**
+  (aqui também o poste onde um dos cabos termina, que é ancoragem, como numa derivação) e em todo poste com
+  **deflexão acima de 10°**; onde o esforço resultante é nulo ela é dispensada (item 16.3 h). Nos demais postes
+  não vai seta, mas o esforço continua calculado e aparece no memorial, no relatório e no KML (item 13: esforço em
+  cada poste). A seta mostra `E=` (esforço do projeto a 20 cm do topo, em daN) e `β=` (direção da resultante,
+  anti-horária a partir do leste); a ponta dá o sentido.
 - **Não considera** vento, variação de temperatura nem desnível entre postes (a Verificação avisa os vãos
   acima de 60 m). Para um laudo formal, confirme com a concessionária.
 

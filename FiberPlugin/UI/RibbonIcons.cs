@@ -81,6 +81,7 @@ namespace FiberPlugin.UI
             ["FIBRA_MEMORIAL"] = PaintMemorial,
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
+            ["FIBRA_NORMA"] = PaintNorm,
             ["FIBRA_CONFIGURACOES"] = PaintSettings,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
@@ -377,6 +378,20 @@ namespace FiberPlugin.UI
             dc.DrawLine(text, new W.Point(8, 21), new W.Point(14, 21));
             dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(17, 25), 3.2, 3.2);
             Arrow(dc, ink.Red, 19, 23, 30, 12, 2.2);
+        }
+
+        private static void PaintNorm(M.DrawingContext dc, Ink ink)
+        {
+            // Livro da norma: capa azul com a faixa branca do título e o marcador vermelho
+            dc.DrawRoundedRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(8, 4, 19, 25), 1.5, 1.5);
+            dc.DrawRoundedRectangle(ink.Blue, Ink.Pen(ink.Line, 1.3), new W.Rect(5, 3, 19, 25), 1.5, 1.5);
+            dc.DrawRectangle(ink.White, null, new W.Rect(8.5, 8, 12, 4.5));
+            M.Pen text = Ink.Pen(ink.Blue, 1.1);
+            dc.DrawLine(text, new W.Point(10.5, 10.3), new W.Point(18.5, 10.3));
+            M.Pen lines = Ink.Pen(ink.White, 1.1);
+            dc.DrawLine(lines, new W.Point(8.5, 17), new W.Point(20.5, 17));
+            dc.DrawLine(lines, new W.Point(8.5, 20.5), new W.Point(17, 20.5));
+            dc.DrawGeometry(ink.Red, null, G("M18,3 H22 V12 L20,10 L18,12 Z"));
         }
 
         private static void PaintPoleCoordinates(M.DrawingContext dc, Ink ink)

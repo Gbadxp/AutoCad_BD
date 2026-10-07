@@ -4,7 +4,7 @@ using System.Reflection;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Localiza as pastas "Dados" (planilhas) e "Blocos" (biblioteca BLOCOS.dwg).
+    /// Localiza as pastas "Dados" (planilhas), "Blocos" (biblioteca BLOCOS.dwg) e "Normas" (NDU 009 em PDF).
     ///
     /// Desenvolvimento (NETLOAD): procura ao lado da DLL e nas pastas acima dela, então rodando a partir
     /// de bin\Debug\... as pastas do código-fonte (FiberPlugin\Dados e FiberPlugin\Blocos) são usadas direto.
@@ -47,6 +47,24 @@ namespace FiberPlugin.Core
 
         /// <summary>Pasta Blocos: a do código-fonte (desenvolvimento) ou a do pacote instalado.</summary>
         public static string? BlocksDir => FindUpwards(BlocksFolderName);
+
+        public const string NormsFolderName = "Normas";
+
+        /// <summary>PDF da NDU 009 na pasta Normas (a do código-fonte ou a do pacote). Null se não estiver lá.</summary>
+        public static string? NormFile
+        {
+            get
+            {
+                string? dir = FindUpwards(NormsFolderName);
+                if (dir == null) return null;
+                try
+                {
+                    return Directory.EnumerateFiles(dir, "NDU 009*.pdf").OrderBy(f => f).FirstOrDefault();
+                }
+                catch (IOException) { return null; }
+                catch (UnauthorizedAccessException) { return null; }
+            }
+        }
 
         // Arquivo que guarda o BLOCOS.dwg escolhido no Atualizar Blocos
         private static string SettingsFile => Path.Combine(UserRoot, "biblioteca.txt");

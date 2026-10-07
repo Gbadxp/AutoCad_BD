@@ -25,8 +25,11 @@ namespace FiberPlugin.Core
         /// <summary>Esforço resultante em kgf.</summary>
         public double Kgf => Resultant.Length;
 
+        /// <summary>Resultante até este valor (kgf) é tratada como nula: vãos alinhados que se anulam.</summary>
+        public const double NullKgf = 0.1;
+
         /// <summary>Ângulo da resultante em radianos (0 a 2π). Zero quando o esforço é desprezível.</summary>
-        public double AngleRad => Kgf > 0.1 ? Resultant.Angle : 0;
+        public double AngleRad => Kgf > NullKgf ? Resultant.Angle : 0;
         public double AngleDeg => AngleRad * 180.0 / Math.PI;
 
         /// <summary>Cabos que terminam no poste (ancoragem) e que passam por ele.</summary>
@@ -39,11 +42,27 @@ namespace FiberPlugin.Core
         /// <summary>Deflexão a partir da qual o poste é considerado "de ângulo".</summary>
         public const double AngleThresholdDeg = 5;
 
+        /// <summary>Deflexão acima da qual a seta é obrigatória com cabo óptico (NDU 009, Anexo B, 2.2.18).</summary>
+        public const double ArrowDeflectionDeg = 10;
+
         /// <summary>Situação do poste no percurso: "Fim de rede", "Ângulo (35°)" ou "Passagem".</summary>
         public string Situation =>
             EndCount > 0 ? "Fim de rede"
             : MaxDeflectionDeg >= AngleThresholdDeg ? $"Ângulo ({MaxDeflectionDeg:F0}°)"
             : "Passagem";
+
+        /// <summary>
+        /// O ponto leva a seta de esforço. A NDU 009 (Anexo B, 2.2.18) só a exige no poste de fim de rede (aqui também o
+        /// poste onde um dos cabos termina, que é ancoragem) e no de deflexão acima de 10°, e a dispensa onde o esforço
+        /// resultante é nulo (item 16.3 h). Nos postes de passagem o esforço continua calculado (memorial e relatório).
+        /// </summary>
+        public bool NeedsArrow => Kgf > NullKgf && (EndCount > 0 || MaxDeflectionDeg > ArrowDeflectionDeg);
+
+        /// <summary>Por que o ponto fica sem seta, para as mensagens dos comandos (null quando ele leva seta).</summary>
+        public string? WithoutArrowReason =>
+            NeedsArrow ? null
+            : Kgf <= NullKgf ? "resultante nula, sem seta"
+            : $"deflexão de {MaxDeflectionDeg:F0}°, sem seta (só acima de {ArrowDeflectionDeg:F0}° ou em fim de rede)";
 
         /// <summary>Registra a geometria do cabo no poste: ponta de rede ou passagem com deflexão.</summary>
         internal void AddGeometry(Point3d at, Point3d? previous, Point3d? next)
@@ -65,6 +84,16 @@ namespace FiberPlugin.Core
         }
     }
 
+    /// <summary>Ponto de esforço do percurso: o poste a que os vértices dos cabos foram ligados, ou o vértice sem poste perto.</summary>
+    public sealed class EffortStop
+    {
+        public Point3d Point { get; set; }
+        public PoleInfo? Pole { get; set; }
+
+        /// <summary>Raio de busca dos vértices dos cabos em volta do ponto (alcança o vértice que levou até este poste).</summary>
+        public double Tolerance { get; set; }
+    }
+
     /// <summary>
     /// Esforço resultante no poste pela soma vetorial das trações dos vãos que chegam nele (método
     /// analítico da NDU 009, Anexo A). A tração de cada vão vem da Tabela 08 da norma ou do peso do cabo
@@ -72,6 +101,30 @@ namespace FiberPlugin.Core
     /// </summary>
     public static class EffortCalculator
     {
+        /// <summary>
+        /// Pontos de esforço dos cabos: cada vértice vai para o poste mais próximo a até PoleLinkRadius, e o esforço é
+        /// calculado a partir do centro desse poste; sem poste por perto, o ponto é o próprio vértice. Usado pelo
+        /// Esforço no Percurso e pelo levantamento do relatório e do memorial, para os dois darem o mesmo resultado.
+        /// </summary>
+        public static List<EffortStop> Stops(IEnumerable<CableRun> runs, IList<PoleInfo> poles)
+        {
+            var stops = new List<EffortStop>();
+            foreach (CableRun run in runs)
+            {
+                foreach (Point3d vertex in run.Vertices)
+                {
+                    PoleInfo? pole = Poles.Nearest(poles, vertex, FiberSettings.PoleLinkRadius);
+                    Point3d point = pole?.Position ?? vertex;
+                    double tolerance = Math.Max(FiberSettings.PoleMatchTolerance, vertex.DistanceTo(point) + 0.1);
+
+                    EffortStop? existing = stops.Find(s => s.Point.DistanceTo(point) < 0.01);
+                    if (existing != null) existing.Tolerance = Math.Max(existing.Tolerance, tolerance);
+                    else stops.Add(new EffortStop { Point = point, Pole = pole, Tolerance = tolerance });
+                }
+            }
+            return stops;
+        }
+
         /// <summary>Vetor de tração que o vão de <paramref name="at"/> até <paramref name="toward"/> exerce no ponto "at".</summary>
         public static Vector2d PullVector(Point3d at, Point3d toward, Func<double, double> tension)
         {

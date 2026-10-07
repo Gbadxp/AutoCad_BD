@@ -14,7 +14,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
     <!-- Identificação da DLL (aparece em Propriedades > Detalhes e na mensagem de carregamento) -->
-    <Version>1.9.41</Version>
+    <Version>1.9.42</Version>
     <Product>Fiber Plugin</Product>
     <Company>Fiber Plugin</Company>
     <Authors>Fiber Plugin</Authors>
@@ -45,10 +45,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Planilhas e biblioteca de blocos: não vão para bin (no desenvolvimento o plugin lê direto
-         destas pastas). O script Instalacao\build.ps1 as coloca dentro do pacote .bundle. -->
+    <!-- Planilhas, biblioteca de blocos e a NDU 009 em PDF: não vão para bin (no desenvolvimento o plugin lê
+         direto destas pastas). O script Instalacao\build.ps1 as coloca dentro do pacote .bundle. -->
     <None Update="Dados\**" CopyToOutputDirectory="Never" />
     <None Update="Blocos\**" CopyToOutputDirectory="Never" />
+    <None Update="Normas\**" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
 </Project>

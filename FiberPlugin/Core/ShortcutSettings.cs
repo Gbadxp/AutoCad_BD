@@ -38,6 +38,7 @@ namespace FiberPlugin.Core
             ["FIBRA_MEMORIAL"] = "FMD",
             ["FIBRA_MEMORIAL_ESFORCO"] = "FME",
             ["FIBRA_COORDENADAS_POSTES"] = "FCO",
+            ["FIBRA_NORMA"] = "FNO",
             ["FIBRA_GERAR_FOLHAS"] = "FGF",
             ["FIBRA_IMPORTAR_KML"] = "FIK",
             ["FIBRA_EXPORTAR_KML"] = "FEK",

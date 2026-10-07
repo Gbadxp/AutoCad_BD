@@ -26,9 +26,12 @@ namespace FiberPlugin.Core
         public string Pole { get; set; } = "";
         public string Structure { get; set; } = "";
         public string Situation { get; set; } = "";
+        public bool Arrow { get; set; }                  // Leva seta no desenho (fim de rede ou ângulo acima de 10°)
         public double CableKgf { get; set; }
         public double AngleDeg { get; set; }
         public double? TopKgf { get; set; }
+        public double ArrowDaN { get; set; }             // Valor da seta: esforço do projeto a 20 cm do topo, em daN
+        public bool Replace { get; set; }                // Passa do limite do item 14.2 d: substituição do poste
         public double ExistingKgf { get; set; }
         public double TotalKgf { get; set; }
         public double? NominalKgf { get; set; }
@@ -128,9 +131,10 @@ namespace FiberPlugin.Core
         public static string EffortHtml(MemorialData d, string? assetsDir)
         {
             string logo = Image(assetsDir, "logo.png");
-            int ok = d.Efforts.Count(e => e.Result == "OK");
+            int ok = d.Efforts.Count(e => e.Result == "OK" && !e.Replace);
             int exceeded = d.Efforts.Count(e => e.Result == "EXCEDIDO");
-            int unknown = d.Efforts.Count - ok - exceeded;
+            int replace = d.Efforts.Count(e => e.Replace && e.Result != "EXCEDIDO");
+            int unknown = d.Efforts.Count - ok - exceeded - replace;
 
             var pages = new List<string>
             {
@@ -147,13 +151,16 @@ namespace FiberPlugin.Core
             pages.AddRange(EffortPages(d, "2"));
 
             string conclusion = d.Efforts.Count == 0
-                ? """<div class="callout warn">Nenhum esforço calculado no desenho: rode o Esforço no Percurso antes de gerar o memorial.</div>"""
-                : exceeded == 0 && unknown == 0
-                    ? $"<p>Todos os {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal, já somado o esforço existente.</p>"
+                ? """<div class="callout warn">Nenhum poste com cabo no desenho: lance os cabos antes de gerar o memorial.</div>"""
+                : exceeded == 0 && replace == 0 && unknown == 0
+                    ? $"<p>Todos os {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal, já somado o esforço existente, " +
+                      "e dentro do limite do item 14.2 d da NDU 009.</p>"
                     : $"""
-                      <p>{N(ok)} de {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal.
+                      <p>{N(ok)} de {N(d.Efforts.Count)} postes calculados ficam dentro do esforço nominal e do limite do item 14.2 d.
                       {(exceeded == 1 ? "<b>1 poste fica acima do nominal</b> e precisa de reforço ou troca antes da ocupação. "
                         : exceeded > 1 ? $"<b>{N(exceeded)} postes ficam acima do nominal</b> e precisam de reforço ou troca antes da ocupação. " : "")}
+                      {(replace == 1 ? "<b>1 poste passa do limite do item 14.2 d</b> (50 daN até 300 daN, 100 daN a partir de 600 daN), e a norma pede a substituição. "
+                        : replace > 1 ? $"<b>{N(replace)} postes passam do limite do item 14.2 d</b> (50 daN até 300 daN, 100 daN a partir de 600 daN), e a norma pede a substituição. " : "")}
                       {(unknown == 1 ? "1 poste está sem esforço nominal informado no desenho."
                         : unknown > 1 ? $"{N(unknown)} postes estão sem esforço nominal informado no desenho." : "")}</p>
                       """;
@@ -395,16 +402,16 @@ namespace FiberPlugin.Core
                 <td class="num">{k.MaxTension.ToString("N1", Br)}</td><td>{E(k.TractionSource)}</td></tr>
                 """));
 
-            int ok = d.Efforts.Count(e => e.Result == "OK");
-            int exceeded = d.Efforts.Count(e => e.Result == "EXCEDIDO");
+            int ok = d.Efforts.Count(e => e.Result == "OK" && !e.Replace);
+            int exceeded = d.Efforts.Count(e => e.Result == "EXCEDIDO" || e.Replace);
             MemorialEffort? worst = d.Efforts.Where(e => e.Usage != null).OrderByDescending(e => e.Usage).FirstOrDefault();
             string summary = d.Efforts.Count == 0
-                ? """<div class="callout warn">Nenhum esforço calculado no desenho: rode o Esforço no Percurso antes de gerar o memorial.</div>"""
+                ? """<div class="callout warn">Nenhum poste com cabo no desenho: lance os cabos antes de gerar o memorial.</div>"""
                 : $"""
                   <div class="totals four">
                     <div><span>Postes calculados</span><b>{N(d.Efforts.Count)}</b></div>
-                    <div><span>Dentro do nominal</span><b>{N(ok)}</b></div>
-                    <div class="{(exceeded > 0 ? "bad" : "")}"><span>Acima do nominal</span><b>{N(exceeded)}</b></div>
+                    <div><span>Dentro do limite</span><b>{N(ok)}</b></div>
+                    <div class="{(exceeded > 0 ? "bad" : "")}"><span>Acima do nominal ou do 14.2 d</span><b>{N(exceeded)}</b></div>
                     <div><span>Maior utilização</span><b>{(worst != null ? $"{worst.Usage:F0}%" : "—")}</b>{(worst != null ? $"<small>{E(worst.Pole)}</small>" : "")}</div>
                   </div>
                   """;
@@ -418,6 +425,8 @@ namespace FiberPlugin.Core
                   {Row("Altura de fixação", $"{d.AttachHeightM.ToString("0.00", Br)} m do solo (faixa de ocupação de 5,20 a 5,70 m)")}
                   {Row("Transferência", "Esforço referido a 20 cm do topo: Ft = F × hc / h, sendo h = L − e (altura útil) e e = L/10 + 0,60 m (engastamento), conforme Anexo A")}
                   {Row("Esforço existente", "Somado ao do projeto na comparação com o nominal do poste (item 8.1)")}
+                  {Row("Limite do projeto", "50 daN no poste de até 300 daN e 100 daN no de 600 daN ou mais; acima disso, substituição do poste (item 14.2 d)")}
+                  {Row("Setas no desenho", $"Nos postes de fim de rede e com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h), no símbolo do Anexo C: E em daN e β = direção da resultante")}
                   {Row("Coordenadas", d.CoordinateSystem)}
                 </dl></div>
                 <h3>{number}.2 Dados mecânicos dos cabos</h3>
@@ -437,23 +446,31 @@ namespace FiberPlugin.Core
         {
             for (int start = 0; start < d.Efforts.Count; start += EffortRowsPerPage)
             {
-                string rows = string.Concat(d.Efforts.Skip(start).Take(EffortRowsPerPage).Select(e => $"""
-                    <tr><td><b>{E(e.Pole)}</b></td><td>{E(e.Structure)}</td><td>{E(e.Situation)}</td>
-                    <td class="num">{e.CableKgf.ToString("N2", Br)}</td><td class="num">{e.AngleDeg.ToString("0", Br)}°</td>
-                    <td class="num">{(e.TopKgf?.ToString("N2", Br) ?? "—")}</td><td class="num">{e.ExistingKgf.ToString("N2", Br)}</td>
-                    <td class="num"><b>{e.TotalKgf.ToString("N2", Br)}</b></td><td class="num">{(e.NominalKgf?.ToString("N0", Br) ?? "—")}</td>
-                    <td class="num">{(e.Usage != null ? e.Usage.Value.ToString("0", Br) + "%" : "—")}</td>
-                    <td><span class="badge {(e.Result == "OK" ? "ok" : e.Result == "EXCEDIDO" ? "bad" : "")}">{E(e.Result)}</span></td></tr>
-                    """));
+                string rows = string.Concat(d.Efforts.Skip(start).Take(EffortRowsPerPage).Select(e =>
+                {
+                    // Poste dentro do nominal mas acima do limite do item 14.2 d: a norma pede a substituição
+                    string result = e.Replace && e.Result != "EXCEDIDO" ? "SUBSTITUIR" : e.Result;
+                    return $"""
+                        <tr><td><b>{E(e.Pole)}</b></td><td>{E(e.Structure)}</td><td>{E(e.Situation)}</td>
+                        <td class="num">{e.CableKgf.ToString("N2", Br)}</td><td class="num">{e.AngleDeg.ToString("0", Br)}°</td>
+                        <td class="num">{(e.TopKgf?.ToString("N2", Br) ?? "—")}</td><td class="num">{(e.Arrow ? e.ArrowDaN.ToString("N2", Br) : "—")}</td>
+                        <td class="num">{e.ExistingKgf.ToString("N2", Br)}</td>
+                        <td class="num"><b>{e.TotalKgf.ToString("N2", Br)}</b></td><td class="num">{(e.NominalKgf?.ToString("N0", Br) ?? "—")}</td>
+                        <td class="num">{(e.Usage != null ? e.Usage.Value.ToString("0", Br) + "%" : "—")}</td>
+                        <td><span class="badge {(result == "OK" ? "ok" : result == "SEM NOMINAL" ? "" : "bad")}">{E(result)}</span></td></tr>
+                        """;
+                }));
 
                 string title = $"{number}.4 Esforço resultante por poste" + (start == 0 ? "" : " (continuação)");
                 yield return $"""
                     <h3 class="page-title">{title}</h3>
-                    <p class="muted fig-desc">Intensidade (kgf), direção (ângulo da resultante, anti-horário a partir do leste) e sentido
-                    indicados pela seta de cada poste no desenho. Esforço do projeto transferido a 20 cm do topo.</p>
+                    <p class="muted fig-desc">Esforço do projeto em todos os postes ocupados, em kgf, transferido a 20 cm do topo; direção
+                    pelo ângulo da resultante (anti-horário a partir do leste). A seta vai no desenho só nos postes de fim de rede e com
+                    ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° (NDU 009, Anexo B 2.2.18), com o valor da coluna Seta em daN;
+                    nos de passagem a norma dispensa a seta (—).</p>
                     <table class="small">
                       <thead><tr><th>Poste</th><th>Estrutura</th><th>Situação</th><th class="num">No cabo</th><th class="num">Âng.</th>
-                      <th class="num">Topo</th><th class="num">Exist.</th><th class="num">Total</th><th class="num">Nominal</th>
+                      <th class="num">Topo</th><th class="num">Seta (daN)</th><th class="num">Exist.</th><th class="num">Total</th><th class="num">Nominal</th>
                       <th class="num">Uso</th><th>Resultado</th></tr></thead>
                       <tbody>{rows}</tbody>
                     </table>

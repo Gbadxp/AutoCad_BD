@@ -13,6 +13,28 @@ namespace FiberPlugin.Commands
     /// <summary>Comandos de manutenção do próprio plugin.</summary>
     public class PluginCommands
     {
+        /// <summary>Abre a NDU 009 da Energisa (PDF da pasta Normas do plugin) no leitor de PDF do Windows.</summary>
+        [CommandMethod("FIBRA_NORMA")]
+        public void OpenNorm()
+        {
+            Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+            string? pdf = PluginPaths.NormFile;
+            if (pdf == null)
+            {
+                ed.WriteMessage($"\n[AVISO]: A NDU 009 não está na pasta {PluginPaths.NormsFolderName} do plugin. Reinstale o plugin.");
+                return;
+            }
+            try
+            {
+                Process.Start(new ProcessStartInfo(pdf) { UseShellExecute = true });
+                ed.WriteMessage($"\n[INFO]: {pdf}");
+            }
+            catch (System.Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
+            {
+                ed.WriteMessage($"\n[AVISO]: Não foi possível abrir o PDF ({ex.Message}). O arquivo está em {pdf}");
+            }
+        }
+
         /// <summary>Abre no Explorer a pasta do plugin (logo e figuras do memorial, dados gravados pela janela Configurações).</summary>
         [CommandMethod("FIBRA_ABRIR_PASTA")]
         public void OpenDataFolder()

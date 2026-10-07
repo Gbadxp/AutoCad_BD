@@ -69,7 +69,11 @@ namespace FiberPlugin.Commands
             if (kind != Kind.Coordinates)
             {
                 if (data.Cables.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum cabo lançado no desenho.");
-                if (data.Efforts.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum esforço calculado: rode o Esforço no Percurso antes, para o memorial trazer a tabela de esforços.");
+                if (data.Efforts.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum poste com cabo no desenho: o memorial sai sem a tabela de esforços.");
+                int missing = project.Efforts.Count(e => e.NeedsArrow && !e.HasArrow);
+                if (missing > 0)
+                    ed.WriteMessage($"\n[AVISO]: {missing} poste(s) de fim de rede ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° ainda sem a seta " +
+                                    "de esforço no desenho: rode o Esforço no Percurso (o memorial já traz o cálculo deles).");
             }
 
             // Dados do projeto (os deste desenho, completados com os últimos salvos); cada documento mostra só os campos que usa
@@ -196,10 +200,13 @@ namespace FiberPlugin.Commands
                 {
                     Pole = e.Pole?.Number ?? "Sem poste",
                     Structure = e.Pole?.Data?.Designation ?? e.Pole?.Name ?? "",
-                    Situation = e.Marker.Situation,
-                    CableKgf = e.Marker.Kgf,
-                    AngleDeg = e.Marker.AngleDeg,
+                    Situation = e.Situation,
+                    Arrow = e.NeedsArrow,
+                    CableKgf = e.Kgf,
+                    AngleDeg = e.AngleDeg,
                     TopKgf = e.Load.TopKgf,
+                    ArrowDaN = e.Load.ProjectDaN,
+                    Replace = e.Load.NeedsReplacement,
                     ExistingKgf = e.Load.ExistingKgf,
                     TotalKgf = e.Load.TotalKgf,
                     NominalKgf = e.Load.NominalKgf,

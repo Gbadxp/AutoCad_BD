@@ -19,12 +19,18 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>
-    /// Coloca a seta (ou texto) de esforço num poste. Antes de colocar, apaga a marcação anterior do
-    /// mesmo poste, então recalcular não duplica setas.
+    /// Coloca a seta de esforço num poste, só onde a NDU 009 pede (fim de rede e deflexão acima de 10°, com resultante
+    /// não nula; veja EffortResult.NeedsArrow). Antes, apaga a seta anterior do mesmo poste: recalcular não duplica setas
+    /// e tira as que ficaram em poste de passagem.
     /// </summary>
     public class EffortMarkers
     {
         private const double SamePointTolerance = 0.01;
+        private static readonly CultureInfo Br = new CultureInfo("pt-BR");
+
+        // Tags do bloco "SETA DE ESFORÇO" (o "336" é o do modelo de projeto)
+        private static readonly string[] EffortTags = { "ESFORÇO_KFG", "ESFORCO_KFG" };
+        private static readonly string[] AngleTags = { "336", "ANGULO" };
 
         private readonly Transaction _tr;
         private readonly Database _db;
@@ -32,9 +38,19 @@ namespace FiberPlugin.Core
         private readonly ObjectId _arrowBlockId;
         private readonly double _scale; // Fator da escala do desenho (1,0 em 1:1000)
         private readonly double _attachHeight;
+        private readonly string _blockBeta = "β";
         private readonly List<(ObjectId Id, Point3d Pole)> _existing = new List<(ObjectId, Point3d)>();
 
-        /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para usar texto).</param>
+        /// <summary>Setas colocadas.</summary>
+        public int Placed { get; private set; }
+
+        /// <summary>Pontos calculados que ficaram sem seta, porque a norma dispensa.</summary>
+        public int Skipped { get; private set; }
+
+        /// <summary>Desses, os que tinham seta de um cálculo anterior, apagada agora.</summary>
+        public int Cleared { get; private set; }
+
+        /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para desenhar a seta e os textos).</param>
         public EffortMarkers(Transaction tr, Database db, BlockTableRecord space, ObjectId arrowBlockId)
         {
             _tr = tr;
@@ -43,6 +59,7 @@ namespace FiberPlugin.Core
             _arrowBlockId = arrowBlockId;
             _scale = DrawingScale.Factor(db);
             _attachHeight = CalcSettings.Get(db).AttachHeightM;
+            if (!arrowBlockId.IsNull) _blockBeta = BetaFor(AngleAttributeStyle(arrowBlockId));
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, UserSettings.Current.EffortColor);
 
@@ -63,22 +80,30 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <summary>
+        /// Coloca a seta no ponto quando a norma pede (EffortResult.NeedsArrow). Quando não pede, só apaga a seta que já
+        /// estava ali, de um cálculo anterior. O esforço é devolvido nos dois casos, para as mensagens do comando.
+        /// </summary>
         /// <param name="pole">Ponto de onde sai a seta (centro do poste vinculado, ou o ponto do cabo).</param>
         /// <param name="linkedPole">Poste a que o cálculo pertence; fica gravado na seta para o relatório.</param>
-        /// <param name="angleOverride">Direção usada quando o esforço é nulo (poste em alinhamento reto).</param>
-        /// <returns>Esforço do poste comparado com o nominal, para as mensagens do comando.</returns>
-        public PoleLoad Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null, double? angleOverride = null)
+        /// <returns>Esforço do poste comparado com o nominal.</returns>
+        public PoleLoad Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null)
         {
-            RemoveAt(pole);
+            bool removed = RemoveAt(pole);
             PoleLoad load = PoleLoad.For(linkedPole, result.Kgf, _attachHeight);
+            if (!result.NeedsArrow)
+            {
+                Skipped++;
+                if (removed) Cleared++;
+                return load;
+            }
 
-            bool hasEffort = result.Kgf > 0.1;
-            double angle = hasEffort ? result.AngleRad : angleOverride ?? 0;
-
-            // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
-            // 20 cm do topo (NDU 009, item 16.3 h); sem o poste, o da altura do cabo.
-            string effortText = load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
-            string angleText = "ANG. " + NormalizeDegrees(angle).ToString("F0", CultureInfo.InvariantCulture) + "°";
+            // Símbolo "Indicação de esforço resultante/ângulo" do Anexo C da NDU 009: "E= 24,50 daN" e "β= 12°". O valor é
+            // o transferido a 20 cm do topo (item 16.3 h); sem o poste, o da altura do cabo. β é a direção da resultante
+            // (anti-horário a partir do leste) e a seta dá o sentido.
+            double angle = result.AngleRad;
+            string effortText = "E= " + load.ProjectDaN.ToString("F2", Br) + " daN";
+            string degrees = "= " + NormalizeDegrees(angle).ToString("F0", Br) + "°";
 
             var created = new List<Entity>();
 
@@ -86,24 +111,16 @@ namespace FiberPlugin.Core
             {
                 // Bloco "SETA DE ESFORÇO" do desenho ou da biblioteca
                 created.Add(CadHelpers.InsertBlock(_tr, _space, _arrowBlockId, pole, angle, FiberSettings.EffortLayer, tag =>
-                {
-                    if (tag.Equals("ESFORÇO_KFG", StringComparison.OrdinalIgnoreCase) ||
-                        tag.Equals("ESFORCO_KFG", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return effortText;
-                    }
-                    if (tag.Equals("336", StringComparison.OrdinalIgnoreCase) ||
-                        tag.Equals("ANGULO", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return angleText;
-                    }
-                    return null;
-                }, _scale));
+                    EffortTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? effortText
+                    : AngleTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? _blockBeta + degrees
+                    : null, _scale));
             }
             else
             {
-                created.AddRange(DrawArrow(pole, angle, hasEffort, effortText, angleText));
+                // O MText troca para Arial só no β, que as fontes SHX não têm
+                created.AddRange(DrawArrow(pole, angle, effortText, @"{\fArial|b0|i0|c0|p34;β}" + degrees));
             }
+            Placed++;
 
             var data = new EffortMarkerData
             {
@@ -128,7 +145,7 @@ namespace FiberPlugin.Core
         /// Seta saindo do poste no sentido da resultante, com o esforço acima e o ângulo abaixo,
         /// os dois textos alinhados com a seta (sem ficar de cabeça para baixo).
         /// </summary>
-        private IEnumerable<Entity> DrawArrow(Point3d pole, double angle, bool hasEffort, string effortText, string angleText)
+        private IEnumerable<Entity> DrawArrow(Point3d pole, double angle, string effortText, string angleText)
         {
             var dir = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
             double length = FiberSettings.EffortArrowLength * _scale;
@@ -138,15 +155,11 @@ namespace FiberPlugin.Core
             Point3d tip = tail + dir * length;
             Point3d headBase = tip - dir * headLength;
 
-            // Sem esforço (alinhamento reto) não há sentido para indicar: só os textos
-            if (hasEffort)
-            {
-                var arrow = new Polyline { Layer = FiberSettings.EffortLayer };
-                arrow.AddVertexAt(0, new Point2d(tail.X, tail.Y), 0, 0, 0);
-                arrow.AddVertexAt(1, new Point2d(headBase.X, headBase.Y), 0, FiberSettings.EffortArrowHeadWidth * _scale, 0);
-                arrow.AddVertexAt(2, new Point2d(tip.X, tip.Y), 0, 0, 0);
-                yield return CadHelpers.Append(_tr, _space, arrow);
-            }
+            var arrow = new Polyline { Layer = FiberSettings.EffortLayer };
+            arrow.AddVertexAt(0, new Point2d(tail.X, tail.Y), 0, 0, 0);
+            arrow.AddVertexAt(1, new Point2d(headBase.X, headBase.Y), 0, FiberSettings.EffortArrowHeadWidth * _scale, 0);
+            arrow.AddVertexAt(2, new Point2d(tip.X, tip.Y), 0, 0, 0);
+            yield return CadHelpers.Append(_tr, _space, arrow);
 
             // Textos centralizados na haste, acima e abaixo dela
             Point3d mid = tail + dir * ((length - headLength) / 2.0);
@@ -164,8 +177,16 @@ namespace FiberPlugin.Core
             return Math.Round(deg) >= 360 ? 0 : deg;
         }
 
-        private void RemoveAt(Point3d pole)
+        /// <summary>Apaga a seta que estava no ponto, sem calcular nada (conta em Cleared).</summary>
+        public void Clear(Point3d point)
         {
+            if (RemoveAt(point)) Cleared++;
+        }
+
+        /// <summary>Apaga a seta e os textos que já estavam no ponto. True se havia algum.</summary>
+        private bool RemoveAt(Point3d pole)
+        {
+            bool removed = false;
             for (int i = _existing.Count - 1; i >= 0; i--)
             {
                 if (_existing[i].Pole.DistanceTo(pole) > SamePointTolerance) continue;
@@ -173,7 +194,37 @@ namespace FiberPlugin.Core
                 var ent = (Entity)_tr.GetObject(_existing[i].Id, OpenMode.ForWrite);
                 if (!ent.IsErased) ent.Erase();
                 _existing.RemoveAt(i);
+                removed = true;
             }
+            return removed;
+        }
+
+        /// <summary>Estilo de texto do atributo do ângulo no bloco da seta (Null se o bloco não tiver).</summary>
+        private ObjectId AngleAttributeStyle(ObjectId blockId)
+        {
+            var block = (BlockTableRecord)_tr.GetObject(blockId, OpenMode.ForRead);
+            foreach (ObjectId id in block)
+            {
+                if (_tr.GetObject(id, OpenMode.ForRead) is AttributeDefinition att &&
+                    AngleTags.Contains(att.Tag.Trim(), StringComparer.OrdinalIgnoreCase))
+                {
+                    return att.TextStyleId;
+                }
+            }
+            return ObjectId.Null;
+        }
+
+        /// <summary>
+        /// "β" quando a fonte do estilo é TrueType. As fontes SHX não têm letras gregas (o β sairia "?"): nelas vai "b",
+        /// como no símbolo impresso no Anexo C da norma.
+        /// </summary>
+        private string BetaFor(ObjectId textStyleId)
+        {
+            if (textStyleId.IsNull || _tr.GetObject(textStyleId, OpenMode.ForRead) is not TextStyleTableRecord style) return "β";
+            string file = style.FileName ?? "";
+            bool trueType = !string.IsNullOrEmpty(style.Font.TypeFace) ||
+                            new[] { ".ttf", ".ttc", ".otf" }.Any(e => file.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+            return trueType ? "β" : "b";
         }
     }
 }

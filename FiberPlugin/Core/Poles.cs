@@ -50,11 +50,11 @@ namespace FiberPlugin.Core
         /// <summary>Dados do FIBRA_INSERIR_POSTE (null em postes antigos, identificados só por atributo).</summary>
         public PoleData? Data { get; set; }
 
-        /// <summary>
-        /// Esforço nominal em kgf. Vem dos dados do poste ou do nome ("DT 11/200"); em ambos o valor está
-        /// em daN, como na norma (200 daN = 204 kgf). Null se não informado.
-        /// </summary>
-        public double? NominalKgf => (Data?.EffortDaN ?? Poles.ParseNominalDaN(Name)) / FiberSettings.KgfToDaN;
+        /// <summary>Esforço nominal em daN, como na norma: dos dados do poste ou do nome ("DT 11/200"). Null se não informado.</summary>
+        public double? NominalDaN => Data?.EffortDaN ?? Poles.ParseNominalDaN(Name);
+
+        /// <summary>Esforço nominal em kgf (200 daN = 204 kgf). Null se não informado.</summary>
+        public double? NominalKgf => NominalDaN / FiberSettings.KgfToDaN;
 
         /// <summary>Altura do poste em m (dos dados ou do nome "DT 11/200"). Null se não informada.</summary>
         public double? HeightM => Data?.HeightM > 0 ? Data.HeightM : Poles.ParseHeight(Name);
@@ -75,9 +75,23 @@ namespace FiberPlugin.Core
 
         public double ExistingKgf { get; private set; }
         public double? NominalKgf { get; private set; }
+        public double? NominalDaN { get; private set; }
 
         /// <summary>Esforço do projeto referido ao topo (ou na altura do cabo, sem a altura do poste).</summary>
         public double ProjectKgf => TopKgf ?? CableKgf;
+
+        /// <summary>O mesmo em daN, a unidade da seta (símbolo do Anexo C da NDU 009) e dos limites da norma.</summary>
+        public double ProjectDaN => ProjectKgf * FiberSettings.KgfToDaN;
+
+        /// <summary>
+        /// Limite do item 14.2 d da NDU 009 para o esforço do projeto no poste: 50 daN no poste de até 300 daN e 100 daN
+        /// no de 600 daN ou mais. Acima dele a norma pede a substituição do poste. Null entre 300 e 600 daN (a norma não
+        /// fixa) e sem nominal.
+        /// </summary>
+        public double? ReplacementLimitDaN =>
+            NominalDaN is not double nominal ? null : nominal <= 300 ? 50 : nominal >= 600 ? 100 : (double?)null;
+
+        public bool NeedsReplacement => ReplacementLimitDaN is double limit && ProjectDaN > limit;
 
         /// <summary>Projeto + existente. A soma é escalar (pior caso: os dois esforços no mesmo sentido).</summary>
         public double TotalKgf => ProjectKgf + ExistingKgf;
@@ -89,7 +103,10 @@ namespace FiberPlugin.Core
 
         public static PoleLoad For(PoleInfo? pole, double cableKgf, double attachHeightM)
         {
-            var load = new PoleLoad { CableKgf = cableKgf, ExistingKgf = pole?.Data?.ExistingKgf ?? 0, NominalKgf = pole?.NominalKgf };
+            var load = new PoleLoad
+            {
+                CableKgf = cableKgf, ExistingKgf = pole?.Data?.ExistingKgf ?? 0, NominalKgf = pole?.NominalKgf, NominalDaN = pole?.NominalDaN
+            };
             if (pole?.HeightM is double length && length > 0)
             {
                 double usefulHeight = length - (length / 10.0 + 0.60);
@@ -100,14 +117,18 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Texto da linha de comando, igual em todos os comandos de esforço:
-        /// "DT 11/300: 14,20 kgf no topo + 0 existente = 14,20 de 306 kgf → OK (5%)". Null sem poste com nominal.
+        /// "DT 11/300: 14,20 kgf a 20 cm do topo de 306 kgf nominal → OK (5%)", com o aviso do item 14.2 d quando o
+        /// esforço do projeto passa do limite. Null sem poste com nominal.
         /// </summary>
         public string? Text(PoleInfo? pole)
         {
             if (pole == null || NominalKgf is not > 0) return null;
             string top = TopKgf != null ? $"{TopKgf:F2} kgf a 20 cm do topo" : $"{CableKgf:F2} kgf (altura do poste desconhecida)";
             string existing = ExistingKgf > 0 ? $" + {ExistingKgf:F2} existente" : "";
-            return $"{pole.Name}: {top}{existing} de {NominalKgf:F0} kgf nominal → {Result} ({Usage:F0}%)";
+            string replace = NeedsReplacement
+                ? $" | {ProjectDaN:F1} daN passa do limite de {ReplacementLimitDaN:F0} daN: substituir o poste (NDU 009, 14.2 d)"
+                : "";
+            return $"{pole.Name}: {top}{existing} de {NominalKgf:F0} kgf nominal → {Result} ({Usage:F0}%){replace}";
         }
     }
 
