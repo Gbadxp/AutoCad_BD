@@ -174,21 +174,24 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>Número novo no poste (aberto para escrita): XData, atributo de número e texto ao lado.</summary>
-        internal static void WritePoleNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, PoleData pole, int number)
+        /// <param name="labels">Textos já levantados (PoleLabels.IndexLabels), para numerar muitos de uma vez.</param>
+        internal static void WritePoleNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, PoleData pole, int number,
+            Dictionary<string, List<ObjectId>>? labels = null)
         {
             pole.Number = number;
             XDataTags.TagPole(tr, db, br, pole);
             SetNumberAttribute(tr, br, PoleData.NumberText(number));
-            PoleLabels.Place(tr, db, space, br, pole);
+            PoleLabels.Place(tr, db, space, br, pole, labels);
         }
 
         /// <summary>Número novo na CTO/CEO (aberta para escrita): XData, atributo de número e texto embaixo.</summary>
-        internal static void WriteBoxNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, BoxData box, int number)
+        internal static void WriteBoxNumber(Transaction tr, Database db, BlockTableRecord space, BlockReference br, BoxData box, int number,
+            Dictionary<string, List<ObjectId>>? labels = null)
         {
             box.Number = number;
             XDataTags.TagBox(tr, db, br, box);
             SetNumberAttribute(tr, br, box.Id);
-            PoleLabels.PlaceBox(tr, db, space, br, box);
+            PoleLabels.PlaceBox(tr, db, space, br, box, labels);
         }
 
         private static void SetNumberAttribute(Transaction tr, BlockReference br, string value) =>

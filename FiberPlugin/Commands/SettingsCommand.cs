@@ -285,15 +285,16 @@ namespace FiberPlugin.Commands
                 }
 
                 int updated = 0, locked = 0;
+                Dictionary<string, List<ObjectId>> labels = PoleLabels.IndexLabels(tr, modelSpace);
                 foreach (PoleInfo pole in poleList)
                 {
                     if (Rename(tr, pole.Id, PoleData.NumberText(pole.Data!.Number),
-                            (br, space) => PoleLabels.Place(tr, db, space, br, pole.Data!))) updated++;
+                            (br, space) => PoleLabels.Place(tr, db, space, br, pole.Data!, labels))) updated++;
                     else locked++;
                 }
                 foreach (BoxInfo box in boxList)
                 {
-                    if (Rename(tr, box.Id, box.Data.Id, (br, space) => PoleLabels.PlaceBox(tr, db, space, br, box.Data))) updated++;
+                    if (Rename(tr, box.Id, box.Data.Id, (br, space) => PoleLabels.PlaceBox(tr, db, space, br, box.Data, labels))) updated++;
                     else locked++;
                 }
                 tr.Commit();

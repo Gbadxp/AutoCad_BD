@@ -81,19 +81,21 @@ namespace FiberPlugin.Commands
                 foreach (EffortStop stop in stops)
                 {
                     PoleInfo? pole = stop.Pole;
-                    EffortResult result = EffortCalculator.AtPole(runsForEffort, stop.Point, stop.Tolerance);
+                    EffortResult result = EffortCalculator.AtStop(runsForEffort, stop, poles);
                     if (result.CableCount == 0) continue;
 
                     // Vértice sem poste em linha reta é só um ponto do desenho do cabo: nem aparece (só perde a seta
                     // que versões antigas punham ali)
                     if (pole == null && !result.NeedsArrow)
                     {
-                        markers.Clear(stop.Point);
+                        if (!onlySelected) markers.Clear(stop.Point, null);
                         continue;
                     }
                     if (pole == null) withoutPole++;
 
-                    PoleLoad load = markers.Place(stop.Point, result, pole);
+                    // No modo Cabo a seta que já está no poste fica: ela pode ser do total (ex.: derivação) e o cabo
+                    // selecionado sozinho não diz se o poste precisa dela
+                    PoleLoad load = markers.Place(stop.Point, result, pole, clearWhenNotNeeded: !onlySelected);
                     if (load.Exceeded) exceeded++;
                     if (load.NeedsReplacement) replace++;
 

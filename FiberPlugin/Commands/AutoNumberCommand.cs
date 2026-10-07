@@ -38,6 +38,7 @@ namespace FiberPlugin.Commands
             List<PoleInfo> all, poles;
             List<BoxInfo> boxes;
             var cables = new List<List<Point3d>>();
+            Dictionary<string, List<ObjectId>> labels;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
@@ -48,6 +49,7 @@ namespace FiberPlugin.Commands
                     if (tr.GetObject(id, OpenMode.ForRead) is Polyline poly && XDataTags.GetCableName(poly) != null)
                         cables.Add(Enumerable.Range(0, poly.NumberOfVertices).Select(poly.GetPoint3dAt).ToList());
                 }
+                labels = PoleLabels.IndexLabels(tr, modelSpace);
                 tr.Commit();
             }
             poles = selected == null ? all : all.Where(p => selected.Contains(p.Id)).ToList();
@@ -87,8 +89,9 @@ namespace FiberPlugin.Commands
             bool renumberBoxes = ownBoxes.Count > 0 &&
                 CadHelpers.AskYes(ed, $"\nNumerar também as {ownBoxes.Count} CTO/CEO desses postes, na ordem deles? [Sim/Nao] <Sim>: ");
 
-            // 5. Ordem pelos cabos e números novos
-            var (order, withoutCable) = AutoNumbering.Order(poles.Select(p => p.Position).ToList(), poles.IndexOf(first), cables, FiberSettings.PoleLinkRadius);
+            // 5. Ordem pelos cabos e números novos (os postes fora da seleção só dão passagem ao cabo)
+            var (order, withoutCable) = AutoNumbering.Order(poles.Select(p => p.Position).ToList(), poles.IndexOf(first), cables,
+                FiberSettings.PoleLinkRadius, all.Where(p => !poles.Contains(p)).Select(p => p.Position).ToList());
             var newNumber = new Dictionary<PoleInfo, int>();
             var position = new Dictionary<PoleInfo, int>();
             int number = start.Value;
@@ -114,21 +117,17 @@ namespace FiberPlugin.Commands
                 }
             }
 
-            // 6. Grava
+            // 6. Grava (um bloco por transação: com o texto em layer travada, o bloco também fica como estava)
             int changedPoles = 0, changedBoxes = 0, locked = 0;
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            foreach (var pair in newNumber)
             {
-                foreach (var pair in newNumber)
-                {
-                    if (Write(tr, pair.Key.Id, (br, space) => RenumberCommand.WritePoleNumber(tr, db, space, br, pair.Key.Data!, pair.Value))) changedPoles++;
-                    else locked++;
-                }
-                foreach (var pair in newBoxNumber)
-                {
-                    if (Write(tr, pair.Key.Id, (br, space) => RenumberCommand.WriteBoxNumber(tr, db, space, br, pair.Key.Data, pair.Value))) changedBoxes++;
-                    else locked++;
-                }
-                tr.Commit();
+                if (Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WritePoleNumber(tr, db, space, br, pair.Key.Data!, pair.Value, labels))) changedPoles++;
+                else locked++;
+            }
+            foreach (var pair in newBoxNumber)
+            {
+                if (Write(db, pair.Key.Id, (tr, br, space) => RenumberCommand.WriteBoxNumber(tr, db, space, br, pair.Key.Data, pair.Value, labels))) changedBoxes++;
+                else locked++;
             }
 
             // 7. Resumo
@@ -148,13 +147,20 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
-        /// <summary>Abre o bloco para escrita e grava. False se ele (ou o texto dele) está em layer travada.</summary>
-        private static bool Write(Transaction tr, ObjectId id, Action<BlockReference, BlockTableRecord> write)
+        /// <summary>
+        /// Abre o bloco para escrita e grava numa transação só dele. False (e nada muda no bloco) se ele ou o texto dele
+        /// está em layer travada.
+        /// </summary>
+        private static bool Write(Database db, ObjectId id, Action<Transaction, BlockReference, BlockTableRecord> write)
         {
             try
             {
-                var br = (BlockReference)tr.GetObject(id, OpenMode.ForWrite);
-                write(br, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite));
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    var br = (BlockReference)tr.GetObject(id, OpenMode.ForWrite);
+                    write(tr, br, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForWrite));
+                    tr.Commit();
+                }
                 return true;
             }
             catch (Autodesk.AutoCAD.Runtime.Exception ex) when (ex.ErrorStatus == ErrorStatus.OnLockedLayer)

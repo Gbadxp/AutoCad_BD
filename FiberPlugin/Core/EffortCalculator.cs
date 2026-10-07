@@ -155,10 +155,19 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
+        /// Esforço num ponto do percurso (veja Stops): soma os cabos que têm vértice ligado a ele, ou seja, cujo poste mais
+        /// próximo é o poste do ponto. O raio do ponto pode chegar a 10 m (vértice afastado do poste); sem essa conferência,
+        /// o vértice de outro cabo no poste vizinho entraria aqui também e seria contado duas vezes.
+        /// </summary>
+        public static EffortResult AtStop(IEnumerable<CableRun> runs, EffortStop stop, IList<PoleInfo> poles) =>
+            AtPole(runs, stop.Point, stop.Tolerance, v => Poles.Nearest(poles, v, FiberSettings.PoleLinkRadius) == stop.Pole);
+
+        /// <summary>
         /// Esforço num poste somando todos os cabos que têm vértice a até <paramref name="tolerance"/> dele.
         /// De cada cabo é usado só o vértice mais próximo, para não contar duas vezes vãos curtos.
         /// </summary>
-        public static EffortResult AtPole(IEnumerable<CableRun> runs, Point3d pole, double tolerance)
+        /// <param name="belongs">Filtro dos vértices que contam para este poste (null = todos no raio).</param>
+        public static EffortResult AtPole(IEnumerable<CableRun> runs, Point3d pole, double tolerance, Func<Point3d, bool>? belongs = null)
         {
             var result = new EffortResult();
             foreach (CableRun run in runs)
@@ -168,7 +177,7 @@ namespace FiberPlugin.Core
                 for (int v = 0; v < run.Vertices.Count; v++)
                 {
                     double d = run.Vertices[v].DistanceTo(pole);
-                    if (d <= bestDist) { bestDist = d; best = v; }
+                    if (d <= bestDist && (belongs == null || belongs(run.Vertices[v]))) { bestDist = d; best = v; }
                 }
                 if (best < 0) continue;
 

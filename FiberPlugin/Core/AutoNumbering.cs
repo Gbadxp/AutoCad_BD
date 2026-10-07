@@ -13,8 +13,11 @@ namespace FiberPlugin.Core
         /// <param name="poles">Posição dos postes a numerar.</param>
         /// <param name="start">Índice do primeiro poste.</param>
         /// <param name="cables">Vértices de cada cabo; cada vértice vale para o poste mais próximo a até <paramref name="linkRadius"/>.</param>
-        /// <returns>Índices dos postes na ordem nova e quantos deles não têm cabo (numerados pela proximidade).</returns>
-        public static (List<int> Order, int WithoutCable) Order(IList<Point3d> poles, int start, IEnumerable<IList<Point3d>> cables, double linkRadius)
+        /// <param name="passThrough">Postes que ficam fora da numeração (seleção parcial): o vértice que é deles não liga a
+        /// nenhum poste numerado, e o cabo passa por eles até o próximo.</param>
+        /// <returns>Índices dos postes na ordem nova e quantos deles nenhum cabo toca (numerados pela proximidade).</returns>
+        public static (List<int> Order, int WithoutCable) Order(IList<Point3d> poles, int start, IEnumerable<IList<Point3d>> cables, double linkRadius,
+            IList<Point3d>? passThrough = null)
         {
             int n = poles.Count;
             var order = new List<int>(n);
@@ -22,6 +25,7 @@ namespace FiberPlugin.Core
 
             // Vizinhos de cada poste pelos cabos, com os cabos que fazem a ligação
             var neighbors = Enumerable.Range(0, n).Select(_ => new Dictionary<int, HashSet<int>>()).ToArray();
+            var touched = new bool[n];
             int cableIndex = 0;
             foreach (IList<Point3d> cable in cables)
             {
@@ -29,6 +33,8 @@ namespace FiberPlugin.Core
                 foreach (Point3d vertex in cable)
                 {
                     int pole = Nearest(poles, vertex, linkRadius);
+                    if (pole >= 0 && passThrough != null && passThrough.Any(p => p.DistanceTo(vertex) < poles[pole].DistanceTo(vertex))) continue;
+                    if (pole >= 0) touched[pole] = true;
                     if (pole < 0 || pole == previous) continue;
                     if (previous >= 0)
                     {
@@ -51,7 +57,7 @@ namespace FiberPlugin.Core
                 Point3d last = poles[order[order.Count - 1]];
                 current = Enumerable.Range(0, n).Where(i => !visited[i]).OrderBy(i => poles[i].DistanceTo(last)).First();
             }
-            return (order, neighbors.Count(nb => nb.Count == 0));
+            return (order, touched.Count(t => !t));
         }
 
         private static void Link(Dictionary<int, HashSet<int>>[] neighbors, int from, int to, int cable)

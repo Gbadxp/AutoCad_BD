@@ -6,7 +6,7 @@ namespace FiberPlugin.UI
     /// <summary>
     /// Escala de cada elemento do desenho (botão Por elemento da aba Projeto): ícone e texto dos postes e das CTO/CEO,
     /// nome e metragem dos cabos e setas de esforço. Campo vazio = escala do desenho. A linha Todos preenche a coluna
-    /// inteira de uma vez (todos os ícones ou todos os textos).
+    /// inteira de uma vez (todos os ícones ou todos os textos) quando o valor digitado é uma escala válida.
     /// </summary>
     internal class ElementScalesForm : Form
     {
@@ -129,10 +129,14 @@ namespace FiberPlugin.UI
             Check();
         }
 
+        /// <summary>
+        /// Linha Todos: só preenche quando o valor já é uma escala válida (digitar "2000" não passa "2" para a coluna no
+        /// meio do caminho), e apagar o campo não apaga a coluna.
+        /// </summary>
         private void FillColumn(ScaleItem[] items, string text)
         {
-            if (text.Length > 0 && Parse(text) == null) return; // Só depois de virar um número válido
-            foreach (ScaleItem item in items) _fields[item].Input.Text = text;
+            if (Parse(text) is not int value || value < DrawingScale.Min || value > DrawingScale.Max) return;
+            foreach (ScaleItem item in items) _fields[item].Input.Text = value.ToString(CultureInfo.InvariantCulture);
         }
 
         /// <summary>"2000", "1:2000", "2.000" ou "2 000" → 2000. Null se não for um número.</summary>

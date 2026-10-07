@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.44.msi`](Instalador/FiberPlugin-1.9.44.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.45.msi`](Instalador/FiberPlugin-1.9.45.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -401,9 +401,10 @@ definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
 
-Ao trocar a escala, o comando oferece ajustar as anotações já desenhadas: altura dos textos,
-afastamento dos textos em relação ao cabo e tamanho das setas, sempre em torno do poste.
-Os blocos já inseridos não mudam de tamanho; para isso use o botão **Tamanho**.
+Ao trocar a escala, o comando oferece ajustar o que já está desenhado: altura dos textos, afastamento dos textos em
+relação ao cabo, tamanho das setas (em torno do poste) e o símbolo das CTO/CEO. O bloco do poste tem escala própria
+(1:1000 por padrão, veja abaixo) e só muda quando ela muda. Para mudar só alguns blocos, use o botão **Tamanho**.
+O que estiver em layer travada fica como estava, e o comando avisa quantos.
 
 **Escala por elemento** (botão **Por elemento...** ao lado da escala): cada elemento pode ter a sua escala 1:X, com o
 **ícone** e o **texto** separados. Campo vazio = escala do desenho.

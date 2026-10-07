@@ -302,6 +302,25 @@ namespace FiberPlugin.Core
             return null;
         }
 
+        /// <summary>A entidade está numa layer travada (abrir para escrita daria eOnLockedLayer).</summary>
+        public static bool IsOnLockedLayer(Transaction tr, ObjectId id) =>
+            tr.GetObject(id, OpenMode.ForRead) is Entity ent && ((LayerTableRecord)tr.GetObject(ent.LayerId, OpenMode.ForRead)).IsLocked;
+
+        /// <summary>
+        /// O bloco guarda coordenada (atributo COORDENADA_X ou COORDENADA_Y). Só ZONA não basta: um carimbo pode ter um
+        /// atributo ZONA que não é a zona UTM.
+        /// </summary>
+        public static bool HasCoordinateAttributes(Transaction tr, BlockReference br)
+        {
+            foreach (ObjectId id in br.AttributeCollection)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not AttributeReference att) continue;
+                string t = att.Tag.Trim().ToUpperInvariant().Replace(' ', '_');
+                if (t == "COORDENADA_X" || t == "COORDENADA_Y") return true;
+            }
+            return false;
+        }
+
         /// <summary>Pergunta [Sim/Nao] com Sim como padrão (Enter = Sim).</summary>
         public static bool AskYes(Editor ed, string message) => AskKeyword(ed, message, "Sim Nao", "Sim") == "Sim";
 

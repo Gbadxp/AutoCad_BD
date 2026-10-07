@@ -85,7 +85,8 @@ namespace FiberPlugin.Commands
         /// acompanha. CTO/CEO crescem em volta do centro do símbolo (o ponto base fica no canto); os demais blocos, em volta
         /// do ponto de inserção, que guarda a coordenada do poste/item. False se o bloco está em layer travada.
         /// </summary>
-        internal static bool Scale(Transaction tr, BlockReference br, double ratio)
+        /// <param name="labels">Textos já levantados (PoleLabels.IndexLabels), para mudar muitos blocos de uma vez.</param>
+        internal static bool Scale(Transaction tr, BlockReference br, double ratio, Dictionary<string, List<ObjectId>>? labels = null)
         {
             Extents3d? before = Extents(br);
             if (before == null) return true;
@@ -103,7 +104,7 @@ namespace FiberPlugin.Commands
             }
 
             br.TransformBy(Matrix3d.Scaling(ratio, center));
-            PoleLabels.Follow(tr, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead), br, before.Value);
+            PoleLabels.Follow(tr, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead), br, before.Value, labels);
             return true;
         }
 

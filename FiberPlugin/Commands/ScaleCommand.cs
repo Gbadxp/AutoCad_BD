@@ -52,13 +52,14 @@ namespace FiberPlugin.Commands
                 DrawingScale.Set(tr, db, scale);
                 DrawingScale.SetElements(tr, db, elements);
 
-                Annotations existing = FindAnnotations(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
+                Annotations existing = FindAnnotations(tr, modelSpace);
                 int count = existing.CountChanging(ratios);
 
                 int adjusted = 0, locked = 0;
                 if (count > 0 && CadHelpers.AskYes(ed, $"\nAjustar os {count} elementos já desenhados para as escalas novas? [Sim/Nao] <Sim>: "))
                 {
-                    (adjusted, locked) = Rescale(tr, existing, ratios);
+                    (adjusted, locked) = Rescale(tr, existing, ratios, PoleLabels.IndexLabels(tr, modelSpace));
                 }
 
                 tr.Commit();
@@ -67,7 +68,7 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[SUCESSO]: Escala do desenho: 1:{scale} (texto de {DrawingScale.TextHeight(db):0.##} unidades)" +
                                 (own.Length > 0 ? $"; com escala própria: {own}." : "."));
                 if (adjusted > 0) ed.WriteMessage($"\n[INFO]: {adjusted} elemento(s) ajustado(s).");
-                if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} bloco(s) em layer travada ficaram com o tamanho antigo.");
+                if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} elemento(s) em layer travada ficaram com o tamanho antigo.");
             }
             ed.Regen();
         }
@@ -137,16 +138,22 @@ namespace FiberPlugin.Commands
                     return;
                 }
 
-                RescaleSpanLabels(tr, existing.SpanLabels, ratio);
-                RescaleHeights(tr, existing.PoleLabels.Concat(existing.BoxLabels), ratio);
+                int locked = 0;
+                int adjusted = RescaleSpanLabels(tr, existing.SpanLabels, ratio, ref locked) +
+                               RescaleHeights(tr, existing.PoleLabels.Concat(existing.BoxLabels), ratio, ref locked);
                 tr.Commit();
-                ed.WriteMessage($"\n[INFO]: {count} texto(s) ajustado(s).");
+                ed.WriteMessage($"\n[INFO]: {adjusted} texto(s) ajustado(s).");
+                if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} texto(s) em layer travada ficaram com a altura antiga.");
             }
             ed.Regen();
         }
 
-        /// <summary>Muda o tamanho de cada tipo pela proporção dele. Retorna os ajustados e os blocos em layer travada.</summary>
-        private static (int Adjusted, int Locked) Rescale(Transaction tr, Annotations annotations, Dictionary<ScaleItem, double> ratios)
+        /// <summary>
+        /// Muda o tamanho de cada tipo pela proporção dele. O que está em layer travada (o bloco, um atributo ou o texto
+        /// dele) fica como estava. Retorna os ajustados e os que ficaram por estar em layer travada.
+        /// </summary>
+        private static (int Adjusted, int Locked) Rescale(Transaction tr, Annotations annotations, Dictionary<ScaleItem, double> ratios,
+            Dictionary<string, List<ObjectId>> labels)
         {
             int adjusted = 0, locked = 0;
             bool Changes(ScaleItem item) => Math.Abs(ratios[item] - 1) > 1e-9;
@@ -156,12 +163,13 @@ namespace FiberPlugin.Commands
             {
                 foreach (var (id, pole) in annotations.EffortMarkers)
                 {
+                    if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                     var ent = (Entity)tr.GetObject(id, OpenMode.ForWrite);
                     ent.TransformBy(Matrix3d.Scaling(ratios[ScaleItem.Effort], pole));
                     adjusted++;
                 }
             }
-            if (Changes(ScaleItem.CableText)) adjusted += RescaleSpanLabels(tr, annotations.SpanLabels, ratios[ScaleItem.CableText]);
+            if (Changes(ScaleItem.CableText)) adjusted += RescaleSpanLabels(tr, annotations.SpanLabels, ratios[ScaleItem.CableText], ref locked);
 
             // Blocos antes dos textos: o texto acompanha o bloco e depois muda de altura no lugar
             foreach (var (item, blocks) in new[] { (ScaleItem.PoleIcon, annotations.PoleBlocks), (ScaleItem.BoxIcon, annotations.BoxBlocks) })
@@ -169,20 +177,26 @@ namespace FiberPlugin.Commands
                 if (!Changes(item)) continue;
                 foreach (ObjectId id in blocks)
                 {
-                    if (BlockSizeCommand.Scale(tr, (BlockReference)tr.GetObject(id, OpenMode.ForRead), ratios[item])) adjusted++;
+                    var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
+                    bool anyLocked = CadHelpers.IsOnLockedLayer(tr, id) ||
+                                     br.AttributeCollection.Cast<ObjectId>().Any(a => CadHelpers.IsOnLockedLayer(tr, a)) ||
+                                     (labels.TryGetValue(br.Handle.ToString(), out List<ObjectId>? own) && own.Any(l => !l.IsErased && CadHelpers.IsOnLockedLayer(tr, l)));
+                    if (!anyLocked && BlockSizeCommand.Scale(tr, br, ratios[item], labels)) adjusted++;
                     else locked++;
                 }
             }
-            if (Changes(ScaleItem.PoleText)) adjusted += RescaleHeights(tr, annotations.PoleLabels, ratios[ScaleItem.PoleText]);
-            if (Changes(ScaleItem.BoxText)) adjusted += RescaleHeights(tr, annotations.BoxLabels, ratios[ScaleItem.BoxText]);
+            if (Changes(ScaleItem.PoleText)) adjusted += RescaleHeights(tr, annotations.PoleLabels, ratios[ScaleItem.PoleText], ref locked);
+            if (Changes(ScaleItem.BoxText)) adjusted += RescaleHeights(tr, annotations.BoxLabels, ratios[ScaleItem.BoxText], ref locked);
             return (adjusted, locked);
         }
 
-        /// <summary>Textos dos vãos: altura nova e afastamento da linha proporcional, sem mudar de vão.</summary>
-        private static int RescaleSpanLabels(Transaction tr, List<ObjectId> labels, double ratio)
+        /// <summary>Textos dos vãos: altura nova e afastamento da linha proporcional, sem mudar de vão. Retorna os ajustados.</summary>
+        private static int RescaleSpanLabels(Transaction tr, List<ObjectId> labels, double ratio, ref int locked)
         {
+            int count = 0;
             foreach (ObjectId id in labels)
             {
+                if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 double extraGap = txt.TextHeight * FiberSettings.LabelGapRatio * (ratio - 1);
                 var up = new Vector3d(-Math.Sin(txt.Rotation), Math.Cos(txt.Rotation), 0);
@@ -191,16 +205,18 @@ namespace FiberPlugin.Commands
                 else if (txt.Attachment == AttachmentPoint.TopCenter) txt.Location -= up * extraGap;
 
                 txt.TextHeight *= ratio;
+                count++;
             }
-            return labels.Count;
+            return count;
         }
 
-        /// <summary>Textos de identificação dos postes e CTO/CEO: só a altura, no mesmo lugar.</summary>
-        private static int RescaleHeights(Transaction tr, IEnumerable<ObjectId> labels, double ratio)
+        /// <summary>Textos de identificação dos postes e CTO/CEO: só a altura, no mesmo lugar. Retorna os ajustados.</summary>
+        private static int RescaleHeights(Transaction tr, IEnumerable<ObjectId> labels, double ratio, ref int locked)
         {
             int count = 0;
             foreach (ObjectId id in labels)
             {
+                if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 txt.TextHeight *= ratio;
                 count++;

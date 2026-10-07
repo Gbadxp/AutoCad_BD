@@ -48,16 +48,35 @@ namespace FiberPlugin.Core
                    UtmZone.NorthingText(position.Y, utm?.South ?? true);
         }
 
-        /// <summary>Cria o texto do poste ou, se ele já existir, atualiza o conteúdo sem mudar de lugar.</summary>
-        public static void Place(Transaction tr, Database db, BlockTableRecord space, BlockReference pole, PoleData data)
+        /// <summary>
+        /// Textos de identificação do espaço, pelo handle do bloco dono. Para mexer em muitos blocos de uma vez (numeração,
+        /// coordenadas, escala) sem varrer o desenho inteiro a cada bloco; vale enquanto nenhum texto for apagado.
+        /// </summary>
+        public static Dictionary<string, List<ObjectId>> IndexLabels(Transaction tr, BlockTableRecord space)
         {
-            PlaceText(tr, db, space, pole, Text(data, pole.Position, UtmZone.Get(db)), Layer, below: false);
+            var index = new Dictionary<string, List<ObjectId>>(StringComparer.OrdinalIgnoreCase);
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not MText txt || XDataTags.GetPoleLabelOwner(txt) is not string owner) continue;
+                if (!index.TryGetValue(owner, out List<ObjectId>? list)) index[owner] = list = new List<ObjectId>();
+                list.Add(id);
+            }
+            return index;
+        }
+
+        /// <summary>Cria o texto do poste ou, se ele já existir, atualiza o conteúdo sem mudar de lugar.</summary>
+        /// <param name="index">Textos já levantados (IndexLabels); null = procura no espaço.</param>
+        public static void Place(Transaction tr, Database db, BlockTableRecord space, BlockReference pole, PoleData data,
+            Dictionary<string, List<ObjectId>>? index = null)
+        {
+            PlaceText(tr, db, space, pole, Text(data, pole.Position, UtmZone.Get(db)), Layer, below: false, index);
         }
 
         /// <summary>Cria ou atualiza o texto da CTO/CEO, centralizado logo abaixo do símbolo.</summary>
-        public static void PlaceBox(Transaction tr, Database db, BlockTableRecord space, BlockReference box, BoxData data)
+        public static void PlaceBox(Transaction tr, Database db, BlockTableRecord space, BlockReference box, BoxData data,
+            Dictionary<string, List<ObjectId>>? index = null)
         {
-            PlaceText(tr, db, space, box, BoxText(data), BoxLayer, below: true);
+            PlaceText(tr, db, space, box, BoxText(data), BoxLayer, below: true, index);
         }
 
         /// <summary>
@@ -65,11 +84,12 @@ namespace FiberPlugin.Core
         /// desenho a que está preso, mantendo a posição que o usuário tiver dado.
         /// </summary>
         /// <param name="before">Extensão do bloco antes da mudança.</param>
-        public static void Follow(Transaction tr, BlockTableRecord space, BlockReference owner, Extents3d before)
+        public static void Follow(Transaction tr, BlockTableRecord space, BlockReference owner, Extents3d before,
+            Dictionary<string, List<ObjectId>>? index = null)
         {
             bool below = XDataTags.ReadBox(owner) != null;
             Vector3d delta = Anchor(ExtentsOf(owner, 0), below, 0) - Anchor(before, below, 0);
-            foreach (MText label in LabelsOf(tr, space, owner))
+            foreach (MText label in LabelsOf(tr, space, owner, index))
             {
                 label.UpgradeOpen();
                 label.Location += delta;
@@ -78,9 +98,9 @@ namespace FiberPlugin.Core
 
         /// <param name="below">True: centralizado abaixo do bloco (CTO/CEO). False: à direita, no alto (postes).</param>
         private static void PlaceText(Transaction tr, Database db, BlockTableRecord space, BlockReference owner, string contents,
-            string layer, bool below)
+            string layer, bool below, Dictionary<string, List<ObjectId>>? index)
         {
-            List<MText> existing = LabelsOf(tr, space, owner);
+            List<MText> existing = LabelsOf(tr, space, owner, index);
             foreach (MText txt in existing)
             {
                 txt.UpgradeOpen();
@@ -97,9 +117,16 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
-        private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner)
+        private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner, Dictionary<string, List<ObjectId>>? index)
         {
             string handle = owner.Handle.ToString();
+            if (index != null)
+            {
+                return index.TryGetValue(handle, out List<ObjectId>? ids)
+                    ? ids.Where(id => !id.IsErased).Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<MText>().ToList()
+                    : new List<MText>();
+            }
+
             var labels = new List<MText>();
             foreach (ObjectId id in space)
             {

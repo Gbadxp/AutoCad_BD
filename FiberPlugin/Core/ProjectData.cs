@@ -76,7 +76,7 @@ namespace FiberPlugin.Core
         public List<EffortPoint> Efforts { get; private set; } = new List<EffortPoint>();
 
         /// <summary>Setas em pontos que a norma dispensa (passagem até 10° ou resultante nula): sobraram de cálculo anterior.</summary>
-        public List<Point3d> ExtraArrows { get; private set; } = new List<Point3d>();
+        public List<(Point3d Point, PoleInfo? Pole)> ExtraArrows { get; private set; } = new List<(Point3d, PoleInfo?)>();
 
         /// <summary>Blocos de equipamentos elétricos da Energisa (trafo, chaves, para-raios...), com o nome do bloco.</summary>
         public List<(string Name, Point3d Position)> Equipment { get; private set; } = new List<(string, Point3d)>();
@@ -110,17 +110,24 @@ namespace FiberPlugin.Core
 
                 // Esforço calculado dos cabos, com os mesmos pontos do Esforço no Percurso (modo Total)
                 var calculatedPoints = new HashSet<string>();
+                var byPole = new Dictionary<PoleInfo, EffortPoint>();           // Ponto calculado de cada poste
+                var byPoint = new Dictionary<string, EffortPoint>();            // E dos pontos sem poste
                 foreach (EffortStop stop in EffortCalculator.Stops(data.Runs, data.PoleList))
                 {
-                    EffortResult result = EffortCalculator.AtPole(data.Runs, stop.Point, stop.Tolerance);
+                    EffortResult result = EffortCalculator.AtStop(data.Runs, stop, data.PoleList);
                     if (result.CableCount == 0) continue;
 
                     calculatedPoints.Add(Key(stop.Point));
                     if (stop.Pole != null) data.Occupied.Add((stop.Pole, result));
                     else if (!result.NeedsArrow) continue; // Vértice sem poste em linha reta: só desenho do cabo
-                    data.Efforts.Add(EffortPoint.Calculated(stop.Point, stop.Pole, result, attachHeight));
+
+                    var effort = EffortPoint.Calculated(stop.Point, stop.Pole, result, attachHeight);
+                    data.Efforts.Add(effort);
+                    if (stop.Pole != null) byPole[stop.Pole] = effort;
+                    else byPoint[Key(stop.Point)] = effort;
                 }
-                data.Occupied = data.Occupied.OrderBy(o => data.PoleList.IndexOf(o.Pole)).ToList();
+                var poleOrder = data.PoleList.Select((p, i) => (p, i)).ToDictionary(x => x.p, x => x.i);
+                data.Occupied = data.Occupied.OrderBy(o => poleOrder[o.Pole]).ToList();
 
                 var polesByHandle = data.PoleList.ToDictionary(p => p.Id.Handle.ToString(), StringComparer.OrdinalIgnoreCase);
                 var markers = new List<(EffortMarkerData Marker, PoleInfo? Pole)>();
@@ -158,8 +165,8 @@ namespace FiberPlugin.Core
                 foreach (var (marker, pole) in markers)
                 {
                     EffortPoint? calculated = pole != null
-                        ? data.Efforts.FirstOrDefault(e => e.Pole == pole)
-                        : data.Efforts.FirstOrDefault(e => e.Pole == null && Key(e.Point) == Key(marker.Point));
+                        ? byPole.TryGetValue(pole, out EffortPoint? e1) ? e1 : null
+                        : byPoint.TryGetValue(Key(marker.Point), out EffortPoint? e2) ? e2 : null;
 
                     if (calculated != null && calculated.NeedsArrow)
                     {
@@ -168,11 +175,14 @@ namespace FiberPlugin.Core
                     }
                     else if (calculated != null || calculatedPoints.Contains(Key(marker.Point)))
                     {
-                        data.ExtraArrows.Add(marker.Point);
+                        data.ExtraArrows.Add((marker.Point, pole));
                     }
                     else
                     {
-                        data.Efforts.Add(EffortPoint.FromMarker(marker, pole, attachHeight));
+                        var effort = EffortPoint.FromMarker(marker, pole, attachHeight);
+                        data.Efforts.Add(effort);
+                        if (pole != null) byPole[pole] = effort;
+                        else byPoint[Key(marker.Point)] = effort;
                     }
                 }
             }

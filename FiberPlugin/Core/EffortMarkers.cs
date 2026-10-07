@@ -37,7 +37,8 @@ namespace FiberPlugin.Core
         private readonly ObjectId _arrowBlockId;
         private readonly double _scale; // Fator da escala do desenho (1,0 em 1:1000)
         private readonly double _attachHeight;
-        private readonly List<(ObjectId Id, Point3d Pole)> _existing = new List<(ObjectId, Point3d)>();
+        // Setas já desenhadas: ponto de onde saem e handle do poste a que pertencem ("" = sem poste ou versão antiga)
+        private readonly List<(ObjectId Id, Point3d Pole, string PoleHandle)> _existing = new List<(ObjectId, Point3d, string)>();
 
         /// <summary>Setas colocadas.</summary>
         public int Placed { get; private set; }
@@ -66,13 +67,13 @@ namespace FiberPlugin.Core
 
                 if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
                 {
-                    _existing.Add((id, pole));
+                    _existing.Add((id, pole, XDataTags.ReadEffortMarker(ent)?.PoleHandle ?? ""));
                 }
                 else if (ent is BlockReference br &&
                          CadHelpers.GetBlockName(tr, br).Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
                 {
                     // Setas criadas por versões antigas (sem XData): o ponto de inserção é o poste
-                    _existing.Add((id, br.Position));
+                    _existing.Add((id, br.Position, ""));
                 }
             }
         }
@@ -80,20 +81,23 @@ namespace FiberPlugin.Core
         /// <summary>
         /// Coloca a seta no ponto quando a norma pede (EffortResult.NeedsArrow). Quando não pede, só apaga a seta que já
         /// estava ali, de um cálculo anterior. O esforço é devolvido nos dois casos, para as mensagens do comando.
+        /// A seta anterior do mesmo poste sai mesmo fora do centro dele (ex.: Esforço de 1 Cabo, no ponto clicado).
         /// </summary>
         /// <param name="pole">Ponto de onde sai a seta (centro do poste vinculado, ou o ponto do cabo).</param>
         /// <param name="linkedPole">Poste a que o cálculo pertence; fica gravado na seta para o relatório.</param>
+        /// <param name="clearWhenNotNeeded">False: onde a norma dispensa a seta, a que já estava fica (modo Cabo).</param>
         /// <returns>Esforço do poste comparado com o nominal.</returns>
-        public PoleLoad Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null)
+        public PoleLoad Place(Point3d pole, EffortResult result, PoleInfo? linkedPole = null, bool clearWhenNotNeeded = true)
         {
-            bool removed = RemoveAt(pole);
+            string handle = linkedPole?.Id.Handle.ToString() ?? "";
             PoleLoad load = PoleLoad.For(linkedPole, result.Kgf, _attachHeight);
             if (!result.NeedsArrow)
             {
                 Skipped++;
-                if (removed) Cleared++;
+                if (clearWhenNotNeeded) Clear(pole, handle);
                 return load;
             }
+            RemoveAt(pole, handle);
 
             // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
             // 20 cm do topo (NDU 009, item 16.3 h); sem o poste, o da altura do cabo.
@@ -131,7 +135,7 @@ namespace FiberPlugin.Core
             foreach (Entity ent in created)
             {
                 XDataTags.TagEffortMarker(_tr, _db, ent, data);
-                _existing.Add((ent.ObjectId, pole));
+                _existing.Add((ent.ObjectId, pole, data.PoleHandle));
             }
             return load;
         }
@@ -173,19 +177,22 @@ namespace FiberPlugin.Core
             return Math.Round(deg) >= 360 ? 0 : deg;
         }
 
-        /// <summary>Apaga a seta que estava no ponto, sem calcular nada (conta em Cleared).</summary>
-        public void Clear(Point3d point)
+        /// <summary>Apaga a seta que estava no ponto ou no poste, sem calcular nada (conta em Cleared).</summary>
+        /// <param name="poleHandle">Handle do poste (null ou "" = só a do ponto).</param>
+        public void Clear(Point3d point, string? poleHandle)
         {
-            if (RemoveAt(point)) Cleared++;
+            if (RemoveAt(point, poleHandle)) Cleared++;
         }
 
-        /// <summary>Apaga a seta e os textos que já estavam no ponto. True se havia algum.</summary>
-        private bool RemoveAt(Point3d pole)
+        /// <summary>Apaga a seta e os textos que já estavam no ponto ou que pertencem ao poste. True se havia algum.</summary>
+        private bool RemoveAt(Point3d pole, string? poleHandle)
         {
             bool removed = false;
             for (int i = _existing.Count - 1; i >= 0; i--)
             {
-                if (_existing[i].Pole.DistanceTo(pole) > SamePointTolerance) continue;
+                bool samePole = !string.IsNullOrEmpty(poleHandle) &&
+                                string.Equals(_existing[i].PoleHandle, poleHandle, StringComparison.OrdinalIgnoreCase);
+                if (!samePole && _existing[i].Pole.DistanceTo(pole) > SamePointTolerance) continue;
 
                 var ent = (Entity)_tr.GetObject(_existing[i].Id, OpenMode.ForWrite);
                 if (!ent.IsErased) ent.Erase();

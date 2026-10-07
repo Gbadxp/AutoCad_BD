@@ -255,7 +255,7 @@ namespace FiberPlugin.Core
                 "seta(s) com valor diferente do cálculo atual, porque o cabo mudou depois delas ou são do modo Cabo",
                 "rode o Esforço no Percurso (Total)", "rode o Esforço no Percurso (Total)", "16.3 h");
             AddArrowIssues(issues,
-                project.ExtraArrows.Select(p => (Poles.Nearest(project.PoleList, p, 0.01)?.Number ?? "Ponto sem poste", p,
+                project.ExtraArrows.Select(x => (x.Pole?.Number ?? "Ponto sem poste", x.Point,
                     $"Seta em poste de passagem (até {EffortResult.ArrowDeflectionDeg:F0}° ou resultante nula), que a norma dispensa")).ToList(),
                 $"seta(s) em poste de passagem (até {EffortResult.ArrowDeflectionDeg:F0}° ou resultante nula), que a norma dispensa",
                 "rode o Esforço no Percurso para apagá-la", "rode o Esforço no Percurso para apagá-las", "Anexo B 2.2.18");
