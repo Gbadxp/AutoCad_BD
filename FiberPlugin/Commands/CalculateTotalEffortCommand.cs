@@ -60,7 +60,7 @@ namespace FiberPlugin.Commands
                     tr.Commit();
 
                     string arrow = result.NeedsArrow
-                        ? $"seta E= {load.ProjectDaN:F2} daN, β= {result.AngleDeg:F0}°"
+                        ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°"
                         : result.WithoutArrowReason + (markers.Cleared > 0 ? " (a seta anterior foi apagada)" : "") + ": a NDU 009 dispensa (Anexo B 2.2.18)";
                     ed.WriteMessage($"\n[SUCESSO]: {(pole != null ? "Poste " + pole.Number : "Ponto sem poste")} | {result.Situation} | " +
                                     $"{result.Kgf:F2} kgf no cabo ({result.CableCount} cabo(s)) | {arrow}.");

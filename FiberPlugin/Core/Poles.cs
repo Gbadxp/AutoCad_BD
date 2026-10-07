@@ -80,7 +80,7 @@ namespace FiberPlugin.Core
         /// <summary>Esforço do projeto referido ao topo (ou na altura do cabo, sem a altura do poste).</summary>
         public double ProjectKgf => TopKgf ?? CableKgf;
 
-        /// <summary>O mesmo em daN, a unidade da seta (símbolo do Anexo C da NDU 009) e dos limites da norma.</summary>
+        /// <summary>O mesmo em daN, a unidade dos limites da norma (item 14.2 d).</summary>
         public double ProjectDaN => ProjectKgf * FiberSettings.KgfToDaN;
 
         /// <summary>

@@ -55,7 +55,7 @@ namespace FiberPlugin.Commands
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
                     PoleLoad load = markers.Place(points[i], result, pole);
                     string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
-                    string arrow = result.NeedsArrow ? $"seta E= {load.ProjectDaN:F2} daN" : result.WithoutArrowReason!;
+                    string arrow = result.NeedsArrow ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
                     string? status = load.Text(pole);
                     ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf | {arrow}" + (status != null ? " | " + status : ""));
                 }

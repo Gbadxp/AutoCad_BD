@@ -205,7 +205,6 @@ namespace FiberPlugin.Commands
                     CableKgf = e.Kgf,
                     AngleDeg = e.AngleDeg,
                     TopKgf = e.Load.TopKgf,
-                    ArrowDaN = e.Load.ProjectDaN,
                     Replace = e.Load.NeedsReplacement,
                     ExistingKgf = e.Load.ExistingKgf,
                     TotalKgf = e.Load.TotalKgf,

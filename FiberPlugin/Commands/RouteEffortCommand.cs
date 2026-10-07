@@ -98,7 +98,7 @@ namespace FiberPlugin.Commands
                     if (load.NeedsReplacement) replace++;
 
                     string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({stop.Point.X:F1}; {stop.Point.Y:F1})";
-                    string arrow = result.NeedsArrow ? $"seta E= {load.ProjectDaN:F2} daN, β= {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
+                    string arrow = result.NeedsArrow ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
                     string? status = load.Text(pole);
                     ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf no cabo | {arrow}" +
                                     (status != null ? " | " + status : ""));

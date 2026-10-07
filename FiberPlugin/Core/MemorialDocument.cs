@@ -30,7 +30,6 @@ namespace FiberPlugin.Core
         public double CableKgf { get; set; }
         public double AngleDeg { get; set; }
         public double? TopKgf { get; set; }
-        public double ArrowDaN { get; set; }             // Valor da seta: esforço do projeto a 20 cm do topo, em daN
         public bool Replace { get; set; }                // Passa do limite do item 14.2 d: substituição do poste
         public double ExistingKgf { get; set; }
         public double TotalKgf { get; set; }
@@ -426,7 +425,7 @@ namespace FiberPlugin.Core
                   {Row("Transferência", "Esforço referido a 20 cm do topo: Ft = F × hc / h, sendo h = L − e (altura útil) e e = L/10 + 0,60 m (engastamento), conforme Anexo A")}
                   {Row("Esforço existente", "Somado ao do projeto na comparação com o nominal do poste (item 8.1)")}
                   {Row("Limite do projeto", "50 daN no poste de até 300 daN e 100 daN no de 600 daN ou mais; acima disso, substituição do poste (item 14.2 d)")}
-                  {Row("Setas no desenho", $"Nos postes de fim de rede e com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h), no símbolo do Anexo C: E em daN e β = direção da resultante")}
+                  {Row("Setas no desenho", $"Nos postes de fim de rede e com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h), com o esforço a 20 cm do topo (kgf) e o ângulo da resultante")}
                   {Row("Coordenadas", d.CoordinateSystem)}
                 </dl></div>
                 <h3>{number}.2 Dados mecânicos dos cabos</h3>
@@ -453,7 +452,7 @@ namespace FiberPlugin.Core
                     return $"""
                         <tr><td><b>{E(e.Pole)}</b></td><td>{E(e.Structure)}</td><td>{E(e.Situation)}</td>
                         <td class="num">{e.CableKgf.ToString("N2", Br)}</td><td class="num">{e.AngleDeg.ToString("0", Br)}°</td>
-                        <td class="num">{(e.TopKgf?.ToString("N2", Br) ?? "—")}</td><td class="num">{(e.Arrow ? e.ArrowDaN.ToString("N2", Br) : "—")}</td>
+                        <td class="num">{(e.TopKgf?.ToString("N2", Br) ?? "—")}</td><td>{(e.Arrow ? "Sim" : "—")}</td>
                         <td class="num">{e.ExistingKgf.ToString("N2", Br)}</td>
                         <td class="num"><b>{e.TotalKgf.ToString("N2", Br)}</b></td><td class="num">{(e.NominalKgf?.ToString("N0", Br) ?? "—")}</td>
                         <td class="num">{(e.Usage != null ? e.Usage.Value.ToString("0", Br) + "%" : "—")}</td>
@@ -466,11 +465,11 @@ namespace FiberPlugin.Core
                     <h3 class="page-title">{title}</h3>
                     <p class="muted fig-desc">Esforço do projeto em todos os postes ocupados, em kgf, transferido a 20 cm do topo; direção
                     pelo ângulo da resultante (anti-horário a partir do leste). A seta vai no desenho só nos postes de fim de rede e com
-                    ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° (NDU 009, Anexo B 2.2.18), com o valor da coluna Seta em daN;
+                    ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° (NDU 009, Anexo B 2.2.18), com o valor da coluna Topo;
                     nos de passagem a norma dispensa a seta (—).</p>
                     <table class="small">
                       <thead><tr><th>Poste</th><th>Estrutura</th><th>Situação</th><th class="num">No cabo</th><th class="num">Âng.</th>
-                      <th class="num">Topo</th><th class="num">Seta (daN)</th><th class="num">Exist.</th><th class="num">Total</th><th class="num">Nominal</th>
+                      <th class="num">Topo</th><th>Seta</th><th class="num">Exist.</th><th class="num">Total</th><th class="num">Nominal</th>
                       <th class="num">Uso</th><th>Resultado</th></tr></thead>
                       <tbody>{rows}</tbody>
                     </table>

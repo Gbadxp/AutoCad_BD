@@ -26,7 +26,6 @@ namespace FiberPlugin.Core
     public class EffortMarkers
     {
         private const double SamePointTolerance = 0.01;
-        private static readonly CultureInfo Br = new CultureInfo("pt-BR");
 
         // Tags do bloco "SETA DE ESFORÇO" (o "336" é o do modelo de projeto)
         private static readonly string[] EffortTags = { "ESFORÇO_KFG", "ESFORCO_KFG" };
@@ -38,7 +37,6 @@ namespace FiberPlugin.Core
         private readonly ObjectId _arrowBlockId;
         private readonly double _scale; // Fator da escala do desenho (1,0 em 1:1000)
         private readonly double _attachHeight;
-        private readonly string _blockBeta = "β";
         private readonly List<(ObjectId Id, Point3d Pole)> _existing = new List<(ObjectId, Point3d)>();
 
         /// <summary>Setas colocadas.</summary>
@@ -59,7 +57,6 @@ namespace FiberPlugin.Core
             _arrowBlockId = arrowBlockId;
             _scale = DrawingScale.Factor(db);
             _attachHeight = CalcSettings.Get(db).AttachHeightM;
-            if (!arrowBlockId.IsNull) _blockBeta = BetaFor(AngleAttributeStyle(arrowBlockId));
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, UserSettings.Current.EffortColor);
 
@@ -98,12 +95,11 @@ namespace FiberPlugin.Core
                 return load;
             }
 
-            // Símbolo "Indicação de esforço resultante/ângulo" do Anexo C da NDU 009: "E= 24,50 daN" e "β= 12°". O valor é
-            // o transferido a 20 cm do topo (item 16.3 h); sem o poste, o da altura do cabo. β é a direção da resultante
-            // (anti-horário a partir do leste) e a seta dá o sentido.
+            // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
+            // 20 cm do topo (NDU 009, item 16.3 h); sem o poste, o da altura do cabo.
             double angle = result.AngleRad;
-            string effortText = "E= " + load.ProjectDaN.ToString("F2", Br) + " daN";
-            string degrees = "= " + NormalizeDegrees(angle).ToString("F0", Br) + "°";
+            string effortText = load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
+            string angleText = "ANG. " + NormalizeDegrees(angle).ToString("F0", CultureInfo.InvariantCulture) + "°";
 
             var created = new List<Entity>();
 
@@ -112,13 +108,12 @@ namespace FiberPlugin.Core
                 // Bloco "SETA DE ESFORÇO" do desenho ou da biblioteca
                 created.Add(CadHelpers.InsertBlock(_tr, _space, _arrowBlockId, pole, angle, FiberSettings.EffortLayer, tag =>
                     EffortTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? effortText
-                    : AngleTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? _blockBeta + degrees
+                    : AngleTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? angleText
                     : null, _scale));
             }
             else
             {
-                // O MText troca para Arial só no β, que as fontes SHX não têm
-                created.AddRange(DrawArrow(pole, angle, effortText, @"{\fArial|b0|i0|c0|p34;β}" + degrees));
+                created.AddRange(DrawArrow(pole, angle, effortText, angleText));
             }
             Placed++;
 
@@ -197,34 +192,6 @@ namespace FiberPlugin.Core
                 removed = true;
             }
             return removed;
-        }
-
-        /// <summary>Estilo de texto do atributo do ângulo no bloco da seta (Null se o bloco não tiver).</summary>
-        private ObjectId AngleAttributeStyle(ObjectId blockId)
-        {
-            var block = (BlockTableRecord)_tr.GetObject(blockId, OpenMode.ForRead);
-            foreach (ObjectId id in block)
-            {
-                if (_tr.GetObject(id, OpenMode.ForRead) is AttributeDefinition att &&
-                    AngleTags.Contains(att.Tag.Trim(), StringComparer.OrdinalIgnoreCase))
-                {
-                    return att.TextStyleId;
-                }
-            }
-            return ObjectId.Null;
-        }
-
-        /// <summary>
-        /// "β" quando a fonte do estilo é TrueType. As fontes SHX não têm letras gregas (o β sairia "?"): nelas vai "b",
-        /// como no símbolo impresso no Anexo C da norma.
-        /// </summary>
-        private string BetaFor(ObjectId textStyleId)
-        {
-            if (textStyleId.IsNull || _tr.GetObject(textStyleId, OpenMode.ForRead) is not TextStyleTableRecord style) return "β";
-            string file = style.FileName ?? "";
-            bool trueType = !string.IsNullOrEmpty(style.Font.TypeFace) ||
-                            new[] { ".ttf", ".ttc", ".otf" }.Any(e => file.EndsWith(e, StringComparison.OrdinalIgnoreCase));
-            return trueType ? "β" : "b";
         }
     }
 }
