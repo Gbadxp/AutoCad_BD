@@ -164,6 +164,11 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
+        /// <summary>O handle (em hexadecimal, como gravado no texto) é de um objeto que existe no desenho.</summary>
+        private static bool Exists(Database db, string handle) =>
+            long.TryParse(handle, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out long value) && value > 0 &&
+            db.TryGetObjectId(new Handle(value), out ObjectId id) && !id.IsErased;
+
         /// <summary>Primeira linha do texto da CTO/CEO: o prefixo e o número, ou só o número quando o prefixo é vazio.</summary>
         private static bool BoxName(string firstLine, string prefix) =>
             prefix.Length > 0
@@ -177,9 +182,9 @@ namespace FiberPlugin.Core
         public static Dictionary<string, List<ObjectId>> NewBlock => new Dictionary<string, List<ObjectId>>();
 
         /// <summary>
-        /// Texto do bloco: pelo índice já levantado ou, sem ele, pelo vínculo gravado nos textos. Num desenho em que todos os
-        /// textos têm o vínculo novo (handle do AutoCAD) isso basta e é rápido (Renumerar, ID Energisa); se algum texto do
-        /// espaço tem vínculo antigo ou nenhum (desenho copiado, versão antiga), levanta tudo com a regra do IndexLabels.
+        /// Texto do bloco: pelo índice já levantado ou, sem ele, pelo vínculo gravado nos textos. Num desenho sem texto de
+        /// vínculo quebrado (que aponta para nada ou não aponta) e com um texto só apontando para o bloco, isso basta e é
+        /// rápido (Renumerar, ID Energisa); senão (desenho copiado, versão antiga) levanta tudo com a regra do IndexLabels.
         /// Quem mexe em muitos blocos passa o índice pronto; bloco recém-inserido passa NewBlock.
         /// </summary>
         private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner, Dictionary<string, List<ObjectId>>? index)
@@ -188,7 +193,7 @@ namespace FiberPlugin.Core
             if (index == null)
             {
                 var linked = new List<MText>();
-                bool allLinked = true;
+                bool clean = true;
                 foreach (ObjectId id in space)
                 {
                     if (tr.GetObject(id, OpenMode.ForRead) is not MText txt) continue;
@@ -197,13 +202,13 @@ namespace FiberPlugin.Core
                     {
                         // Sem XData: só conta se estiver numa das layers dos textos (texto de versão antiga)
                         if (txt.Layer.Equals(Layer, StringComparison.OrdinalIgnoreCase) || txt.Layer.Equals(BoxLayer, StringComparison.OrdinalIgnoreCase))
-                            allLinked = false;
+                            clean = false;
                         continue;
                     }
-                    if (!isHandle) allLinked = false;
+                    if (!Exists(space.Database, textOwner)) clean = false;
                     else if (string.Equals(textOwner, handle, StringComparison.OrdinalIgnoreCase)) linked.Add(txt);
                 }
-                if (allLinked) return linked;
+                if (clean && linked.Count == 1) return linked;
                 index = IndexLabels(tr, space);
             }
             return index.TryGetValue(handle, out List<ObjectId>? ids)

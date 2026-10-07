@@ -45,18 +45,19 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>
-    /// Qual texto é de qual bloco. Cada texto guarda o handle do bloco dono. Desde a 1.9.47 ele é gravado como handle do
-    /// AutoCAD, que o COPY e o copiar e colar acompanham; nos textos de antes era texto puro, e a cópia continuava
-    /// apontando para o bloco original (ou para um handle que nem existe no desenho novo). Sem esta conferência o plugin
-    /// não achava o texto e criava outro por cima.
+    /// Qual texto é de qual bloco. Cada texto guarda o handle do bloco dono como texto, que a cópia não acompanha: em
+    /// desenho copiado (COPY, copiar e colar de outro DWG) a cópia continua apontando para o bloco original, ou para um
+    /// handle que nem existe no desenho novo. Sem esta conferência o plugin não achava o texto e criava outro por cima.
+    /// (Os textos gravados pelas 1.9.47 e 1.9.48 têm o handle do AutoCAD, que a cópia acompanha.)
     /// </summary>
     public static class LabelMatching
     {
         /// <summary>
-        /// 1. Vínculo gravado como handle do AutoCAD vale sempre, esteja o texto onde estiver (texto movido continua dele;
-        ///    vários textos assim do mesmo bloco, ex.: uma cópia num detalhe, todos acompanham). Vínculo antigo (texto puro)
-        ///    vale se o texto está a até <paramref name="wideReach"/> do bloco ou o bloco é o mais perto dele; entre vários
-        ///    que apontam para o mesmo bloco, fica com ele o mais perto, e os outros são cópias.
+        /// 1. Vínculo gravado como handle do AutoCAD (1.9.47 e 1.9.48) vale sempre, esteja o texto onde estiver (vários
+        ///    textos assim do mesmo bloco, ex.: uma cópia num detalhe, todos acompanham). Vínculo em texto vale se o texto
+        ///    está a até <paramref name="wideReach"/> do bloco, o bloco é o mais perto dele ou o texto tem o número do bloco
+        ///    escrito (texto movido para longe); entre vários que apontam para o mesmo bloco, fica com ele o mais perto, e os
+        ///    outros são cópias.
         /// 2. Bloco sem texto adota o texto sem dono perto dele: até <paramref name="reach"/>, qualquer um; até
         ///    <paramref name="wideReach"/>, o que tem o número dele escrito ou o texto do plugin que é "dele" (veja IntendedOf).
         /// 3. Bloco cujo único texto está exatamente onde o plugin o põe e que tem perto um texto sem dono do plugin que é
@@ -113,11 +114,13 @@ namespace FiberPlugin.Core
                     continue;
                 }
 
-                // Vínculo antigo: perto do bloco ou o bloco é o mais perto do texto. Longe e junto de outro bloco é handle de
-                // outro desenho que por acaso existe neste (colado)
+                // Vínculo em texto: perto do bloco, o bloco é o mais perto do texto, ou o texto tem o número dele escrito (texto
+                // movido para longe). Longe, junto de outro bloco e com outro número é handle de outro desenho que por acaso
+                // existe neste (colado)
                 List<int> sorted = group.OrderBy(i => owner.Distance(labels[i].At)).ToList();
                 int first = sorted[0];
-                if (owner.Distance(labels[first].At) <= wideReach || NearestOf(first) == owner)
+                if (owner.Distance(labels[first].At) <= wideReach || NearestOf(first) == owner ||
+                    string.Equals(labels[first].FirstLine, owner.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     result[owner.Handle] = new List<int> { first };
                     orphans.AddRange(sorted.Skip(1));

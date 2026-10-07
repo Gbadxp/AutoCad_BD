@@ -56,17 +56,18 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence. Gravado como handle
-        /// do AutoCAD (código 1005), que o COPY, o copiar e colar e o INSERT traduzem junto: copiando poste e texto, a cópia
-        /// do texto aponta para a cópia do poste. Até a 1.9.46 ia como texto puro (1000), que a cópia não acompanha.
+        /// Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence, como texto (1000).
+        /// As versões 1.9.47 e 1.9.48 gravavam como handle do AutoCAD (1005), e com isso a numeração não andava; a leitura
+        /// aceita os dois. A cópia do texto não acompanha o handle: quem acha o texto certo em desenho copiado é o
+        /// LabelMatching.
         /// </summary>
         public static void TagPoleLabel(Transaction tr, Database db, Entity ent, string ownerHandle) =>
-            Write(tr, db, ent, PoleLabelKind, new TypedValue((int)DxfCode.ExtendedDataHandle, ownerHandle));
+            Write(tr, db, ent, PoleLabelKind, Text(ownerHandle));
 
         /// <summary>Handle do bloco dono do texto (dos dois jeitos de gravar). Null se não for texto de identificação.</summary>
         public static string? GetPoleLabelOwner(Entity ent) => GetPoleLabelOwner(ent, out _);
 
-        /// <param name="isHandle">True se gravado como handle do AutoCAD (1.9.47 em diante), que o COPY e o colar mantêm certo.</param>
+        /// <param name="isHandle">True se gravado como handle do AutoCAD (1.9.47 e 1.9.48), que o COPY e o colar mantêm certo.</param>
         public static string? GetPoleLabelOwner(Entity ent, out bool isHandle)
         {
             TypedValue[]? d = Read(ent, PoleLabelKind, 1);
