@@ -39,6 +39,9 @@ namespace FiberPlugin.Core
         public string FirstLine { get; set; } = "";
         public Point3d At { get; set; }
         public bool LooksLikeLabel { get; set; }
+
+        /// <summary>Vínculo gravado como handle do AutoCAD (1.9.47 em diante), que o COPY e o colar mantêm certo.</summary>
+        public bool LinkIsHandle { get; set; }
     }
 
     /// <summary>
@@ -50,17 +53,18 @@ namespace FiberPlugin.Core
     public static class LabelMatching
     {
         /// <summary>
-        /// 1. O handle gravado vale quando o bloco existe e o texto está a até <paramref name="wideReach"/> dele, ou o bloco
-        ///    é o mais perto do texto (texto movido continua dele); entre vários textos que apontam para o mesmo bloco, fica
-        ///    com ele o mais perto, e os outros são cópias.
-        /// 2. Bloco sem texto adota o texto sem dono mais perto: até <paramref name="reach"/>, ou até
-        ///    <paramref name="wideReach"/> se o número escrito for o dele.
-        /// 3. Bloco cujo texto está exatamente onde o plugin o põe e que tem perto (até <paramref name="wideReach"/>) um
-        ///    texto sem dono com cara de texto do plugin fica com esse outro: é o texto que o usuário moveu, num desenho
-        ///    copiado em que o plugin tinha criado um texto novo no lugar padrão. O do lugar padrão sai.
+        /// 1. Vínculo gravado como handle do AutoCAD vale sempre, esteja o texto onde estiver (texto movido continua dele;
+        ///    vários textos assim do mesmo bloco, ex.: uma cópia num detalhe, todos acompanham). Vínculo antigo (texto puro)
+        ///    vale se o texto está a até <paramref name="wideReach"/> do bloco ou o bloco é o mais perto dele; entre vários
+        ///    que apontam para o mesmo bloco, fica com ele o mais perto, e os outros são cópias.
+        /// 2. Bloco sem texto adota o texto sem dono perto dele: até <paramref name="reach"/>, qualquer um; até
+        ///    <paramref name="wideReach"/>, o que tem o número dele escrito ou o texto do plugin que é "dele" (veja IntendedOf).
+        /// 3. Bloco cujo único texto está exatamente onde o plugin o põe e que tem perto um texto sem dono do plugin que é
+        ///    "dele" fica com esse outro: é o texto que o usuário moveu, num desenho copiado em que o plugin tinha criado um
+        ///    texto novo no lugar padrão. O do lugar padrão sai.
         /// 4. Sobram os repetidos: textos sem dono exatamente em cima de um que ficou com algum bloco (e os do passo 3).
         /// </summary>
-        /// <returns>Índices (em <paramref name="labels"/>) do texto de cada bloco, pelo handle, e dos textos a apagar.</returns>
+        /// <returns>Índices (em <paramref name="labels"/>) dos textos de cada bloco, pelo handle, e dos textos a apagar.</returns>
         public static (Dictionary<string, List<int>> ByOwner, List<int> Duplicates) Resolve(IList<LabelOwner> owners, IList<LabelText> labels,
             double reach, double wideReach)
         {
@@ -82,9 +86,16 @@ namespace FiberPlugin.Core
                 return nearest;
             }
 
-            // 1. Handle gravado: vale se o texto está a até wideReach do bloco ou se o bloco é o mais perto dele (texto
-            //    movido). Longe e junto de outro bloco é handle de outro desenho que por acaso existe neste (colado)
-            var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            // Bloco "dele" para um texto sem dono: o de mesmo número escrito a até wideReach (o texto pode ter sido arrastado
+            // para perto do vizinho) ou, sem ele, o mais perto
+            LabelOwner? IntendedOf(int i) =>
+                owners.Where(o => o.IsBox == labels[i].IsBox && string.Equals(o.Name, labels[i].FirstLine, StringComparison.OrdinalIgnoreCase) &&
+                                  o.Distance(labels[i].At) <= wideReach)
+                      .OrderBy(o => o.Distance(labels[i].At)).FirstOrDefault()
+                ?? NearestOf(i);
+
+            // 1. Vínculo gravado
+            var result = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
             var orphans = new List<int>();
             foreach (var group in Enumerable.Range(0, labels.Count).GroupBy(i => labels[i].Owner, StringComparer.OrdinalIgnoreCase))
             {
@@ -93,11 +104,22 @@ namespace FiberPlugin.Core
                     orphans.AddRange(group);
                     continue;
                 }
+
+                List<int> handleLinks = group.Where(i => labels[i].LinkIsHandle).ToList();
+                if (handleLinks.Count > 0)
+                {
+                    result[owner.Handle] = handleLinks;
+                    orphans.AddRange(group.Where(i => !labels[i].LinkIsHandle));
+                    continue;
+                }
+
+                // Vínculo antigo: perto do bloco ou o bloco é o mais perto do texto. Longe e junto de outro bloco é handle de
+                // outro desenho que por acaso existe neste (colado)
                 List<int> sorted = group.OrderBy(i => owner.Distance(labels[i].At)).ToList();
                 int first = sorted[0];
                 if (owner.Distance(labels[first].At) <= wideReach || NearestOf(first) == owner)
                 {
-                    result[owner.Handle] = first;
+                    result[owner.Handle] = new List<int> { first };
                     orphans.AddRange(sorted.Skip(1));
                 }
                 else
@@ -105,10 +127,9 @@ namespace FiberPlugin.Core
                     orphans.AddRange(sorted);
                 }
             }
-            var nearestOwner = orphans.ToDictionary(i => i, NearestOf);
+            var intended = orphans.ToDictionary(i => i, IntendedOf);
 
-            // 2. Bloco sem texto: o texto sem dono perto dele. Até reach, qualquer um; até wideReach, o de mesmo número ou
-            //    o que tem cara de texto do plugin e tem este bloco como o mais perto (texto movido). O de mesmo número primeiro
+            // 2. Bloco sem texto: o texto sem dono perto dele (o de mesmo número primeiro)
             var adopted = new HashSet<int>();
             var candidates = new List<(int Label, LabelOwner Owner, double Distance, bool SameName)>();
             foreach (int i in orphans)
@@ -118,14 +139,14 @@ namespace FiberPlugin.Core
                     if (owner.IsBox != labels[i].IsBox || result.ContainsKey(owner.Handle)) continue;
                     double d = owner.Distance(labels[i].At);
                     bool sameName = string.Equals(labels[i].FirstLine, owner.Name, StringComparison.OrdinalIgnoreCase);
-                    bool moved = labels[i].LooksLikeLabel && nearestOwner[i] == owner;
+                    bool moved = labels[i].LooksLikeLabel && intended[i] == owner;
                     if (d <= reach || ((sameName || moved) && d <= wideReach)) candidates.Add((i, owner, d, sameName));
                 }
             }
             foreach (var c in candidates.OrderBy(c => c.SameName ? 0 : 1).ThenBy(c => c.Distance))
             {
                 if (adopted.Contains(c.Label) || result.ContainsKey(c.Owner.Handle)) continue;
-                result[c.Owner.Handle] = c.Label;
+                result[c.Owner.Handle] = new List<int> { c.Label };
                 adopted.Add(c.Label);
             }
 
@@ -134,29 +155,31 @@ namespace FiberPlugin.Core
             var swaps = new List<(int Label, LabelOwner Owner, double Distance)>();
             foreach (int i in orphans.Where(i => !adopted.Contains(i) && labels[i].LooksLikeLabel))
             {
-                LabelOwner? nearest = nearestOwner[i];
-                if (nearest == null || nearest.Distance(labels[i].At) > wideReach || !result.TryGetValue(nearest.Handle, out int current)) continue;
-                if (labels[current].At.DistanceTo(nearest.Default) > 1e-3) continue; // O texto atual foi colocado ou movido pelo usuário
-                if (labels[current].At.DistanceTo(labels[i].At) < 1e-3) continue;      // Exatamente em cima: é repetido (passo 4)
-                swaps.Add((i, nearest, nearest.Distance(labels[i].At)));
+                LabelOwner? target = intended[i];
+                if (target == null || target.Distance(labels[i].At) > wideReach || !result.TryGetValue(target.Handle, out List<int>? current) ||
+                    current.Count != 1) continue;
+                if (labels[current[0]].At.DistanceTo(target.Default) > 1e-3) continue; // O texto atual foi colocado ou movido pelo usuário
+                if (labels[current[0]].At.DistanceTo(labels[i].At) < 1e-3) continue;   // Exatamente em cima: é repetido (passo 4)
+                swaps.Add((i, target, target.Distance(labels[i].At)));
             }
             var swapped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in swaps.OrderBy(s => s.Distance))
+            foreach (var s in swaps.OrderBy(s => string.Equals(labels[s.Label].FirstLine, s.Owner.Name, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                                   .ThenBy(s => s.Distance))
             {
                 if (!swapped.Add(s.Owner.Handle)) continue;
-                replaced.Add(result[s.Owner.Handle]);
-                result[s.Owner.Handle] = s.Label;
+                replaced.Add(result[s.Owner.Handle][0]);
+                result[s.Owner.Handle] = new List<int> { s.Label };
                 adopted.Add(s.Label);
             }
 
             // 4. Repetidos: sem dono e exatamente em cima de um texto que ficou com um bloco
-            List<Point3d> kept = result.Values.Select(i => labels[i].At).ToList();
+            List<Point3d> kept = result.Values.SelectMany(v => v).Select(i => labels[i].At).ToList();
             List<int> duplicates = orphans
                 .Where(i => !adopted.Contains(i) && kept.Any(k => k.DistanceTo(labels[i].At) < 1e-3))
                 .Concat(replaced)
                 .Distinct()
                 .ToList();
-            return (result.ToDictionary(p => p.Key, p => new List<int> { p.Value }, StringComparer.OrdinalIgnoreCase), duplicates);
+            return (result, duplicates);
         }
     }
 }

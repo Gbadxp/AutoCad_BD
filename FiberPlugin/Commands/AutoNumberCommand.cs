@@ -182,9 +182,10 @@ namespace FiberPlugin.Commands
                 }
                 return null;
             }
-            catch (Autodesk.AutoCAD.Runtime.Exception ex)
+            catch (System.Exception ex)
             {
-                return ex.ErrorStatus == ErrorStatus.OnLockedLayer ? LockedLayer : ex.Message;
+                // Qualquer erro fica neste bloco: os outros continuam e o resumo diz quantos e por quê
+                return ex is Autodesk.AutoCAD.Runtime.Exception acad && acad.ErrorStatus == ErrorStatus.OnLockedLayer ? LockedLayer : ex.Message;
             }
         }
     }

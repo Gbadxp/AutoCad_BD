@@ -66,18 +66,17 @@ namespace FiberPlugin.Core
                 DBObject obj = tr.GetObject(id, OpenMode.ForRead);
                 if (obj is MText txt)
                 {
-                    string? owner = XDataTags.GetPoleLabelOwner(txt);
+                    string? owner = XDataTags.GetPoleLabelOwner(txt, out bool isHandle);
                     bool boxLayer = txt.Layer.Equals(BoxLayer, StringComparison.OrdinalIgnoreCase);
                     // Texto sem dono só entra se estiver numa das layers dos textos (versões antigas, sem o XData)
                     if (owner == null && !boxLayer && !txt.Layer.Equals(Layer, StringComparison.OrdinalIgnoreCase)) continue;
                     string firstLine = txt.Contents.Split(new[] { LineBreak }, StringSplitOptions.None)[0].Trim();
                     labels.Add(new LabelText
                     {
-                        Id = id, Owner = owner ?? "", IsBox = boxLayer, At = txt.Location, FirstLine = firstLine,
-                        // Texto do plugin: o do poste tem as coordenadas; o da caixa começa com CTO-/CEO-
+                        Id = id, Owner = owner ?? "", LinkIsHandle = isHandle, IsBox = boxLayer, At = txt.Location, FirstLine = firstLine,
+                        // Texto do plugin: o do poste tem as coordenadas; o da caixa começa com CTO-/CEO- (sem prefixo, só o número)
                         LooksLikeLabel = boxLayer
-                            ? firstLine.StartsWith(settings.CtoPrefix, StringComparison.OrdinalIgnoreCase) ||
-                              firstLine.StartsWith(settings.CeoPrefix, StringComparison.OrdinalIgnoreCase)
+                            ? BoxName(firstLine, settings.CtoPrefix) || BoxName(firstLine, settings.CeoPrefix)
                             : txt.Contents.Contains(" m E")
                     });
                 }
@@ -165,6 +164,12 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
+        /// <summary>Primeira linha do texto da CTO/CEO: o prefixo e o número, ou só o número quando o prefixo é vazio.</summary>
+        private static bool BoxName(string firstLine, string prefix) =>
+            prefix.Length > 0
+                ? firstLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                : firstLine.Length > 0 && firstLine.All(char.IsDigit);
+
         /// <summary>
         /// Índice vazio, para bloco que acabou de ser inserido: ele ainda não tem texto, e assim não se levanta o desenho
         /// inteiro a cada poste inserido (Inserir Postes, importar KML).
@@ -172,13 +177,36 @@ namespace FiberPlugin.Core
         public static Dictionary<string, List<ObjectId>> NewBlock => new Dictionary<string, List<ObjectId>>();
 
         /// <summary>
-        /// Texto do bloco: pelo índice já levantado ou, sem ele, levantando agora (mesma regra, veja IndexLabels). Quem mexe
-        /// em muitos blocos passa o índice pronto; bloco recém-inserido passa NewBlock.
+        /// Texto do bloco: pelo índice já levantado ou, sem ele, pelo vínculo gravado nos textos. Num desenho em que todos os
+        /// textos têm o vínculo novo (handle do AutoCAD) isso basta e é rápido (Renumerar, ID Energisa); se algum texto do
+        /// espaço tem vínculo antigo ou nenhum (desenho copiado, versão antiga), levanta tudo com a regra do IndexLabels.
+        /// Quem mexe em muitos blocos passa o índice pronto; bloco recém-inserido passa NewBlock.
         /// </summary>
         private static List<MText> LabelsOf(Transaction tr, BlockTableRecord space, BlockReference owner, Dictionary<string, List<ObjectId>>? index)
         {
-            index ??= IndexLabels(tr, space);
-            return index.TryGetValue(owner.Handle.ToString(), out List<ObjectId>? ids)
+            string handle = owner.Handle.ToString();
+            if (index == null)
+            {
+                var linked = new List<MText>();
+                bool allLinked = true;
+                foreach (ObjectId id in space)
+                {
+                    if (tr.GetObject(id, OpenMode.ForRead) is not MText txt) continue;
+                    string? textOwner = XDataTags.GetPoleLabelOwner(txt, out bool isHandle);
+                    if (textOwner == null)
+                    {
+                        // Sem XData: só conta se estiver numa das layers dos textos (texto de versão antiga)
+                        if (txt.Layer.Equals(Layer, StringComparison.OrdinalIgnoreCase) || txt.Layer.Equals(BoxLayer, StringComparison.OrdinalIgnoreCase))
+                            allLinked = false;
+                        continue;
+                    }
+                    if (!isHandle) allLinked = false;
+                    else if (string.Equals(textOwner, handle, StringComparison.OrdinalIgnoreCase)) linked.Add(txt);
+                }
+                if (allLinked) return linked;
+                index = IndexLabels(tr, space);
+            }
+            return index.TryGetValue(handle, out List<ObjectId>? ids)
                 ? ids.Where(id => !id.IsErased).Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<MText>().ToList()
                 : new List<MText>();
         }

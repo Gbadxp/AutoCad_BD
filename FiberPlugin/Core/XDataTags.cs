@@ -64,10 +64,16 @@ namespace FiberPlugin.Core
             Write(tr, db, ent, PoleLabelKind, new TypedValue((int)DxfCode.ExtendedDataHandle, ownerHandle));
 
         /// <summary>Handle do bloco dono do texto (dos dois jeitos de gravar). Null se não for texto de identificação.</summary>
-        public static string? GetPoleLabelOwner(Entity ent)
+        public static string? GetPoleLabelOwner(Entity ent) => GetPoleLabelOwner(ent, out _);
+
+        /// <param name="isHandle">True se gravado como handle do AutoCAD (1.9.47 em diante), que o COPY e o colar mantêm certo.</param>
+        public static string? GetPoleLabelOwner(Entity ent, out bool isHandle)
         {
-            string? owner = Read(ent, PoleLabelKind, 1)?[0].Value?.ToString();
-            return owner == "0" ? "" : owner; // O AUDIT zera handle que não existe mais
+            TypedValue[]? d = Read(ent, PoleLabelKind, 1);
+            isHandle = d != null && d[0].TypeCode == (short)DxfCode.ExtendedDataHandle;
+            string? owner = d?[0].Value?.ToString();
+            if (owner == "0") { owner = ""; isHandle = false; } // O AUDIT zera handle que não existe mais
+            return owner;
         }
 
         /// <summary>Marca o retângulo/nome de uma folha no quadro de articulação (Model), com o prefixo das folhas.</summary>
