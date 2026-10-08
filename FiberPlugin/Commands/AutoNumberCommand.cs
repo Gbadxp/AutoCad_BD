@@ -87,14 +87,9 @@ namespace FiberPlugin.Commands
 
             // 3. CTO e CEO dos postes numerados
             // Poste gravado na caixa; se ele estiver longe dela (desenho copiado: o handle é do poste original), o mais perto
-            var poleByHandle = all.ToDictionary(p => p.Id.Handle.ToString());
-            PoleInfo? PoleOf(BoxInfo box) =>
-                box.Data.PoleHandle.Length > 0 && poleByHandle.TryGetValue(box.Data.PoleHandle, out PoleInfo? p) &&
-                p.Position.DistanceTo(box.Position) <= FiberSettings.PoleLinkRadius
-                    ? p
-                    : Poles.Nearest(all, box.Position, FiberSettings.PoleLinkRadius);
+            var poleByHandle = Poles.ByHandle(all);
             List<(BoxInfo Box, PoleInfo Pole)> ownBoxes = boxes
-                .Select(b => (Box: b, Pole: PoleOf(b)))
+                .Select(b => (Box: b, Pole: Boxes.PoleOf(b, poleByHandle, all)))
                 .Where(x => x.Pole != null && poles.Contains(x.Pole))
                 .Select(x => (x.Box, x.Pole!))
                 .ToList();

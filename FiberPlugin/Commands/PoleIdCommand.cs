@@ -40,12 +40,17 @@ namespace FiberPlugin.Commands
                     continue;
                 }
 
-                string hint = data.EnergisaId.Length > 0 ? $" <{data.EnergisaId}>" : "";
+                string hint = data.EnergisaId.Length > 0 ? $" (- apaga) <{data.EnergisaId}>" : "";
                 var pso = new PromptStringOptions($"\nID Energisa de {PoleData.NumberText(data.Number)}{hint}: ") { AllowSpaces = false };
                 PromptResult idRes = ed.GetString(pso);
                 if (idRes.Status != PromptStatus.OK) break;
                 string id = idRes.StringResult.Trim();
                 if (id.Length == 0) continue; // Enter mantém o ID atual
+                if (id == "-")
+                {
+                    if (data.EnergisaId.Length == 0) continue;
+                    id = ""; // Tira o ID digitado no poste errado
+                }
 
                 try
                 {
@@ -58,7 +63,9 @@ namespace FiberPlugin.Commands
                         tr.Commit();
                     }
                     changed++;
-                    ed.WriteMessage($"\n[OK]: {PoleData.NumberText(data.Number)} → ID {id}");
+                    ed.WriteMessage(id.Length > 0
+                        ? $"\n[OK]: {PoleData.NumberText(data.Number)} → ID {id}"
+                        : $"\n[OK]: {PoleData.NumberText(data.Number)} ficou sem ID Energisa.");
                 }
                 catch (Autodesk.AutoCAD.Runtime.Exception ex) when (ex.ErrorStatus == ErrorStatus.OnLockedLayer)
                 {
@@ -66,7 +73,7 @@ namespace FiberPlugin.Commands
                 }
             }
 
-            if (changed > 0) ed.WriteMessage($"\n[INFO]: {changed} poste(s) com ID Energisa.");
+            if (changed > 0) ed.WriteMessage($"\n[INFO]: ID Energisa alterado em {changed} poste(s).");
         }
     }
 }

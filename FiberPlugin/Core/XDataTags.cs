@@ -93,12 +93,16 @@ namespace FiberPlugin.Core
         public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>
             Write(tr, db, ent, CableKind, Text(cableShortName));
 
-        /// <summary>Marca a seta/texto de esforço com os dados do cálculo (lidos pelo relatório).</summary>
+        /// <summary>
+        /// Marca a seta/texto de esforço com os dados do cálculo (lidos pelo relatório). O ponto vai duas vezes: o do
+        /// cálculo (1010, fica como foi gravado) e o que acompanha a entidade no COPY, MOVE e colar (1011, desde a 1.9.53).
+        /// </summary>
         public static void TagEffortMarker(Transaction tr, Database db, Entity ent, EffortMarkerData data) =>
             Write(tr, db, ent, EffortKind,
                 new TypedValue((int)DxfCode.ExtendedDataXCoordinate, data.Point),
                 Real(data.Kgf), Real(data.AngleDeg), Text(data.Situation), Text(data.PoleHandle), Int(data.CableCount),
-                Real(data.TopKgf ?? -1));
+                Real(data.TopKgf ?? -1),
+                new TypedValue((int)DxfCode.ExtendedDataWorldXCoordinate, data.Point));
 
         /// <summary>Dados completos da seta de esforço. Null em setas de versões antigas (só com o ponto).</summary>
         public static EffortMarkerData? ReadEffortMarker(Entity ent)
@@ -115,16 +119,31 @@ namespace FiberPlugin.Core
                 Situation = d[3].Value as string ?? "",
                 PoleHandle = d[4].Value as string ?? "",
                 CableCount = cables,
-                TopKgf = d.Length > 6 && d[6].Value is double top && top >= 0 ? top : (double?)null
+                TopKgf = d.Length > 6 && d[6].Value is double top && top >= 0 ? top : (double?)null,
+                Current = CurrentEffortPoint(ent, d)
             };
         }
 
-        /// <summary>Ponto do poste de qualquer seta de esforço (também as de versões antigas).</summary>
+        /// <summary>
+        /// Ponto do poste de qualquer seta de esforço (também as de versões antigas), onde a seta está hoje quando dá para
+        /// saber (bloco da seta ou ponto 1011): a seta copiada ou movida leva o ponto 1010 do lugar original.
+        /// </summary>
         public static bool TryGetEffortPole(Entity ent, out Point3d pole)
         {
-            object? value = Read(ent, EffortKind, 1)?[0].Value;
-            pole = value is Point3d p ? p : Point3d.Origin;
+            TypedValue[]? d = Read(ent, EffortKind, 1);
+            object? value = d?[0].Value;
+            pole = d != null && CurrentEffortPoint(ent, d) is Point3d current ? current : value is Point3d p ? p : Point3d.Origin;
             return value is Point3d;
+        }
+
+        /// <summary>
+        /// Onde a seta está hoje: o ponto de inserção do bloco da seta (inserido no ponto do cálculo) ou o ponto 1011
+        /// gravado nas desenhadas sem bloco. Null nas desenhadas sem bloco por versões anteriores à 1.9.53.
+        /// </summary>
+        private static Point3d? CurrentEffortPoint(Entity ent, TypedValue[] d)
+        {
+            if (ent is BlockReference br) return br.Position;
+            return d.Length > 7 && d[7].Value is Point3d world ? world : (Point3d?)null;
         }
 
         /// <summary>

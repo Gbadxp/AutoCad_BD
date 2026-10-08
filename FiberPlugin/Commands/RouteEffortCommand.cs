@@ -73,7 +73,7 @@ namespace FiberPlugin.Commands
                     ? selectedRuns
                     : EffortCalculator.CollectCables(tr, modelSpace, catalog, traction);
 
-                var markers = new EffortMarkers(tr, db, modelSpace, arrowId);
+                var markers = new EffortMarkers(tr, db, modelSpace, arrowId, poles);
                 int exceeded = 0, replace = 0, withoutPole = 0;
 
                 ed.WriteMessage($"\n--- ESFORÇOS NO PERCURSO ({(onlySelected ? "cabo selecionado" : "total no poste")}) ---");

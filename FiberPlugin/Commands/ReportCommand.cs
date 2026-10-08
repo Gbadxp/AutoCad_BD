@@ -52,7 +52,7 @@ namespace FiberPlugin.Commands
             WriteBoxes(workbook, boxes, poles, utm);
             WriteEfforts(workbook, effortPoints);
             WriteCables(workbook, cables);
-            WriteTableA(workbook, project.Occupied, boxes, CompanyInfo.Load(out _), utm);
+            WriteTableA(workbook, project.Occupied, boxes, poles, CompanyInfo.Load(out _), utm);
             WriteChecks(workbook, NormCheck.Run(project));
 
             try
@@ -168,11 +168,11 @@ namespace FiberPlugin.Commands
             XlsxWriter.Sheet sheet = workbook.AddSheet("CTO e CEO").ColumnWidths(10, 7, 20, 14, 15, 11, 16, 16);
             sheet.Header("ID", "Tipo", "Bloco", "Poste", "Poste (tipo)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)");
 
+            var polesByHandle = Poles.ByHandle(poles);
             foreach (BoxInfo box in boxes)
             {
-                // Poste vinculado na inserção; se ele não existir mais, o mais próximo agora
-                PoleInfo? pole = poles.FirstOrDefault(p => p.Id.Handle.ToString() == box.Data.PoleHandle)
-                                 ?? Poles.Nearest(poles, box.Position, FiberSettings.PoleLinkRadius);
+                // Poste vinculado na inserção; se ele não existir mais ou estiver longe (cópia), o mais próximo agora
+                PoleInfo? pole = Boxes.PoleOf(box, polesByHandle, poles);
 
                 sheet.Row(
                     box.Data.Id,
@@ -241,18 +241,19 @@ namespace FiberPlugin.Commands
         /// O ID_Poste vem do FIBRA_ID_ENERGISA (em branco enquanto não informado).
         /// </summary>
         private static void WriteTableA(XlsxWriter workbook, List<(PoleInfo Pole, EffortResult Result)> occupied,
-            List<BoxInfo> boxes, CompanyInfo? company, UtmSettings? utm)
+            List<BoxInfo> boxes, List<PoleInfo> poles, CompanyInfo? company, UtmSettings? utm)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Tabela A (NDU 009)").ColumnWidths(12, 14, 44, 14, 46, 16, 24, 20);
             sheet.Title("Tabela A - Projeto de Uso Mútuo (NDU 009, seção 23)").Blank();
             sheet.Header("Poste (projeto)", "ID_Poste", "Coordenadas Georreferenciadas", "Tipo de Cabo", "Nome da Ocupante",
                          "Tipo de Companhia", "Tipo de Equipamento", "CNPJ da Companhia");
 
-            var withBox = new HashSet<string>(boxes.Select(b => b.Data.PoleHandle));
+            var polesByHandle = Poles.ByHandle(poles);
+            var withBox = new HashSet<PoleInfo>(boxes.Select(b => Boxes.PoleOf(b, polesByHandle, poles)).OfType<PoleInfo>());
             foreach (var (pole, result) in occupied)
             {
                 string equipment = result.EndCount > 0 || result.MaxDeflectionDeg >= EffortResult.AngleThresholdDeg ? "Ancoragem" : "Suspensão";
-                if (withBox.Contains(pole.Id.Handle.ToString())) equipment += "; Equipamentos";
+                if (withBox.Contains(pole)) equipment += "; Equipamentos";
 
                 string coordinates = (utm != null ? UtmZone.ZoneText(pole.Position, utm) + " " : "") +
                                      UtmZone.EastingText(pole.Position.X) + " " + UtmZone.NorthingText(pole.Position.Y, utm?.South ?? true);

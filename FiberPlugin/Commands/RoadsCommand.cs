@@ -1,4 +1,3 @@
-using System.IO;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -69,7 +68,8 @@ namespace FiberPlugin.Commands
                 corners.Max(c => c.Lat), corners.Max(c => c.Lon), onlyVehicles, cancel.Token));
             // Quando o download terminar (inclusive depois de cancelado), descarta o cancelamento e o erro dele
             download.ContinueWith(t => { _ = t.Exception; cancel.Dispose(); }, TaskScheduler.Default);
-            while (!download.Wait(100))
+            // Espera pelo WaitHandle: o Task.Wait jogaria o erro do download aqui, fora do tratamento lá embaixo
+            while (!((IAsyncResult)download).AsyncWaitHandle.WaitOne(100))
             {
                 System.Windows.Forms.Application.DoEvents();
                 if (!HostApplicationServices.Current.UserBreak()) continue;
@@ -82,9 +82,10 @@ namespace FiberPlugin.Commands
             {
                 roads = download.Result;
             }
-            catch (AggregateException ex) when (ex.InnerException is IOException io)
+            catch (AggregateException ex)
             {
-                ed.WriteMessage($"\n[ERRO]: Não foi possível consultar o OpenStreetMap ({io.Message}). Confira a internet e tente de novo.");
+                ed.WriteMessage($"\n[ERRO]: Não foi possível consultar o OpenStreetMap ({ex.InnerException?.Message ?? ex.Message}). " +
+                                "Confira a internet e tente de novo.");
                 return;
             }
 

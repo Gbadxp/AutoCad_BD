@@ -17,6 +17,7 @@ namespace FiberPlugin.Commands
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             // 1. Seleção do Cabo
             CableModel? cable = CadHelpers.SelectCable(ed, "Calcular");
@@ -41,9 +42,9 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
-                var markers = new EffortMarkers(tr, db, space, arrowId);
+                BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
                 List<PoleInfo> poles = Poles.Collect(tr, space);
+                var markers = new EffortMarkers(tr, db, space, arrowId, poles);
 
                 ed.WriteMessage("\n--- RESULTADOS DE ESFORÇOS ---");
 

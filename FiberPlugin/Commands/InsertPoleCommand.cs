@@ -24,6 +24,7 @@ namespace FiberPlugin.Commands
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             List<PoleData> models = PoleModels.Load(ed);
             if (models.Count == 0) return;
@@ -106,7 +107,7 @@ namespace FiberPlugin.Commands
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    PlacePole(tr, db, (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite), blockId, point, rotation, data, utm);
+                    PlacePole(tr, db, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite), blockId, point, rotation, data, utm);
                     tr.Commit();
                 }
 

@@ -96,11 +96,18 @@ namespace FiberPlugin.Commands
         private static Annotations FindAnnotations(Transaction tr, BlockTableRecord space)
         {
             var found = new Annotations();
+            List<PoleInfo> poles = Poles.Collect(tr, space);
+            var polesByHandle = Poles.ByHandle(poles);
             foreach (ObjectId id in space)
             {
                 if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
 
-                if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
+                // Seta copiada: escala em torno do poste de agora, não do da original
+                if (XDataTags.ReadEffortMarker(ent) is EffortMarkerData marker)
+                {
+                    found.EffortMarkers.Add((id, Core.EffortMarkers.Locate(ent, marker, poles, polesByHandle).Point));
+                }
+                else if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
                 {
                     found.EffortMarkers.Add((id, pole));
                 }

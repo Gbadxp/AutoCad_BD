@@ -56,19 +56,34 @@ namespace FiberPlugin.Commands
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 var positions = new List<Point3d>();
+                var boxes = new List<Point3d>();
                 var faces = new List<(Point3d At, Vector2d Face)>(); // Postes DT: eixo das faces
                 foreach (ObjectId id in selected)
                 {
                     if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
+
+                    // Amarrações e setas de esforço ficam em volta do poste: não são pontos do percurso
+                    string name = CadHelpers.GetBlockName(tr, br);
+                    if (BlockCategories.Of(name) == BlockCategories.Anchoring || XDataTags.TryGetEffortPole(br, out _) ||
+                        name.Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    // CTO/CEO: o ponto base pode estar no canto do símbolo, então vale o centro (e só sem poste ao lado)
+                    if (XDataTags.ReadBox(br) != null)
+                    {
+                        boxes.Add(Boxes.Center(br));
+                        continue;
+                    }
                     positions.Add(br.Position);
                     if (DoubleTFace(tr, br) is Vector2d face) faces.Add((br.Position, face));
                 }
+                List<Point3d> blocks = positions.ToList();
+                positions.AddRange(boxes.Where(b => !blocks.Any(p => p.DistanceTo(b) <= FiberSettings.PoleLinkRadius)));
 
-                // Blocos no mesmo ponto (ex.: CTO sobre o poste) viram um único ponto de passagem
+                // Blocos no mesmo ponto viram um único ponto de passagem
                 List<Point3d> points = RouteOptimizer.Dedupe(positions, 0.01);
                 if (points.Count < 2)
                 {
-                    ed.WriteMessage("\n[AVISO]: Os elementos selecionados estão todos no mesmo ponto.");
+                    ed.WriteMessage("\n[AVISO]: Selecione pelo menos 2 postes em pontos diferentes (amarrações e setas de esforço não contam).");
                     tr.Commit();
                     return;
                 }

@@ -82,10 +82,15 @@ namespace FiberPlugin.Core
             }
 
             // 3. CTO/CEO: uma de cada por poste, fora de esquina e de poste com equipamento (itens 17.4 e 17.5)
-            var polesById = project.PoleList.ToDictionary(p => p.Id.Handle.ToString());
-            foreach (var group in project.BoxList.Where(b => b.Data.PoleHandle.Length > 0).GroupBy(b => b.Data.PoleHandle))
+            // (poste de cada caixa pelo Boxes.PoleOf: em desenho copiado, a cópia aponta para o poste original)
+            var polesByHandle = Poles.ByHandle(project.PoleList);
+            var boxesByPole = project.BoxList
+                .Select(b => (Box: b, Pole: Boxes.PoleOf(b, polesByHandle, project.PoleList)))
+                .Where(x => x.Pole != null)
+                .GroupBy(x => x.Pole!, x => x.Box);
+            foreach (var group in boxesByPole)
             {
-                if (!polesById.TryGetValue(group.Key, out PoleInfo? pole)) continue;
+                PoleInfo pole = group.Key;
                 foreach (var kind in group.GroupBy(b => b.Data.Kind).Where(k => k.Count() > 1))
                 {
                     issues.Add(new NormIssue

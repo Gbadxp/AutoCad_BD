@@ -19,11 +19,14 @@ namespace FiberPlugin.Commands
         public void InsertElectrical() => InsertFromCategory(BlockCategories.Electrical, "itens elétricos", "FIBRA_INSERIR_ELETRICOS", askRotation: false, fillCoordinates: true);
 
         /// <param name="fillCoordinates">Preenche os atributos COORDENADA_X/Y e ZONA, se o bloco tiver.</param>
-        internal static void InsertFromCategory(string category, string what, string command, bool askRotation, bool fillCoordinates)
+        /// <param name="drawingScale">Bloco na escala do desenho (1 em 1:1000), como a amarração automática; senão, tamanho 1.</param>
+        internal static void InsertFromCategory(string category, string what, string command, bool askRotation, bool fillCoordinates,
+            bool drawingScale = false)
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             List<BlockEntry> blocks = BlockCategories.Blocks(category);
             if (blocks.Count == 0)
@@ -39,6 +42,7 @@ namespace FiberPlugin.Commands
             if (blockId.IsNull) return;
 
             UtmSettings? utm = UtmZone.Get(db); // Para atributos COORDENADA_X/Y e ZONA, se o bloco tiver
+            double scale = drawingScale ? DrawingScale.Factor(db) : 1.0;
             int inserted = 0;
 
             while (true)
@@ -70,15 +74,15 @@ namespace FiberPlugin.Commands
                 if (askRotation)
                 {
                     double? angle = BlockInsertHelpers.DragRotation(ed, blockId, point,
-                        "\nGire a amarração com o mouse e clique (ou digite o ângulo) <0>: ");
+                        "\nGire a amarração com o mouse e clique (ou digite o ângulo) <0>: ", scale);
                     if (angle == null) break;
                     rotation = angle.Value;
                 }
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                    BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
                     CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null,
-                        tag => fillCoordinates ? CadHelpers.CoordinateAttribute(tag, point, utm) : null);
+                        tag => fillCoordinates ? CadHelpers.CoordinateAttribute(tag, point, utm) : null, scale);
                     tr.Commit();
                 }
 

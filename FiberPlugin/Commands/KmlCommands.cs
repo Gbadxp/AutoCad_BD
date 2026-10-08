@@ -64,7 +64,10 @@ namespace FiberPlugin.Commands
             List<KmlFeature> polygons = features.Where(f => f.Kind == KmlKind.Polygon).ToList();
             ed.WriteMessage($"\n[INFO]: {Path.GetFileName(path)}: {points.Count} ponto(s), {lines.Count} linha(s), {polygons.Count} polígono(s).");
 
-            UtmSettings utm = EnsureZone(ed, db, features[0].Coords[0]);
+            // Zona do desenho; sem ela, a do primeiro ponto do KML (gravada só na hora de desenhar, não se cancelar antes)
+            UtmSettings? projectZone = UtmZone.Get(db);
+            (double Lon, double Lat) first = features[0].Coords[0];
+            UtmSettings utm = projectZone ?? new UtmSettings { Zone = UtmZone.ZoneFor(first.Lon), South = first.Lat < 0 };
             WarnOutOfZone(ed, features, utm);
 
             // O que fazer com cada tipo (perguntado antes de desenhar)
@@ -117,6 +120,11 @@ namespace FiberPlugin.Commands
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
+                if (projectZone == null)
+                {
+                    UtmZone.Set(tr, db, utm);
+                    ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configurações > Projeto).");
+                }
 
                 foreach (KmlFeature f in points)
                 {
@@ -183,22 +191,6 @@ namespace FiberPlugin.Commands
             if (poles > 0) ed.WriteMessage("\n[DICA]: Postes DT entram com rotação 0°; use o comando GIRAR do AutoCAD se precisar alinhar.");
 
             doc.SendStringToExecute("_.ZOOM _E ", true, false, false);
-        }
-
-        /// <summary>Zona do desenho; sem ela, a do primeiro ponto do KML, gravada no DWG.</summary>
-        private static UtmSettings EnsureZone(Editor ed, Database db, (double Lon, double Lat) first)
-        {
-            UtmSettings? utm = UtmZone.Get(db);
-            if (utm != null) return utm;
-
-            utm = new UtmSettings { Zone = UtmZone.ZoneFor(first.Lon), South = first.Lat < 0 };
-            using (Transaction tr = db.TransactionManager.StartTransaction())
-            {
-                UtmZone.Set(tr, db, utm);
-                tr.Commit();
-            }
-            ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configurações > Projeto).");
-            return utm;
         }
 
         /// <summary>Pontos a mais de 1° além da borda da zona saem distorcidos.</summary>
@@ -306,10 +298,10 @@ namespace FiberPlugin.Commands
             if (project.BoxList.Count > 0)
             {
                 var folder = kml.Folder("CTO e CEO");
-                var polesByHandle = project.PoleList.ToDictionary(p => p.Id.Handle.ToString());
+                var polesByHandle = Poles.ByHandle(project.PoleList);
                 foreach (BoxInfo box in project.BoxList)
                 {
-                    polesByHandle.TryGetValue(box.Data.PoleHandle, out PoleInfo? pole);
+                    PoleInfo? pole = Boxes.PoleOf(box, polesByHandle, project.PoleList);
                     string description = Kml.Table(("Bloco", box.BlockName), ("Poste", pole?.Number ?? "Sem poste"), ("UTM", Utm(box.Position)));
                     var (lon, lat) = Geo(box.Position);
                     kml.Point(folder, box.Data.Id, description, box.Data.Kind == BlockCategories.Cto ? "cto" : "ceo", lon, lat);

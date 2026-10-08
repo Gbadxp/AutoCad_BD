@@ -92,7 +92,7 @@ namespace FiberPlugin.Commands
 
             string title = Path.GetFileNameWithoutExtension(doc.Name);
             int digits = plan.Tiles.Count >= 100 ? 3 : 2;
-            var names = new List<string>();
+            var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
             // Não deixa o AutoCAD criar o viewport padrão nas folhas novas
@@ -102,9 +102,18 @@ namespace FiberPlugin.Commands
                 for (int i = 0; i < plan.Tiles.Count; i++)
                 {
                     string name = $"{options.Prefix}-{(i + 1).ToString("D" + digits, CultureInfo.InvariantCulture)}";
-                    string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], i + 1, title, legend);
-                    if (warning != null) warnings.Add(warning);
-                    names.Add(name);
+                    try
+                    {
+                        string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], i + 1, title, legend);
+                        if (warning != null) warnings.Add(warning);
+                        names.Add(name);
+                    }
+                    catch (Autodesk.AutoCAD.Runtime.Exception ex)
+                    {
+                        // Ex.: folha antiga com esse nome que não pôde ser apagada; as outras saem assim mesmo
+                        warnings.Add($"A folha {name} não foi criada ({ex.ErrorStatus}).");
+                        names.Add(null);
+                    }
                 }
             }
             finally
@@ -116,7 +125,9 @@ namespace FiberPlugin.Commands
             DrawSheetIndex(db, plan, options.Prefix, names);
 
             foreach (string warning in warnings) ed.WriteMessage($"\n[AVISO]: {warning}");
-            ed.WriteMessage($"\n[SUCESSO]: {names.Count} folha(s) criada(s): {names.First()} a {names.Last()}.");
+            List<string> created = names.OfType<string>().ToList();
+            if (created.Count == 0) return;
+            ed.WriteMessage($"\n[SUCESSO]: {created.Count} folha(s) criada(s): {created.First()} a {created.Last()}.");
             ed.WriteMessage("\n[DICA]: Os retângulos no Model (layer FIBRA_FOLHAS, não imprime) mostram a divisão. " +
                             "Para gerar o PDF, use o comando PUBLICAR e selecione as folhas.");
             ed.Regen();
@@ -290,7 +301,7 @@ namespace FiberPlugin.Commands
 
             AddPaper(tr, paperSpace, new MText
             {
-                Contents = title,
+                Contents = CadHelpers.MTextLiteral(title),
                 Location = new Point3d(frame.MinX + 4, textY, 0),
                 Attachment = AttachmentPoint.MiddleLeft,
                 TextHeight = PaperTextHeight
@@ -369,7 +380,7 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>Quadro de articulação no Model: retângulo e nome de cada folha, numa layer que não imprime.</summary>
-        private static void DrawSheetIndex(Database db, SheetPlan plan, string prefix, List<string> names)
+        private static void DrawSheetIndex(Database db, SheetPlan plan, string prefix, List<string?> names)
         {
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -377,21 +388,21 @@ namespace FiberPlugin.Commands
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 // Remove o quadro anterior das folhas com o mesmo prefixo (coleta antes de apagar)
-                List<ObjectId> previous = modelSpace.Cast<ObjectId>()
+                CadHelpers.EraseUnlocked(tr, modelSpace.Cast<ObjectId>()
                     .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent &&
                                  string.Equals(XDataTags.GetSheetIndexPrefix(ent), prefix, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                foreach (ObjectId id in previous) tr.GetObject(id, OpenMode.ForWrite).Erase();
+                    .ToList());
 
                 for (int i = 0; i < plan.Tiles.Count; i++)
                 {
+                    if (names[i] is not string name) continue;
                     Rect r = plan.Tiles[i].ModelArea;
                     Polyline rect = Rectangle(r);
                     rect.Layer = SheetIndexLayer;
 
                     var label = new MText
                     {
-                        Contents = names[i],
+                        Contents = CadHelpers.MTextLiteral(name),
                         Location = new Point3d(r.MinX + r.Width * 0.02, r.MaxY - r.Width * 0.02, 0),
                         Attachment = AttachmentPoint.TopLeft,
                         TextHeight = Math.Min(r.Width, r.Height) * 0.05,

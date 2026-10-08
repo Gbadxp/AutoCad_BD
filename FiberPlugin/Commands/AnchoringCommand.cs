@@ -26,6 +26,7 @@ namespace FiberPlugin.Commands
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             List<BlockEntry> blocks = BlockCategories.Blocks(BlockCategories.Anchoring);
             if (blocks.Count == 0)
@@ -42,7 +43,7 @@ namespace FiberPlugin.Commands
             if (selection.Status != PromptStatus.OK)
             {
                 InsertCategoryCommands.InsertFromCategory(BlockCategories.Anchoring, "amarração", "FIBRA_INSERIR_AMARRACAO",
-                    askRotation: true, fillCoordinates: false);
+                    askRotation: true, fillCoordinates: false, drawingScale: true);
                 return;
             }
 
@@ -54,7 +55,7 @@ namespace FiberPlugin.Commands
             AnchoringResult result;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
                 result = Anchor(tr, space, blockId, new HashSet<ObjectId>(selection.Value.GetObjectIds()), DrawingScale.Factor(db));
                 tr.Commit();
             }

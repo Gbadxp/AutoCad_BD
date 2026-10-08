@@ -25,7 +25,7 @@ namespace FiberPlugin.Core
     public static class Boxes
     {
         /// <summary>Centro do desenho do símbolo (o ponto base dos blocos de CTO/CEO pode estar no canto).</summary>
-        private static Point3d Center(BlockReference br)
+        public static Point3d Center(BlockReference br)
         {
             try
             {
@@ -37,6 +37,17 @@ namespace FiberPlugin.Core
                 return br.Position;
             }
         }
+
+        /// <summary>
+        /// Poste da CTO/CEO: o gravado na inserção, se ainda está perto dela; senão (desenho copiado, em que o handle
+        /// gravado é o do poste original) o mais perto, a até PoleLinkRadius. Null se não houver.
+        /// </summary>
+        /// <param name="polesByHandle">Os mesmos <paramref name="poles"/> pelo handle (Poles.ByHandle).</param>
+        public static PoleInfo? PoleOf(BoxInfo box, IDictionary<string, PoleInfo> polesByHandle, IEnumerable<PoleInfo> poles) =>
+            box.Data.PoleHandle.Length > 0 && polesByHandle.TryGetValue(box.Data.PoleHandle, out PoleInfo? pole) &&
+            pole.Position.DistanceTo(box.Position) <= FiberSettings.PoleLinkRadius
+                ? pole
+                : Poles.Nearest(poles, box.Position, FiberSettings.PoleLinkRadius);
 
         /// <summary>CTO e CEO inseridas pelo plugin.</summary>
         public static List<BoxInfo> Collect(Transaction tr, BlockTableRecord space)

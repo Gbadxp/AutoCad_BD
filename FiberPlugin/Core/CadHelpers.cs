@@ -289,6 +289,17 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
+        /// Os comandos que desenham trabalham no Model, que é onde os outros procuram postes, caixas, cabos e setas.
+        /// False, com aviso, se o espaço atual for o papel de um layout (fora de um viewport).
+        /// </summary>
+        public static bool InModelSpace(Editor ed, Database db)
+        {
+            if (db.CurrentSpaceId == SymbolUtilityServices.GetBlockModelSpaceId(db)) return true;
+            ed.WriteMessage("\n[AVISO]: Vá para a aba Model (ou entre num viewport do layout): o plugin desenha no Model.");
+            return false;
+        }
+
+        /// <summary>
         /// Valor dos atributos de coordenada preenchidos na inserção (COORDENADA_X / COORDENADA_Y / ZONA),
         /// no formato "405110.92 m E", "9032585.41 m S" e "20 L".
         /// Null para qualquer outra tag.
@@ -305,6 +316,19 @@ namespace FiberPlugin.Core
         /// <summary>A entidade está numa layer travada (abrir para escrita daria eOnLockedLayer).</summary>
         public static bool IsOnLockedLayer(Transaction tr, ObjectId id) =>
             tr.GetObject(id, OpenMode.ForRead) is Entity ent && ((LayerTableRecord)tr.GetObject(ent.LayerId, OpenMode.ForRead)).IsLocked;
+
+        /// <summary>Apaga as entidades, menos as de layer travada (que ficam como estão). Retorna quantas ficaram.</summary>
+        public static int EraseUnlocked(Transaction tr, IEnumerable<ObjectId> ids)
+        {
+            int locked = 0;
+            foreach (ObjectId id in ids)
+            {
+                if (id.IsErased) continue;
+                if (IsOnLockedLayer(tr, id)) { locked++; continue; }
+                tr.GetObject(id, OpenMode.ForWrite).Erase();
+            }
+            return locked;
+        }
 
         /// <summary>
         /// O bloco guarda coordenada (atributo COORDENADA_X ou COORDENADA_Y). Só ZONA não basta: um carimbo pode ter um

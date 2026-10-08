@@ -16,6 +16,12 @@ namespace FiberPlugin.Core
 
         /// <summary>Esforço transferido a 20 cm do topo, em kgf (null: sem poste ou altura desconhecida).</summary>
         public double? TopKgf { get; set; }
+
+        /// <summary>
+        /// Onde a seta está hoje (acompanha COPY, MOVE e colar), que pode não ser mais o <see cref="Point"/> gravado no
+        /// cálculo. Null se não dá para saber (seta desenhada sem bloco por versões anteriores à 1.9.53).
+        /// </summary>
+        public Point3d? Current { get; set; }
     }
 
     /// <summary>
@@ -50,7 +56,8 @@ namespace FiberPlugin.Core
         public int Cleared { get; private set; }
 
         /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para desenhar a seta e os textos).</param>
-        public EffortMarkers(Transaction tr, Database db, BlockTableRecord space, ObjectId arrowBlockId)
+        /// <param name="poles">Postes do espaço (null = levantados aqui), para saber de que poste é cada seta já desenhada.</param>
+        public EffortMarkers(Transaction tr, Database db, BlockTableRecord space, ObjectId arrowBlockId, IList<PoleInfo>? poles = null)
         {
             _tr = tr;
             _db = db;
@@ -61,13 +68,20 @@ namespace FiberPlugin.Core
 
             CadHelpers.EnsureLayer(tr, db, FiberSettings.EffortLayer, UserSettings.Current.EffortColor);
 
+            poles ??= Poles.Collect(tr, space);
+            var byHandle = Poles.ByHandle(poles);
             foreach (ObjectId id in space)
             {
                 if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
 
-                if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
+                if (XDataTags.ReadEffortMarker(ent) is EffortMarkerData data)
                 {
-                    _existing.Add((id, pole, XDataTags.ReadEffortMarker(ent)?.PoleHandle ?? ""));
+                    var (point, owner) = Locate(ent, data, poles, byHandle);
+                    _existing.Add((id, point, owner?.Id.Handle.ToString() ?? ""));
+                }
+                else if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
+                {
+                    _existing.Add((id, pole, ""));
                 }
                 else if (ent is BlockReference br &&
                          CadHelpers.GetBlockName(tr, br).Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
@@ -75,6 +89,54 @@ namespace FiberPlugin.Core
                     // Setas criadas por versões antigas (sem XData): o ponto de inserção é o poste
                     _existing.Add((id, br.Position, ""));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Ponto e poste de uma seta já desenhada. A seta copiada (COPY, colar) leva os dados da original: o ponto do
+        /// cálculo e o handle do poste de lá. Se ela está hoje em outro lugar e tem poste ali, é a cópia (ou foi movida
+        /// junto com o poste): vale o lugar atual e esse poste. O handle gravado só vale com o poste perto do ponto ou
+        /// sendo o mais perto dele; longe, é poste de outro desenho com o mesmo handle (colado).
+        /// </summary>
+        public static (Point3d Point, PoleInfo? Pole) Locate(Entity ent, EffortMarkerData data, IList<PoleInfo> poles,
+            IDictionary<string, PoleInfo> byHandle)
+        {
+            Point3d? now = data.Current;
+            if (now == null && Center(ent) is Point3d center)
+            {
+                // Seta sem bloco de versão anterior à 1.9.53: bem longe do ponto do cálculo, foi copiada ou movida; é do
+                // poste perto dela, se houver (sem ele, de nenhum: não pode levar junto a seta do poste original)
+                double reach = (FiberSettings.EffortArrowGap + FiberSettings.EffortArrowLength) * 2 *
+                               Math.Max(1.0, DrawingScale.Factor(ent.Database, ScaleItem.Effort));
+                if (center.DistanceTo(data.Point) > reach)
+                    return Poles.Nearest(poles, center, reach) is PoleInfo near ? (near.Position, near) : (center, null);
+            }
+
+            if (now is Point3d current && current.DistanceTo(data.Point) > SamePointTolerance &&
+                Poles.Nearest(poles, current, FiberSettings.PoleLinkRadius) is PoleInfo there)
+            {
+                return (current, there);
+            }
+
+            PoleInfo? linked = data.PoleHandle.Length > 0 && byHandle.TryGetValue(data.PoleHandle, out PoleInfo? p) ? p : null;
+            if (linked != null && linked.Position.DistanceTo(data.Point) > FiberSettings.PoleLinkRadius &&
+                Poles.Nearest(poles, data.Point, double.MaxValue) != linked)
+            {
+                linked = null;
+            }
+            return (data.Point, linked);
+        }
+
+        private static Point3d? Center(Entity ent)
+        {
+            try
+            {
+                Extents3d e = ent.GeometricExtents;
+                return new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2, (e.MinPoint.Y + e.MaxPoint.Y) / 2, 0);
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null;
             }
         }
 

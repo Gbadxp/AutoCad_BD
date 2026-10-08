@@ -26,6 +26,7 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
             string command = "FIBRA_INSERIR_" + kind;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             List<BlockEntry> blocks = BlockCategories.Blocks(kind);
             if (blocks.Count == 0)
@@ -105,7 +106,7 @@ namespace FiberPlugin.Commands
 
                 using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                    BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                     BlockReference br = CadHelpers.InsertBlock(tr, space, blockId, point - centerOffset, 0, null, tag =>
                     {

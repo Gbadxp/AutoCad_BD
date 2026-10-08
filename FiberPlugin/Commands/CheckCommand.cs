@@ -30,15 +30,15 @@ namespace FiberPlugin.Commands
             List<NormIssue> issues = NormCheck.Run(project);
 
             double scale = DrawingScale.Factor(db);
+            int keptMarks;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
-                // Apaga as marcas anteriores (coleta antes de apagar)
-                List<ObjectId> previous = modelSpace.Cast<ObjectId>()
+                // Apaga as marcas anteriores (coleta antes de apagar; as de layer travada ficam)
+                keptMarks = CadHelpers.EraseUnlocked(tr, modelSpace.Cast<ObjectId>()
                     .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent && XDataTags.IsCheck(ent))
-                    .ToList();
-                foreach (ObjectId id in previous) tr.GetObject(id, OpenMode.ForWrite).Erase();
+                    .ToList());
 
                 if (issues.Any(i => i.Point != Point3d.Origin))
                 {
@@ -59,6 +59,7 @@ namespace FiberPlugin.Commands
 
             if (issues.Count == 0) ed.WriteMessage("\n[SUCESSO]: Nenhuma não conformidade encontrada.");
             else ed.WriteMessage($"\n[INFO]: {errors} erro(s) e {warnings} aviso(s). Marcados no desenho na layer {Layer} (não imprime).");
+            if (keptMarks > 0) ed.WriteMessage($"\n[AVISO]: A layer {Layer} está travada: {keptMarks} marca(s) da verificação anterior ficaram no desenho.");
             ed.WriteMessage("\n[INFO]: Não verificados pelo plugin: orientação dos postes DT, drops por vão e afastamentos da rede elétrica.");
             ed.Regen();
         }

@@ -39,8 +39,10 @@ namespace FiberPlugin.Commands
                     BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                     // Vincula ao poste mais próximo do clique e calcula a partir do centro dele
-                    PoleInfo? pole = Poles.Nearest(Poles.Collect(tr, modelSpace), ppr.Value, FiberSettings.PoleLinkRadius);
-                    Point3d polePoint = pole?.Position ?? ppr.Value;
+                    Point3d clicked = ppr.Value.TransformBy(ed.CurrentUserCoordinateSystem);
+                    List<PoleInfo> poles = Poles.Collect(tr, modelSpace);
+                    PoleInfo? pole = Poles.Nearest(poles, clicked, FiberSettings.PoleLinkRadius);
+                    Point3d polePoint = pole?.Position ?? clicked;
 
                     var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     List<CableRun> runs = EffortCalculator.CollectCables(tr, modelSpace, catalog, traction, unknown);
@@ -55,7 +57,7 @@ namespace FiberPlugin.Commands
                         continue;
                     }
 
-                    var markers = new EffortMarkers(tr, db, modelSpace, arrowId);
+                    var markers = new EffortMarkers(tr, db, modelSpace, arrowId, poles);
                     PoleLoad load = markers.Place(polePoint, result, pole);
                     tr.Commit();
 

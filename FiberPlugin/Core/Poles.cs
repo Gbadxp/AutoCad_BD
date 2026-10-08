@@ -184,6 +184,10 @@ namespace FiberPlugin.Core
                 .FirstOrDefault();
         }
 
+        /// <summary>Postes pelo handle do bloco (texto em hexadecimal).</summary>
+        public static Dictionary<string, PoleInfo> ByHandle(IEnumerable<PoleInfo> poles) =>
+            poles.ToDictionary(p => p.Id.Handle.ToString(), StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Extrai o número do poste ("N° 12" → 12).</summary>
         public static int? ParseNumber(string text)
         {

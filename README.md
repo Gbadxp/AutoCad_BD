@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.52.msi`](Instalador/FiberPlugin-1.9.52.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.53.msi`](Instalador/FiberPlugin-1.9.53.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -263,7 +263,7 @@ um aviso na linha de comando.
 | `FIBRA_ZONA_UTM`, `FIBRA_ATUALIZAR_COORDENADAS`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da aba Projeto de Configurações, pela linha de comando. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
-| `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID. Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
+| `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID (`-` apaga o ID). Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
 
 ## Memorial Descritivo (PDF)
 
@@ -488,3 +488,8 @@ bloco original; aí o plugin acha o texto pelo lugar (até 15 alturas de texto, 
 poste mais perto) e pelo número escrito nele, e corrige o vínculo. Se ele tinha criado um texto novo no lugar padrão por cima
 disso, fica o texto que você moveu e o do lugar padrão é apagado; texto repetido exatamente em cima de outro também. Cabos desenhados por versões antigas do plugin
 continuam sendo reconhecidos pelo nome da layer (`FIBRA_CABO_...`).
+
+**Seta de esforço e CTO/CEO copiadas**: a seta copiada junto com o poste passa a ser do poste da cópia (recalcular o
+original não apaga mais a seta da cópia, e recalcular a cópia troca a seta em vez de pôr outra por cima); a CTO/CEO
+copiada fica com o poste perto dela no relatório, na Verificação e no KML. Os comandos que desenham (postes, CTO/CEO,
+cabos, amarração, esforço) só rodam no Model: num layout, entre num viewport ou volte para a aba Model.

@@ -129,7 +129,7 @@ namespace FiberPlugin.Core
                 var poleOrder = data.PoleList.Select((p, i) => (p, i)).ToDictionary(x => x.p, x => x.i);
                 data.Occupied = data.Occupied.OrderBy(o => poleOrder[o.Pole]).ToList();
 
-                var polesByHandle = data.PoleList.ToDictionary(p => p.Id.Handle.ToString(), StringComparer.OrdinalIgnoreCase);
+                var polesByHandle = Poles.ByHandle(data.PoleList);
                 var markers = new List<(EffortMarkerData Marker, PoleInfo? Pole)>();
                 var seenPoints = new HashSet<string>();
                 var legacyPoints = new HashSet<string>();
@@ -144,14 +144,16 @@ namespace FiberPlugin.Core
                         continue;
                     }
 
-                    // A seta e os textos de um mesmo ponto guardam os mesmos dados
+                    // A seta e os textos de um mesmo ponto guardam os mesmos dados. Seta copiada vale pelo lugar e poste de
+                    // agora, não pelos da original (veja EffortMarkers.Locate)
                     EffortMarkerData? marker = XDataTags.ReadEffortMarker(ent);
                     if (marker != null)
                     {
-                        if (!seenPoints.Add(Key(marker.Point))) continue;
+                        var (point, pole) = EffortMarkers.Locate(ent, marker, data.PoleList, polesByHandle);
+                        if (!seenPoints.Add(Key(point))) continue;
 
-                        polesByHandle.TryGetValue(marker.PoleHandle, out PoleInfo? pole);
-                        pole ??= Poles.Nearest(data.PoleList, marker.Point, 0.01);
+                        marker.Point = point;
+                        pole ??= Poles.Nearest(data.PoleList, point, 0.01);
                         markers.Add((marker, pole));
                     }
                     else if (XDataTags.TryGetEffortPole(ent, out Point3d oldPoint) && legacyPoints.Add(Key(oldPoint)))

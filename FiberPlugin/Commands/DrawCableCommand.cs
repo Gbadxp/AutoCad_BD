@@ -17,6 +17,7 @@ namespace FiberPlugin.Commands
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
             CableModel? cable = CadHelpers.SelectCable(ed, "Lançar");
             if (cable == null) return;
@@ -34,7 +35,7 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                var space = (BlockTableRecord)tr.GetObject(db.CurrentSpaceId, OpenMode.ForWrite);
+                BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
                 Polyline poly = CableDrawing.Draw(tr, db, space, points, CableDrawing.SpanLengths(points), cable);
 
