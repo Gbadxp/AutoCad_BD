@@ -212,10 +212,18 @@ namespace FiberPlugin.Core
         /// <param name="what">O que está sendo numerado, com o artigo: "do próximo poste", "da próxima CTO".</param>
         public static int? AskNumber(Autodesk.AutoCAD.EditorInput.Editor ed, int suggested, string what = "do próximo poste")
         {
+            string fallback = suggested.ToString(CultureInfo.InvariantCulture);
             while (true)
             {
-                var pso = new Autodesk.AutoCAD.EditorInput.PromptStringOptions($"\nNúmero {what} <{suggested}>: ") { AllowSpaces = false };
+                // Enter vazio = o sugerido: pelo valor padrão do prompt e, se o AutoCAD responder None, aqui também
+                var pso = new Autodesk.AutoCAD.EditorInput.PromptStringOptions($"\nNúmero {what} <{suggested}>: ")
+                {
+                    AllowSpaces = false,
+                    DefaultValue = fallback,
+                    UseDefaultValue = true
+                };
                 Autodesk.AutoCAD.EditorInput.PromptResult res = ed.GetString(pso);
+                if (res.Status == Autodesk.AutoCAD.EditorInput.PromptStatus.None) return suggested;
                 if (res.Status != Autodesk.AutoCAD.EditorInput.PromptStatus.OK) return null;
 
                 string text = (res.StringResult ?? "").Trim();
@@ -225,10 +233,13 @@ namespace FiberPlugin.Core
             }
         }
 
-        /// <summary>Número no fim do texto digitado: "12" → 12, "P12" → 12, "P-012" → 12, "cto-3" → 3. Null se não terminar em número.</summary>
+        /// <summary>
+        /// Número digitado, sozinho ou depois de letras e traço: "12" → 12, "P12" → 12, "P-012" → 12, "cto-3" → 3. Null se
+        /// não for assim ("10.5", "11/300", "P-1A"): melhor perguntar de novo que numerar com o número errado.
+        /// </summary>
         public static int? ParseNumberText(string text)
         {
-            Match m = Regex.Match(text, @"(\d+)\s*$");
+            Match m = Regex.Match(text.Trim(), @"^[^\d]*(\d+)$");
             return m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : null;
         }
 

@@ -164,10 +164,14 @@ namespace FiberPlugin.Core
             XDataTags.TagPoleLabel(tr, db, label, owner.Handle.ToString());
         }
 
-        /// <summary>O handle (em hexadecimal, como gravado no texto) é de um objeto que existe no desenho.</summary>
-        private static bool Exists(Database db, string handle) =>
+        /// <summary>
+        /// O handle (em hexadecimal, como gravado no texto) é de um poste ou CTO/CEO que existe no desenho. Handle de outro
+        /// objeto (desenho colado em que o número coincide com o de uma linha, por exemplo) conta como vínculo quebrado.
+        /// </summary>
+        private static bool IsOwnerBlock(Transaction tr, Database db, string handle) =>
             long.TryParse(handle, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out long value) && value > 0 &&
-            db.TryGetObjectId(new Handle(value), out ObjectId id) && !id.IsErased;
+            db.TryGetObjectId(new Handle(value), out ObjectId id) && !id.IsErased &&
+            tr.GetObject(id, OpenMode.ForRead) is BlockReference br && (XDataTags.ReadPole(br) != null || XDataTags.ReadBox(br) != null);
 
         /// <summary>Primeira linha do texto da CTO/CEO: o prefixo e o número, ou só o número quando o prefixo é vazio.</summary>
         private static bool BoxName(string firstLine, string prefix) =>
@@ -205,7 +209,7 @@ namespace FiberPlugin.Core
                             clean = false;
                         continue;
                     }
-                    if (!Exists(space.Database, textOwner)) clean = false;
+                    if (!IsOwnerBlock(tr, space.Database, textOwner)) clean = false;
                     else if (string.Equals(textOwner, handle, StringComparison.OrdinalIgnoreCase)) linked.Add(txt);
                 }
                 if (clean && linked.Count == 1) return linked;

@@ -114,13 +114,14 @@ namespace FiberPlugin.Core
                     continue;
                 }
 
-                // Vínculo em texto: perto do bloco, o bloco é o mais perto do texto, ou o texto tem o número dele escrito (texto
-                // movido para longe). Longe, junto de outro bloco e com outro número é handle de outro desenho que por acaso
-                // existe neste (colado)
+                // Vínculo em texto: perto do bloco, o bloco é o mais perto do texto, ou o texto tem o número dele escrito e não
+                // está absurdamente longe (texto movido para longe, até 5 vezes wideReach). Longe, junto de outro bloco e com
+                // outro número (ou muito longe) é handle de outro desenho que por acaso existe neste (colado)
                 List<int> sorted = group.OrderBy(i => owner.Distance(labels[i].At)).ToList();
                 int first = sorted[0];
-                if (owner.Distance(labels[first].At) <= wideReach || NearestOf(first) == owner ||
-                    string.Equals(labels[first].FirstLine, owner.Name, StringComparison.OrdinalIgnoreCase))
+                double distance = owner.Distance(labels[first].At);
+                if (distance <= wideReach || NearestOf(first) == owner ||
+                    (distance <= 5 * wideReach && string.Equals(labels[first].FirstLine, owner.Name, StringComparison.OrdinalIgnoreCase)))
                 {
                     result[owner.Handle] = new List<int> { first };
                     orphans.AddRange(sorted.Skip(1));

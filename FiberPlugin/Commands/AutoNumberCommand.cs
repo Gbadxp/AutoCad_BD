@@ -60,7 +60,7 @@ namespace FiberPlugin.Commands
                 {
                     var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "INSERT") });
                     PromptSelectionResult psr = ed.GetSelection(new PromptSelectionOptions { MessageForAdding = "\nSelecione os postes a numerar: " }, filter);
-                    if (psr.Status != PromptStatus.OK) return;
+                    if (psr.Status != PromptStatus.OK) continue; // Desistiu de selecionar: volta ao clique (todos os postes)
                     var ids = new HashSet<ObjectId>(psr.Value.GetObjectIds());
                     List<PoleInfo> chosen = all.Where(p => ids.Contains(p.Id)).ToList();
                     if (chosen.Count == 0)

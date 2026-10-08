@@ -24,12 +24,9 @@ namespace FiberPlugin.Commands
             Editor ed = doc.Editor;
 
             List<PoleInfo> poles;
-            Dictionary<string, List<ObjectId>> labels;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
-                poles = Poles.Collect(tr, modelSpace).Where(p => p.Data != null).ToList();
-                labels = PoleLabels.IndexLabels(tr, modelSpace);
+                poles = Poles.Collect(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead)).Where(p => p.Data != null).ToList();
                 tr.Commit();
             }
             if (poles.Count == 0)
@@ -41,6 +38,14 @@ namespace FiberPlugin.Commands
             int? start = Poles.AskNumber(ed, 1, "do primeiro poste clicado");
             if (start == null) return;
             int next = start.Value;
+
+            // Texto de cada poste levantado só depois de confirmar o número (o levantamento apaga textos repetidos)
+            Dictionary<string, List<ObjectId>> labels;
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                labels = PoleLabels.IndexLabels(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                tr.Commit();
+            }
 
             // Postes já numerados nesta sequência, com o número que tinham antes (para o Desfazer)
             var done = new List<(PoleInfo Pole, int Before, int Assigned)>();
@@ -78,6 +83,7 @@ namespace FiberPlugin.Commands
                             done.RemoveAt(done.Count - 1);
                             next = assigned;
                             ed.WriteMessage($"\n[OK]: Desfeito: o poste voltou a ser {PoleData.NumberText(before)}.");
+                            ed.UpdateScreen();
                         }
                         else
                         {
@@ -119,6 +125,7 @@ namespace FiberPlugin.Commands
 
                 done.Add((target, old, next));
                 ed.WriteMessage($"\n[OK]: {PoleData.NumberText(old)} → {PoleData.NumberText(next)}");
+                ed.UpdateScreen(); // O número novo aparece já, antes do próximo clique
                 next++;
             }
 
@@ -127,8 +134,10 @@ namespace FiberPlugin.Commands
                             $"{PoleData.NumberText(done.Min(d => d.Assigned))} a {PoleData.NumberText(done.Max(d => d.Assigned))}.");
             if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} poste(s) em layer travada ficaram com o número antigo.");
 
-            // Números que agora aparecem em mais de um poste (um clicado e outro que ficou como estava)
-            List<string> repeated = poles.GroupBy(p => p.Data!.Number).Where(g => g.Count() > 1)
+            // Números desta sequência que agora aparecem em mais de um poste (um clicado e outro que ficou como estava);
+            // repetições que já existiam antes, em números que não foram usados agora, não são deste comando
+            var used = new HashSet<int>(done.Select(d => d.Assigned));
+            List<string> repeated = poles.GroupBy(p => p.Data!.Number).Where(g => used.Contains(g.Key) && g.Count() > 1)
                 .OrderBy(g => g.Key).Select(g => PoleData.NumberText(g.Key)).ToList();
             if (repeated.Count > 0)
             {

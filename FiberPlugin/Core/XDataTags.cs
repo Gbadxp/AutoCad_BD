@@ -57,9 +57,10 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Marca o texto de identificação com o handle do bloco (poste, CTO ou CEO) a que ele pertence, como texto (1000).
-        /// As versões 1.9.47 e 1.9.48 gravavam como handle do AutoCAD (1005), e com isso a numeração não andava; a leitura
-        /// aceita os dois. A cópia do texto não acompanha o handle: quem acha o texto certo em desenho copiado é o
-        /// LabelMatching.
+        /// As versões 1.9.47 e 1.9.48 gravavam como handle do AutoCAD (1005); voltou a ser texto por precaução, porque a
+        /// numeração deixou de andar nessas versões e o 1005 nunca foi testado no AutoCAD (não está confirmado que era ele).
+        /// A leitura aceita os dois. A cópia do texto não acompanha o handle: quem acha o texto certo em desenho copiado é
+        /// o LabelMatching.
         /// </summary>
         public static void TagPoleLabel(Transaction tr, Database db, Entity ent, string ownerHandle) =>
             Write(tr, db, ent, PoleLabelKind, Text(ownerHandle));
