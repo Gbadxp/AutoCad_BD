@@ -13,8 +13,8 @@ namespace FiberPlugin.UI
     internal class RoadsForm : Form
     {
         private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos" };
-        private const int RowHeight = 34;  // Linha "rótulo | opções": botão de 28 + margens
-        private const int LabelWidth = 110; // Coluna dos rótulos das opções
+        private const int RowHeight = 36;  // Linha "rótulo | opções": botão de 28 + margens e folga
+        private const int LabelWidth = 140; // Coluna dos rótulos das opções (cabe "Ruas no desenho" numa linha)
         private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "só os nomes" sozinho
 
         private readonly UtmSettings? _projectZone;
@@ -68,9 +68,12 @@ namespace FiberPlugin.UI
             _roadLayer = roadLayer;
             _loading = true;
 
+            // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela
+            bool hasDrawn = _drawn.Count > 0;
+
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
-            ClientSize = new Size(640, 772);
+            ClientSize = new Size(700, hasDrawn ? 866 : 794);
 
             var header = new HeaderPanel
             {
@@ -103,6 +106,7 @@ namespace FiberPlugin.UI
             _radius = new LabeledInput("Raio (m)", "ex.: 1000") { Dock = DockStyle.Fill };
             _pasteHint = new Label { Dock = DockStyle.Fill, ForeColor = Theme.Muted, Padding = new Padding(4, 2, 4, 0) };
             _centerPanel = Grid(3, new[] { 58f, 40f, 112f });
+            _centerPanel.RowStyles[2] = new RowStyle(SizeType.Percent, 100); // O desenho do quadrado fica com a sobra
             _centerPanel.Controls.Add(_centerA, 0, 0);
             _centerPanel.Controls.Add(_centerB, 1, 0);
             _centerPanel.Controls.Add(_radius, 2, 0);
@@ -138,24 +142,33 @@ namespace FiberPlugin.UI
             _background = new ChoiceBar("Sem mapa", "Satélite", "Mapa", "Satélite com ruas");
             _backgroundImage = new ChoiceBar("Só na tela", "Gravar no desenho (sai na impressão)");
 
-            var drawing = OptionGrid(("Ruas no desenho", existingRow), ("Ruas como", _style), ("Vias", _paths), ("Nomes", _names),
-                ("Mapa de fundo", _background), ("Imagem do mapa", _backgroundImage));
+            var existing = OptionGrid(("Ruas no desenho", existingRow));
+            var drawing = OptionGrid(("Ruas como", _style), ("Vias", _paths), ("Nomes", _names));
+            var map = OptionGrid(("Mapa", _background), ("Imagem", _backgroundImage));
 
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 6), BackColor = Theme.Background };
+            // Linhas de altura fixa; o retângulo da área (altura 0 aqui) fica com o resto e cresce junto com a janela
+            var rows = new List<(Control Control, float Height)>
+            {
+                (new SectionLabel("Área"), 28), (options, 3 * RowHeight), (areaPanel, 0), (statusRow, 40),
+                (new SectionLabel("Desenho"), 30)
+            };
+            if (hasDrawn)
+            {
+                rows.Add((existing, RowHeight));
+                rows.Add((_existingHint, 36));
+            }
+            rows.Add((drawing, 3 * RowHeight));
+            rows.Add((new SectionLabel("Mapa de fundo"), 30));
+            rows.Add((map, 2 * RowHeight));
+
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            foreach (var (control, height) in new (Control, float)[]
+            foreach (var (control, height) in rows)
             {
-                (new SectionLabel("Área"), 26), (options, 3 * RowHeight), (areaPanel, 210), (statusRow, 40),
-                (new SectionLabel("Desenho"), 28), (drawing, 6 * RowHeight), (_existingHint, 38)
-            })
-            {
-                body.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+                body.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, height) : new RowStyle(SizeType.Percent, 100));
                 control.Dock = DockStyle.Fill;
                 body.Controls.Add(control, 0, body.RowCount++);
             }
-            // Sobra de altura numa linha vazia no fim (senão a última linha estica e desalinha os rótulos)
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            body.RowCount++;
 
             var footer = new FooterPanel { Hint = "OpenStreetMap (ODbL) · mapa do AutoCAD (conta Autodesk)" };
             _ok = new ThemedButton("Importar", true);
@@ -636,34 +649,72 @@ namespace FiberPlugin.UI
                 g.DrawLine(lon, box.Right + line, cy, _east.Left - S(2), cy);
             }
 
-            // Cantos: a coordenada que resulta dos dois lados que se encontram ali
-            Corner(g, box.Left, box.Top, _north, _west, right: false, bottom: false);
-            Corner(g, box.Right, box.Top, _north, _east, right: true, bottom: false);
-            Corner(g, box.Left, box.Bottom, _south, _west, right: false, bottom: true);
-            Corner(g, box.Right, box.Bottom, _south, _east, right: true, bottom: true);
+            // Cantos: a coordenada que resulta dos dois lados que se encontram ali, em duas linhas (latitude e longitude)
+            // se o retângulo for alto, numa linha só se ele for baixo e largo, e sem texto se não couber (nunca um por
+            // cima do outro)
+            var corners = new[]
+            {
+                (X: box.Left, Y: box.Top, Lat: _north, Lon: _west, Right: false, Bottom: false),
+                (X: box.Right, Y: box.Top, Lat: _north, Lon: _east, Right: true, Bottom: false),
+                (X: box.Left, Y: box.Bottom, Lat: _south, Lon: _west, Right: false, Bottom: true),
+                (X: box.Right, Y: box.Bottom, Lat: _south, Lon: _east, Right: true, Bottom: true)
+            };
+            int lineHeight = Theme.Small.Height, pad = S(8), center = Theme.Section.Height;
+            int singleWidth = corners.Max(c => TextRenderer.MeasureText(g, CornerText(c.Lat, c.Lon), Theme.Small, Size.Empty, CornerFlags).Width);
+            int lines = box.Height >= 2 * (pad + 2 * lineHeight) + center && box.Width >= 2 * (pad + S(CornerWidth)) + S(8) ? 2
+                      : box.Height >= 2 * (pad + lineHeight) + S(4) && box.Width >= 2 * (pad + singleWidth) + S(8) ? 1
+                      : 0;
+            foreach (var c in corners) Corner(g, c.X, c.Y, c.Lat, c.Lon, c.Right, c.Bottom, lines);
 
-            TextRenderer.DrawText(g, "ÁREA DAS RUAS", Theme.Section, box, Theme.Muted,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+            if (box.Height >= 2 * (pad + lines * lineHeight) + center)
+                TextRenderer.DrawText(g, "ÁREA DAS RUAS", Theme.Section, box, Theme.Muted,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
 
             NorthArrow(g, this, Width - S(16), S(6));
             Legend(g, new Point(0, Height - S(38)));
         }
 
+        private const int CornerWidth = 130; // Largura do texto de cada canto em duas linhas
+        private const TextFormatFlags CornerFlags = TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
+        private const string CornerGap = "    ";
+
+        /// <summary>Latitude (ou N) e longitude (ou E) de um canto, como vão no desenho.</summary>
+        private (string Lat, string Lon) CornerParts(LabeledInput latitudeSide, LabeledInput longitudeSide) =>
+            (Geographic ? "lat " + Value(latitudeSide) : "N " + Value(latitudeSide),
+             Geographic ? "long " + Value(longitudeSide) : "E " + Value(longitudeSide));
+
+        private string CornerText(LabeledInput latitudeSide, LabeledInput longitudeSide)
+        {
+            var (a, b) = CornerParts(latitudeSide, longitudeSide);
+            return a + CornerGap + b;
+        }
+
         /// <summary>Ponto no canto e, do lado de dentro, a latitude (ou N) e a longitude (ou E) que ele recebe.</summary>
-        private void Corner(Graphics g, int x, int y, LabeledInput latitudeSide, LabeledInput longitudeSide, bool right, bool bottom)
+        /// <param name="lines">2 = uma embaixo da outra, 1 = lado a lado, 0 = só o ponto.</param>
+        private void Corner(Graphics g, int x, int y, LabeledInput latitudeSide, LabeledInput longitudeSide, bool right, bool bottom, int lines)
         {
             using (var dot = new SolidBrush(Theme.TextStrong)) g.FillEllipse(dot, x - S(4), y - S(4), S(8), S(8));
+            if (lines == 0) return;
 
-            string a = Geographic ? "lat " + Value(latitudeSide) : "N " + Value(latitudeSide);
-            string b = Geographic ? "long " + Value(longitudeSide) : "E " + Value(longitudeSide);
-            int lineHeight = Theme.Small.Height;
-            int width = S(118), pad = S(8);
-            int left = right ? x - pad - width : x + pad;
-            int top = bottom ? y - pad - 2 * lineHeight : y + pad;
-            TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis |
-                                    (right ? TextFormatFlags.Right : TextFormatFlags.Left);
-            TextRenderer.DrawText(g, a, Theme.Small, new Rectangle(left, top, width, lineHeight), LatitudeColor, flags);
-            TextRenderer.DrawText(g, b, Theme.Small, new Rectangle(left, top + lineHeight, width, lineHeight), LongitudeColor, flags);
+            var (a, b) = CornerParts(latitudeSide, longitudeSide);
+            int lineHeight = Theme.Small.Height, pad = S(8);
+            if (lines == 2)
+            {
+                int width = S(CornerWidth);
+                int left = right ? x - pad - width : x + pad;
+                int top = bottom ? y - pad - 2 * lineHeight : y + pad;
+                TextFormatFlags flags = CornerFlags | TextFormatFlags.EndEllipsis | (right ? TextFormatFlags.Right : TextFormatFlags.Left);
+                TextRenderer.DrawText(g, a, Theme.Small, new Rectangle(left, top, width, lineHeight), LatitudeColor, flags);
+                TextRenderer.DrawText(g, b, Theme.Small, new Rectangle(left, top + lineHeight, width, lineHeight), LongitudeColor, flags);
+                return;
+            }
+
+            int first = TextRenderer.MeasureText(g, a + CornerGap, Theme.Small, Size.Empty, CornerFlags).Width;
+            int second = TextRenderer.MeasureText(g, b, Theme.Small, Size.Empty, CornerFlags).Width;
+            int start = right ? x - pad - first - second : x + pad;
+            int row = bottom ? y - pad - lineHeight : y + pad;
+            TextRenderer.DrawText(g, a, Theme.Small, new Point(start, row), LatitudeColor, CornerFlags);
+            TextRenderer.DrawText(g, b, Theme.Small, new Point(start + first, row), LongitudeColor, CornerFlags);
         }
 
         /// <summary>O valor como foi digitado no campo; "?" enquanto estiver vazio ou não for um número.</summary>
