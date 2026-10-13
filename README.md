@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.57.msi`](Instalador/FiberPlugin-1.9.57.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.58.msi`](Instalador/FiberPlugin-1.9.58.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -386,9 +386,12 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
     certa (mostra as duas na linha de comando). Errada, o mapa não é ligado: ele iria para outro lugar. A
     geolocalização gravada pelas versões até a 1.9.56 (que podia mandar o mapa para o lugar errado) é consertada
     sozinha ao rodar o Importar Ruas.
-  - Se o mapa não aparecer com a geolocalização conferida: confira se o AutoCAD está conectado à conta Autodesk (canto
-    de cima) e com internet; no AutoCAD 2021 a 2023 a Autodesk pede a atualização do *Autodesk Single Sign On*. Se o
-    AutoCAD ficar lento com o mapa ligado, `GEOMAP` > `Off` desliga.
+  - O mapa só funciona com o AutoCAD conectado à conta Autodesk (Sign In, no canto de cima). Sem o login a janela
+    deixa o mapa desativado e diz o motivo, porque chamado sem ele o AutoCAD não mostra nada e trava tentando. Desenho
+    aberto com o mapa ligado e sem login tem o mapa desligado sozinho ao abrir. No AutoCAD 2021 a 2023, se o login
+    não abre ou não fica conectado, a Autodesk pede a atualização do *Autodesk Single Sign On* (AdSSO).
+  - Se o mapa não aparecer mesmo conectado e com a geolocalização conferida: confira a internet (firewall/proxy) e se
+    a pergunta do AutoCAD sobre usar mapas online não foi respondida com "Não"; `GEOMAP` > `Off` desliga o mapa.
 - Tudo é cortado reto na borda da área.
 - **Georreferenciado**: as coordenadas do desenho são as UTM do projeto, e o DWG recebe a geolocalização do
   AutoCAD (`SIRGAS2000.UTM-<zona>`, ou `UTM84-<zona>` se a biblioteca do AutoCAD não tiver o SIRGAS), em metros.

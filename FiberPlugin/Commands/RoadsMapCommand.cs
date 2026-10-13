@@ -114,6 +114,70 @@ namespace FiberPlugin.Commands
             doc.SendStringToExecute("_.GEOMAP _Off ", true, false, false); // Fica só a imagem gravada
         }
 
+        /// <summary>
+        /// AutoCAD conectado à conta Autodesk: o mapa do AutoCAD só funciona assim, e chamado sem o login o AutoCAD fica
+        /// tentando e pode travar. Null se não deu para saber.
+        /// </summary>
+        internal static bool? SignedIn()
+        {
+            // Variável de sistema com o usuário da conta Autodesk (vazia sem login) e o estado do login do AutoCAD: basta
+            // um dos dois dizer que está conectado; sem login só quando nenhum diz que está
+            bool? byUserId = null, byService = null;
+            try
+            {
+                if (AcApp.GetSystemVariable("ONLINEUSERID") is string id) byUserId = id.Trim().Length > 0;
+            }
+            catch (System.Exception)
+            {
+                // Variável que não existe nesta versão
+            }
+            if (byUserId == true) return true;
+            try
+            {
+                byService = Autodesk.AutoCAD.Internal.WSUtils.IsLoggedIn();
+            }
+            catch (System.Exception)
+            {
+                // API interna que mudou nesta versão
+            }
+            if (byService == true) return true;
+            return byUserId == false || byService == false ? false : (bool?)null;
+        }
+
+        /// <summary>Mensagem de quando o mapa não pode ser ligado por falta do login.</summary>
+        internal const string SignInHelp =
+            "O mapa de fundo é o do próprio AutoCAD e só funciona com o AutoCAD conectado à conta Autodesk (Sign In, no canto " +
+            "de cima). Se o login não abre ou não fica conectado: no AutoCAD 2021 a 2023 a Autodesk pede a atualização do " +
+            "Autodesk Single Sign On (AdSSO), no site da Autodesk.";
+
+        /// <summary>
+        /// Desenho aberto com o mapa ao vivo ligado e o AutoCAD sem login: o mapa não aparece e o AutoCAD fica tentando
+        /// baixar (trava). Desliga o mapa e avisa. Chamado ao abrir/ativar desenhos e no Importar Ruas.
+        /// </summary>
+        internal static void TurnOffWithoutSignIn(Document? doc)
+        {
+            if (doc == null) return;
+            try
+            {
+                if (Convert.ToInt32(AcApp.GetSystemVariable("GEOMAPMODE")) == 0 || SignedIn() != false) return;
+            }
+            catch (System.Exception)
+            {
+                return; // Sem a variável do mapa: nada a fazer
+            }
+            try
+            {
+                AcApp.SetSystemVariable("GEOMAPMODE", (short)0);
+            }
+            catch (System.Exception)
+            {
+                doc.SendStringToExecute("_.GEOMAP _Off ", true, false, false);
+            }
+            doc.Editor.WriteMessage("\n[AVISO]: Este desenho estava com o mapa de fundo do AutoCAD ligado, mas o AutoCAD não está " +
+                                    "conectado à conta Autodesk (o mapa não aparece e o AutoCAD fica travando tentando): o mapa foi " +
+                                    "desligado. " + SignInHelp + "\n");
+        }
+
         /// <summary>UCS Universal e vista de cima, sem giro: o único jeito em que o GEOMAPIMAGE aceita capturar.</summary>
         private static bool WorldTopView(Editor ed)
         {

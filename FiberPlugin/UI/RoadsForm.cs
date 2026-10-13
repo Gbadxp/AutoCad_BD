@@ -61,19 +61,22 @@ namespace FiberPlugin.UI
         /// <param name="projectZone">Zona UTM gravada no desenho; com ela a zona não é editável aqui.</param>
         /// <param name="drawn">Linhas que já estão na layer das ruas (para oferecer escrever só os nomes).</param>
         /// <param name="roadLayer">Nome da layer das ruas, para as mensagens.</param>
-        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS")
+        /// <param name="signedIn">AutoCAD conectado à conta Autodesk (false: o mapa de fundo fica desativado, com o motivo).</param>
+        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS",
+            bool? signedIn = null)
         {
             _projectZone = projectZone;
             _drawn = drawn ?? Array.Empty<DrawnRoad>();
             _roadLayer = roadLayer;
             _loading = true;
 
-            // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela
+            // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela; sem login, a dica do mapa
             bool hasDrawn = _drawn.Count > 0;
+            bool mapBlocked = signedIn == false;
 
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
-            ClientSize = new Size(700, hasDrawn ? 866 : 794);
+            ClientSize = new Size(700, (hasDrawn ? 866 : 794) + (mapBlocked ? 40 : 0));
 
             var header = new HeaderPanel
             {
@@ -160,6 +163,14 @@ namespace FiberPlugin.UI
             rows.Add((drawing, 3 * RowHeight));
             rows.Add((new SectionLabel("Mapa de fundo"), 30));
             rows.Add((map, 2 * RowHeight));
+            if (mapBlocked)
+            {
+                // O mapa é o do AutoCAD (GEOMAP): sem o login ele não aparece e o AutoCAD trava tentando
+                Label mapHint = Hint();
+                mapHint.ForeColor = Theme.Error;
+                mapHint.Text = "Desativado: o mapa é o do AutoCAD e precisa dele conectado à conta Autodesk (Sign In, no canto de cima).";
+                rows.Add((mapHint, 40));
+            }
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -197,7 +208,8 @@ namespace FiberPlugin.UI
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
             _background.SelectedIndex = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
             _backgroundImage.SelectedIndex = saved.BackgroundImage ? 1 : 0;
-            _backgroundImage.Enabled = _background.SelectedIndex > 0;
+            _backgroundImage.Enabled = _background.SelectedIndex > 0 && !mapBlocked;
+            _background.Enabled = !mapBlocked; // A escolha fica gravada para quando o login voltar
             if (projectZone != null)
             {
                 // A zona do projeto vale para o desenho todo: troca só em Configurações > Projeto
@@ -230,7 +242,7 @@ namespace FiberPlugin.UI
                 if (!_loading) _existingTouched = true;
                 ApplyNamesOnly();
             };
-            _background.SelectedChanged += (s, e) => _backgroundImage.Enabled = _background.SelectedIndex > 0;
+            _background.SelectedChanged += (s, e) => _backgroundImage.Enabled = _background.SelectedIndex > 0 && _background.Enabled;
             _useDrawn.Click += (s, e) => UseDrawnArea();
 
             // "-3.1019, -60.0250" colado no primeiro campo do centro vai para os dois campos

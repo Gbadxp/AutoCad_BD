@@ -31,6 +31,7 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
             if (!CadHelpers.InModelSpace(ed, db)) return;
+            RoadsMapCommand.TurnOffWithoutSignIn(doc); // Mapa ligado sem login trava o AutoCAD enquanto desenha
 
             // Geolocalização gravada por versões anteriores do plugin, com a transformação errada (o mapa de fundo ia para
             // outro lugar e o AutoCAD podia travar baixando ele): já sai consertada antes de tudo
@@ -50,7 +51,7 @@ namespace FiberPlugin.Commands
             UtmSettings? projectZone = UtmZone.Get(db);
             RoadImportSettings settings;
             RoadArea area;
-            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone, drawn, layer))
+            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone, drawn, layer, RoadsMapCommand.SignedIn()))
             {
                 form.PickInDrawing = rectangle => Pick(ed, form, rectangle);
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Area == null) return;
@@ -279,6 +280,12 @@ namespace FiberPlugin.Commands
             double minX, double minY, double maxX, double maxY)
         {
             Editor ed = doc.Editor;
+            if (RoadsMapCommand.SignedIn() == false)
+            {
+                ed.WriteMessage("\n[AVISO]: O mapa de fundo não foi ligado: o AutoCAD não está conectado à conta Autodesk. " +
+                                RoadsMapCommand.SignInHelp);
+                return;
+            }
             if (!UtmZone.HasGeoLocation(doc.Database))
             {
                 ed.WriteMessage("\n[AVISO]: Sem a geolocalização do desenho o AutoCAD não mostra o mapa de fundo.");
