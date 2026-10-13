@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.53.msi`](Instalador/FiberPlugin-1.9.53.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.54.msi`](Instalador/FiberPlugin-1.9.54.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -189,7 +189,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 |---|---|---|
 | Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
 | Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
-| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto (veja abaixo). |
+| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto, com nomes e mapa de fundo opcionais; se as ruas já estiverem no desenho, escreve só os nomes (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
@@ -364,6 +364,18 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   (acompanha a **Escala**). Só com o contorno o nome fica no meio da rua; com o eixo, logo acima dele. Os trechos
   da mesma rua são juntados: cada rua recebe um nome, repetido a cada 400 m (em 1:1000) nas longas, e trechos
   mais curtos que o texto ficam sem nome.
+- **Ruas no desenho**: se a área já tem linhas de rua (na layer das ruas, de uma importação anterior, ou numa layer
+  com nome de rua, como `RUA`, `MEIO-FIO`, `QUADRA` ou `SISTEMA VIARIO`), a janela avisa quantas e marca
+  **Só escrever os nomes**: as ruas não são desenhadas de novo, só os nomes, no eixo das ruas
+  do OpenStreetMap (apoiados no eixo, se houver eixo desenhado ali). Os nomes que o plugin já tinha escrito na área
+  (os mesmos do OpenStreetMap, na layer das ruas) são trocados, para não ficarem dois. **Usar a área delas**
+  preenche a área com o retângulo das ruas que já estão no desenho.
+- **Mapa de fundo**: o mapa do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o Importar Ruas grava:
+  **Satélite**, **Mapa** (ruas) ou **Satélite com ruas**. Precisa da conta Autodesk conectada no AutoCAD (canto de
+  cima) e de internet; o fornecedor do mapa (Bing ou Esri) depende da versão do AutoCAD.
+  - **Só na tela**: o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.
+  - **Gravar no desenho (sai na impressão)**: grava a imagem da área (`GEOMAPIMAGE`) na layer `FIBRA_MAPA`, atrás
+    das ruas, e desliga o mapa ao vivo. Congele a layer para esconder; `GEOMAPIMAGEUPDATE` atualiza a imagem.
 - Tudo é cortado reto na borda da área.
 - **Georreferenciado**: as coordenadas do desenho são as UTM do projeto, e o DWG recebe a geolocalização do
   AutoCAD (`SIRGAS2000.UTM-<zona>`, ou `UTM84-<zona>` se a biblioteca do AutoCAD não tiver o SIRGAS), em metros.

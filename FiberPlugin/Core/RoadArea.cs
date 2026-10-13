@@ -20,6 +20,33 @@ namespace FiberPlugin.Core
     }
 
     /// <summary>
+    /// Linha de rua que já está no desenho, pela extensão: na layer das ruas do plugin ou numa layer com nome de rua
+    /// (ruas desenhadas à mão ou de levantamento: RUA, MEIO-FIO, QUADRA, SISTEMA VIÁRIO...).
+    /// </summary>
+    public sealed class DrawnRoad
+    {
+        private static readonly string[] RoadWords = { "RUA", "VIARI", "MEIO-FIO", "MEIO_FIO", "MEIOFIO", "MEIO FIO", "LOGRAD", "QUADRA", "CALCADA", "CALÇADA", "PISTA" };
+
+        public string Layer { get; set; } = "";
+        public double MinX { get; set; }
+        public double MinY { get; set; }
+        public double MaxX { get; set; }
+        public double MaxY { get; set; }
+        public bool Closed { get; set; }
+
+        /// <summary>Layer das ruas do plugin ou com nome de rua.</summary>
+        public static bool IsRoadLayer(string layer, string roadLayer) =>
+            layer.Equals(roadLayer, StringComparison.OrdinalIgnoreCase) ||
+            RoadWords.Any(w => layer.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        /// <summary>A linha cruza ou fica dentro do retângulo.</summary>
+        public bool Touches(double minX, double minY, double maxX, double maxY) =>
+            MinX <= maxX && MaxX >= minX && MinY <= maxY && MaxY >= minY;
+
+        public bool Touches(RoadArea area) => Touches(area.MinX, area.MinY, area.MaxX, area.MaxY);
+    }
+
+    /// <summary>
     /// O que foi preenchido na janela do Importar Ruas, como texto (é o que fica gravado no DWG): área por
     /// retângulo (os quatro lados) ou centro e raio, em latitude/longitude (graus decimais) ou UTM (metros).
     /// </summary>
@@ -50,13 +77,30 @@ namespace FiberPlugin.Core
         public bool IncludePaths { get; set; }
         public bool IncludeNames { get; set; }
 
+        /// <summary>
+        /// Só os nomes: as ruas já estão no desenho (importadas antes ou desenhadas à mão) e só os nomes são escritos,
+        /// no eixo das ruas do OpenStreetMap. Não fica gravado: depende de já haver ruas na área.
+        /// </summary>
+        public bool NamesOnly { get; set; }
+
+        /// <summary>Mapa de fundo do AutoCAD (GEOMAP): Nenhum, Satelite, Mapa ou Hibrido.</summary>
+        public string Background { get; set; } = "Nenhum";
+
+        /// <summary>Grava o mapa de fundo como imagem no desenho (GEOMAPIMAGE), que sai na impressão.</summary>
+        public bool BackgroundImage { get; set; }
+
+        public static readonly string[] Backgrounds = { "Nenhum", "Satelite", "Mapa", "Hibrido" };
+
+        /// <summary>Layer da imagem do mapa gravada no desenho.</summary>
+        public const string MapLayer = "FIBRA_MAPA";
+
         // ---------- Gravação no DWG ----------
 
         public string[] ToValues() => new[]
         {
             Rectangle ? "Retangulo" : "Centro", Geographic ? "LatLong" : "UTM", North, South, East, West,
             CenterA, CenterB, Radius, Zone, SouthHemisphere ? "S" : "N", Style, IncludePaths ? "1" : "0",
-            IncludeNames ? "1" : "0"
+            IncludeNames ? "1" : "0", Background, BackgroundImage ? "1" : "0"
         };
 
         public static RoadImportSettings FromValues(string[] v)
@@ -72,6 +116,8 @@ namespace FiberPlugin.Core
             s.Style = v[11] is "Eixo" or "Ambos" ? v[11] : "Contorno";
             s.IncludePaths = v[12] == "1";
             s.IncludeNames = v.Length > 13 && v[13] == "1"; // Gravado a partir da 1.9.21
+            s.Background = v.Length > 14 && Backgrounds.Contains(v[14]) ? v[14] : "Nenhum"; // A partir da 1.9.54
+            s.BackgroundImage = v.Length > 15 && v[15] == "1";
             return s;
         }
 

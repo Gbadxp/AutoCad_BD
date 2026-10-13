@@ -21,7 +21,8 @@ namespace FiberPlugin.Commands
         /// o contorno já unido (meio-fio, sem sobreposição nos cruzamentos), o eixo ou os dois, e os nomes, tudo na layer
         /// das ruas (RUAS por padrão; nome, cor, tipo de linha e espessura no botão Configurações).
         /// As ruas são cortadas na borda da área e ficam na zona UTM do projeto, alinhadas com postes e KML; o desenho
-        /// recebe a geolocalização do AutoCAD se ainda não tiver.
+        /// recebe a geolocalização do AutoCAD se ainda não tiver. Se a área já tem ruas no desenho, dá para escrever só os
+        /// nomes. Opcional: mapa de fundo do AutoCAD (satélite, mapa ou os dois), só na tela ou gravado como imagem.
         /// </summary>
         [CommandMethod("FIBRA_IMPORTAR_RUAS")]
         public void Import()
@@ -29,12 +30,22 @@ namespace FiberPlugin.Commands
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
+
+            // Ruas que já estão no desenho (para a janela oferecer escrever só os nomes)
+            UserSettings prefs = UserSettings.Current;
+            string layer = prefs.RoadLayer;
+            List<DrawnRoad> drawn;
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                drawn = DrawnRoads(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead), layer);
+            }
 
             // Tudo numa janela; os valores da última vez neste desenho voltam preenchidos
             UtmSettings? projectZone = UtmZone.Get(db);
             RoadImportSettings settings;
             RoadArea area;
-            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone))
+            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone, drawn, layer))
             {
                 form.PickInDrawing = rectangle => Pick(ed, form, rectangle);
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Area == null) return;
@@ -53,7 +64,14 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configurações > Projeto).");
 
             double minX = area.MinX, minY = area.MinY, maxX = area.MaxX, maxY = area.MaxY;
-            bool outline = settings.Style != "Eixo", axes = settings.Style != "Contorno";
+            // Só os nomes: as ruas já estão no desenho; o nome vai apoiado no eixo se houver eixo do plugin (linha aberta
+            // na layer das ruas) ali
+            bool namesOnly = settings.NamesOnly;
+            bool outline = !namesOnly && settings.Style != "Eixo", axes = !namesOnly && settings.Style != "Contorno";
+            bool includeNames = namesOnly || settings.IncludeNames;
+            bool besideAxis = namesOnly
+                ? drawn.Any(r => !r.Closed && r.Layer.Equals(layer, StringComparison.OrdinalIgnoreCase) && r.Touches(area))
+                : axes;
             bool onlyVehicles = !settings.IncludePaths;
 
             // Retângulo geográfico que cobre a área (os cantos UTM não ficam alinhados com lat/lon)
@@ -94,10 +112,8 @@ namespace FiberPlugin.Commands
                 .ToList();
 
             // Uma layer só para as ruas, com a aparência escolhida em Configurações (criada só se vier alguma rua)
-            UserSettings prefs = UserSettings.Current;
-            string layer = prefs.RoadLayer;
             var counts = new Dictionary<string, int>();
-            int names = 0;
+            int names = 0, replaced = 0, lockedNames = 0;
             string? layerWarning = null;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -150,14 +166,30 @@ namespace FiberPlugin.Commands
                     }
                 }
 
-                if (settings.IncludeNames)
+                if (includeNames)
                 {
                     double height = DrawingScale.TextHeight(db) * NameScale;
                     var named = projected
                         .Where(p => p.Road.Label.Length > 0)
-                        .SelectMany(p => OsmRoads.Clip(p.Axis, minX, minY, maxX, maxY).Select(run => (p.Road.Label, (IList<(double X, double Y)>)run)));
+                        .SelectMany(p => OsmRoads.Clip(p.Axis, minX, minY, maxX, maxY).Select(run => (p.Road.Label, (IList<(double X, double Y)>)run)))
+                        .ToList();
                     List<StreetLabel> labels = StreetLabels.Place(named, height, NameSpacing * DrawingScale.Factor(db));
                     if (labels.Count > 0) EnsureLayer();
+
+                    // Só os nomes, de novo na mesma área: os nomes de rua que já estavam ali (os mesmos do OpenStreetMap, na
+                    // layer das ruas) saem, para não ficarem dois. Nome escrito à mão diferente do OSM fica.
+                    if (namesOnly && labels.Count > 0)
+                    {
+                        var osmNames = new HashSet<string>(named.Select(n => n.Label.Trim()), StringComparer.OrdinalIgnoreCase);
+                        List<ObjectId> old = modelSpace.Cast<ObjectId>()
+                            .Where(id => tr.GetObject(id, OpenMode.ForRead) is MText t &&
+                                         t.Layer.Equals(layer, StringComparison.OrdinalIgnoreCase) &&
+                                         t.Location.X >= minX && t.Location.X <= maxX && t.Location.Y >= minY && t.Location.Y <= maxY &&
+                                         osmNames.Contains(t.Text.Trim()))
+                            .ToList();
+                        lockedNames = CadHelpers.EraseUnlocked(tr, old);
+                        replaced = old.Count - lockedNames;
+                    }
 
                     foreach (StreetLabel label in labels)
                     {
@@ -165,7 +197,7 @@ namespace FiberPlugin.Commands
                         // (entre o eixo e o meio-fio, sem encostar na linha)
                         var at = new Point3d(label.X, label.Y, 0);
                         AttachmentPoint attachment = AttachmentPoint.MiddleCenter;
-                        if (axes)
+                        if (besideAxis)
                         {
                             at += new Vector3d(-Math.Sin(label.Angle), Math.Cos(label.Angle), 0) * height * 0.25;
                             attachment = AttachmentPoint.BottomCenter;
@@ -178,17 +210,33 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
 
-            if (counts.Count == 0)
+            if (namesOnly)
             {
-                ed.WriteMessage("\n[AVISO]: Nenhuma rua encontrada nessa área.");
-                return;
+                if (names == 0)
+                {
+                    ed.WriteMessage("\n[AVISO]: Nenhuma rua com nome nessa área no OpenStreetMap (ou os trechos são curtos demais para o texto).");
+                    return;
+                }
+                ed.WriteMessage($"\n[SUCESSO]: {names} nome(s) de rua na layer {layer}, sem desenhar as ruas de novo" +
+                                (replaced > 0 ? $" ({replaced} nome(s) que já estavam ali foram trocados)." : ".") +
+                                " Os nomes seguem o eixo das ruas do OpenStreetMap.");
+                if (lockedNames > 0)
+                    ed.WriteMessage($"\n[AVISO]: {lockedNames} nome(s) antigo(s) em layer travada ficaram: pode haver nomes repetidos.");
             }
-            ed.WriteMessage($"\n[SUCESSO]: {roads.Count} via(s) do OpenStreetMap na layer {layer}: " +
-                            string.Join(", ", counts.OrderByDescending(c => c.Value).Select(c => $"{c.Value} {c.Key}")) +
-                            (settings.IncludeNames ? $"; {names} nome(s) de rua" : "") + ".");
+            else
+            {
+                if (counts.Count == 0)
+                {
+                    ed.WriteMessage("\n[AVISO]: Nenhuma rua encontrada nessa área.");
+                    return;
+                }
+                ed.WriteMessage($"\n[SUCESSO]: {roads.Count} via(s) do OpenStreetMap na layer {layer}: " +
+                                string.Join(", ", counts.OrderByDescending(c => c.Value).Select(c => $"{c.Value} {c.Key}")) +
+                                (includeNames ? $"; {names} nome(s) de rua" : "") + ".");
+                if (includeNames && names == 0)
+                    ed.WriteMessage("\n[AVISO]: Nenhuma rua com nome nessa área no OpenStreetMap (ou os trechos são curtos demais para o texto).");
+            }
             if (layerWarning != null) ed.WriteMessage($"\n[AVISO]: {layerWarning}");
-            if (settings.IncludeNames && names == 0)
-                ed.WriteMessage("\n[AVISO]: Nenhuma rua com nome nessa área no OpenStreetMap (ou os trechos são curtos demais para o texto).");
 
             // Georreferenciado por padrão: as coordenadas já são UTM; grava também a geolocalização do AutoCAD
             var reference = new Point3d((minX + maxX) / 2, (minY + maxY) / 2, 0);
@@ -206,9 +254,41 @@ namespace FiberPlugin.Commands
             {
                 ed.WriteMessage($"\n[AVISO]: O AutoCAD não aceitou gravar a geolocalização; as ruas estão em UTM {utm.Zone}{(utm.South ? "S" : "N")} mesmo assim.");
             }
-            ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL). Largura das ruas aproximada.");
+            ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL)." + (namesOnly ? "" : " Largura das ruas aproximada."));
 
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
+
+            // Mapa de fundo do AutoCAD, depois do zoom (precisa da geolocalização gravada acima)
+            if (settings.Background != "Nenhum")
+            {
+                if (UtmZone.HasGeoLocation(db)) RoadsMapCommand.Show(doc, settings.Background, settings.BackgroundImage, minX, minY, maxX, maxY);
+                else ed.WriteMessage("\n[AVISO]: Sem a geolocalização do desenho o AutoCAD não mostra o mapa de fundo.");
+            }
+        }
+
+        /// <summary>Linhas de rua que já estão no desenho: na layer das ruas ou numa layer com nome de rua (desenhadas à mão).</summary>
+        private static List<DrawnRoad> DrawnRoads(Transaction tr, BlockTableRecord modelSpace, string layer)
+        {
+            var drawn = new List<DrawnRoad>();
+            foreach (ObjectId id in modelSpace)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Curve curve || !DrawnRoad.IsRoadLayer(curve.Layer, layer)) continue;
+                try
+                {
+                    Extents3d e = curve.GeometricExtents;
+                    drawn.Add(new DrawnRoad
+                    {
+                        Layer = curve.Layer,
+                        MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y,
+                        Closed = curve.Closed
+                    });
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Linha sem extensão (vazia)
+                }
+            }
+            return drawn;
         }
 
         /// <summary>

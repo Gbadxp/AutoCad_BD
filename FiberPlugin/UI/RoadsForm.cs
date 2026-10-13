@@ -6,14 +6,26 @@ namespace FiberPlugin.UI
 {
     /// <summary>
     /// Janela do Importar Ruas: área por retângulo (os quatro lados, dispostos como no mapa) ou centro e raio,
-    /// em latitude/longitude (graus decimais) ou UTM (metros), zona UTM e como desenhar. Confere enquanto digita
-    /// e mostra o tamanho da área; trocar Lat/Long ↔ UTM ou Retângulo ↔ Centro converte o que já foi preenchido.
+    /// em latitude/longitude (graus decimais) ou UTM (metros), zona UTM, como desenhar, nomes e mapa de fundo. Confere
+    /// enquanto digita e mostra o tamanho da área; trocar Lat/Long ↔ UTM ou Retângulo ↔ Centro converte o que já foi
+    /// preenchido. Se a área já tem ruas no desenho, oferece escrever só os nomes.
     /// </summary>
     internal class RoadsForm : Form
     {
         private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos" };
+        private const int RowHeight = 34; // Linha "rótulo | opções": botão de 28 + margens
 
         private readonly UtmSettings? _projectZone;
+        private readonly IReadOnlyList<DrawnRoad> _drawn;
+        private readonly string _roadLayer;
+        private readonly ChoiceBar _existing;
+        private readonly ThemedButton _useDrawn;
+        private readonly Label _existingHint;
+        private readonly ChoiceBar _background;
+        private readonly ChoiceBar _backgroundImage;
+        private bool _existingTouched;      // O usuário já escolheu entre desenhar e só os nomes
+        private bool _drawnInArea;          // A área digitada tem ruas do desenho
+        private int _namesBeforeOnly = -1;  // Escolha de nomes antes de passar para "só os nomes"
         private readonly ChoiceBar _mode;
         private readonly ChoiceBar _kind;
         private readonly InputBox _zone;
@@ -44,14 +56,18 @@ namespace FiberPlugin.UI
         public RoadImportSettings Settings => Read();
 
         /// <param name="projectZone">Zona UTM gravada no desenho; com ela a zona não é editável aqui.</param>
-        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone)
+        /// <param name="drawn">Linhas que já estão na layer das ruas (para oferecer escrever só os nomes).</param>
+        /// <param name="roadLayer">Nome da layer das ruas, para as mensagens.</param>
+        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS")
         {
             _projectZone = projectZone;
+            _drawn = drawn ?? Array.Empty<DrawnRoad>();
+            _roadLayer = roadLayer;
             _loading = true;
 
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
-            ClientSize = new Size(640, 692);
+            ClientSize = new Size(640, 772);
 
             var header = new HeaderPanel
             {
@@ -83,7 +99,7 @@ namespace FiberPlugin.UI
             _centerB = new LabeledInput("", "") { Dock = DockStyle.Fill };
             _radius = new LabeledInput("Raio (m)", "ex.: 1000") { Dock = DockStyle.Fill };
             _pasteHint = new Label { Dock = DockStyle.Fill, ForeColor = Theme.Muted, Padding = new Padding(4, 2, 4, 0) };
-            _centerPanel = Grid(3, new[] { 58f, 40f, 140f });
+            _centerPanel = Grid(3, new[] { 58f, 40f, 112f });
             _centerPanel.Controls.Add(_centerA, 0, 0);
             _centerPanel.Controls.Add(_centerB, 1, 0);
             _centerPanel.Controls.Add(_radius, 2, 0);
@@ -107,13 +123,27 @@ namespace FiberPlugin.UI
             _style = new ChoiceBar("Contorno (meio-fio)", "Eixo", "Contorno e eixo");
             _paths = new ChoiceBar("Só vias de veículos", "Também calçadas, ciclovias e trilhas");
             _names = new ChoiceBar("Sem nomes", "Com os nomes das ruas");
-            var drawing = OptionGrid(("Ruas como", _style), ("Vias", _paths), ("Nomes", _names));
+
+            // Ruas que já estão no desenho: desenhar de novo ou escrever só os nomes nelas
+            _existing = new ChoiceBar("Desenhar as ruas", "Só escrever os nomes");
+            _useDrawn = new ThemedButton("Usar a área delas", false) { Margin = new Padding(8, 3, 0, 3) };
+            var existingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
+            existingRow.Controls.AddRange(new Control[] { _existing, _useDrawn });
+            _existingHint = Hint();
+            // Mapa do próprio AutoCAD (GEOMAP), na geolocalização que o Importar Ruas grava. Só na tela não sai na
+            // impressão; a imagem gravada sai, atrás das ruas, na layer FIBRA_MAPA
+            _background = new ChoiceBar("Sem mapa", "Satélite", "Mapa", "Satélite com ruas");
+            _backgroundImage = new ChoiceBar("Só na tela", "Gravar no desenho (sai na impressão)");
+
+            var drawing = OptionGrid(("Ruas no desenho", existingRow), ("Ruas como", _style), ("Vias", _paths), ("Nomes", _names),
+                ("Mapa de fundo", _background), ("Imagem do mapa", _backgroundImage));
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 6), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in new (Control, float)[]
             {
-                (new SectionLabel("Área"), 26), (options, 108), (areaPanel, 248), (statusRow, 44), (new SectionLabel("Desenho"), 30), (drawing, 108)
+                (new SectionLabel("Área"), 26), (options, 3 * RowHeight), (areaPanel, 210), (statusRow, 40),
+                (new SectionLabel("Desenho"), 28), (drawing, 6 * RowHeight), (_existingHint, 38)
             })
             {
                 body.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
@@ -124,7 +154,7 @@ namespace FiberPlugin.UI
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             body.RowCount++;
 
-            var footer = new FooterPanel { Hint = "Dados do OpenStreetMap (ODbL) · precisa de internet" };
+            var footer = new FooterPanel { Hint = "OpenStreetMap (ODbL) · mapa do AutoCAD (conta Autodesk)" };
             _ok = new ThemedButton("Importar", true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             footer.AddButton(_ok);
@@ -149,6 +179,9 @@ namespace FiberPlugin.UI
             _style.SelectedIndex = Math.Max(0, Array.IndexOf(Styles, saved.Style));
             _paths.SelectedIndex = saved.IncludePaths ? 1 : 0;
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
+            _background.SelectedIndex = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
+            _backgroundImage.SelectedIndex = saved.BackgroundImage ? 1 : 0;
+            _backgroundImage.Enabled = _background.SelectedIndex > 0;
             if (projectZone != null)
             {
                 // A zona do projeto vale para o desenho todo: troca só em Configurações > Projeto
@@ -176,6 +209,13 @@ namespace FiberPlugin.UI
             foreach (LabeledInput field in new[] { _north, _south, _east, _west, _centerA, _centerB, _radius })
                 field.Box.Input.TextChanged += (s, e) => UpdateStatus();
             _zone.Input.TextChanged += (s, e) => UpdateStatus();
+            _existing.SelectedChanged += (s, e) =>
+            {
+                if (!_loading) _existingTouched = true;
+                ApplyNamesOnly();
+            };
+            _background.SelectedChanged += (s, e) => _backgroundImage.Enabled = _background.SelectedIndex > 0;
+            _useDrawn.Click += (s, e) => UseDrawnArea();
 
             // "-3.1019, -60.0250" colado no primeiro campo do centro vai para os dois campos
             _centerA.Box.Input.TextChanged += (s, e) =>
@@ -218,7 +258,100 @@ namespace FiberPlugin.UI
             SouthHemisphere = _projectZone?.South ?? _hemisphere.SelectedIndex == 0,
             Style = Styles[_style.SelectedIndex],
             IncludePaths = _paths.SelectedIndex == 1,
-            IncludeNames = _names.SelectedIndex == 1
+            IncludeNames = _names.SelectedIndex == 1,
+            NamesOnly = _existing.Enabled && _existing.SelectedIndex == 1,
+            Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)],
+            BackgroundImage = _backgroundImage.SelectedIndex == 1
+        };
+
+        /// <summary>"Só escrever os nomes": as ruas não são desenhadas, então o jeito de desenhar não vale e os nomes vão.</summary>
+        private void ApplyNamesOnly()
+        {
+            bool only = _existing.Enabled && _existing.SelectedIndex == 1;
+            if (only && _namesBeforeOnly < 0)
+            {
+                _namesBeforeOnly = _names.SelectedIndex;
+                _names.SelectedIndex = 1;
+            }
+            else if (!only && _namesBeforeOnly >= 0)
+            {
+                _names.SelectedIndex = _namesBeforeOnly;
+                _namesBeforeOnly = -1;
+            }
+            _style.Enabled = !only;
+            _names.Enabled = !only;
+        }
+
+        /// <summary>
+        /// Ruas que já estão no desenho, na área digitada: com elas, a opção de escrever só os nomes (marcada sozinha na
+        /// primeira vez, se o usuário ainda não escolheu).
+        /// </summary>
+        private void UpdateDrawn()
+        {
+            _useDrawn.Enabled = _drawn.Count > 0;
+            List<DrawnRoad> inside = Area == null ? new List<DrawnRoad>() : _drawn.Where(r => r.Touches(Area)).ToList();
+            int inArea = inside.Count;
+            bool had = _drawnInArea;
+            _drawnInArea = inArea > 0;
+            _existing.Enabled = inArea > 0;
+            if (inArea > 0 && !had && !_existingTouched)
+            {
+                _loading = true;
+                _existing.SelectedIndex = 1;
+                _loading = false;
+            }
+            ApplyNamesOnly();
+
+            _existingHint.Text = _drawn.Count == 0
+                ? $"Nenhuma rua no desenho ainda (layer {_roadLayer} ou com nome de rua, como MEIO-FIO)."
+                : inArea > 0
+                    ? $"Já há {inArea} linha(s) de rua aqui ({Layers(inside)}). \"Só escrever os nomes\" não redesenha as " +
+                      "ruas e troca os nomes antigos."
+                    : $"O desenho tem {_drawn.Count} linha(s) de rua ({Layers(_drawn)}), fora desta área (\"Usar a área delas\" vai até elas).";
+        }
+
+        /// <summary>"layer RUAS" ou "layers RUAS, MEIO-FIO".</summary>
+        private static string Layers(IEnumerable<DrawnRoad> roads)
+        {
+            List<string> names = roads.Select(r => r.Layer).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return (names.Count == 1 ? "layer " : "layers ") + string.Join(", ", names.Take(3)) + (names.Count > 3 ? "..." : "");
+        }
+
+        /// <summary>Preenche a área com o retângulo que cobre as ruas que já estão no desenho.</summary>
+        private void UseDrawnArea()
+        {
+            if (_drawn.Count == 0) return;
+            UtmSettings? zone = TypedZone();
+            if (zone == null)
+            {
+                _status.Set("Informe a zona UTM do desenho para usar a área das ruas.", StatusKind.Error);
+                return;
+            }
+            Write(new RoadArea
+            {
+                MinX = _drawn.Min(r => r.MinX), MinY = _drawn.Min(r => r.MinY),
+                MaxX = _drawn.Max(r => r.MaxX), MaxY = _drawn.Max(r => r.MaxY),
+                Utm = zone
+            });
+            UpdateStatus();
+        }
+
+        /// <summary>Zona do projeto ou, sem ela, a digitada (null se não houver nenhuma válida).</summary>
+        private UtmSettings? TypedZone()
+        {
+            if (_projectZone != null) return _projectZone;
+            return int.TryParse(_zone.Query, NumberStyles.Integer, CultureInfo.InvariantCulture, out int z) && z >= 1 && z <= 60
+                ? new UtmSettings { Zone = z, South = _hemisphere.SelectedIndex == 0 }
+                : null;
+        }
+
+        private static Label Hint() => new Label
+        {
+            AutoSize = false,
+            ForeColor = Theme.Muted,
+            Font = Theme.Small,
+            Margin = new Padding(110, 0, 0, 0),
+            Padding = new Padding(4, 0, 0, 0)
         };
 
         /// <summary>Trocou a forma ou o tipo de coordenada: converte a área já preenchida para o novo jeito.</summary>
@@ -325,9 +458,7 @@ namespace FiberPlugin.UI
             bool rectangle = _mode.SelectedIndex == 0;
             if (PickInDrawing?.Invoke(rectangle) is not { } p) return;
 
-            UtmSettings? zone = _projectZone;
-            if (zone == null && int.TryParse(_zone.Query, NumberStyles.Integer, CultureInfo.InvariantCulture, out int z) && z >= 1 && z <= 60)
-                zone = new UtmSettings { Zone = z, South = _hemisphere.SelectedIndex == 0 };
+            UtmSettings? zone = TypedZone();
             if (zone == null)
             {
                 _status.Set("Informe a zona UTM do desenho para usar os pontos marcados.", StatusKind.Error);
@@ -355,6 +486,7 @@ namespace FiberPlugin.UI
             if (_loading) return;
             Area = Read().Resolve(out string message, out bool incomplete);
             _ok.Enabled = Area != null;
+            UpdateDrawn();
 
             if (Area == null)
             {
@@ -377,7 +509,7 @@ namespace FiberPlugin.UI
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (label, control) in rows)
             {
-                grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+                grid.RowStyles.Add(new RowStyle(SizeType.Absolute, RowHeight));
                 grid.Controls.Add(new Label { Text = label, ForeColor = Theme.Text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Margin = Padding.Empty }, 0, grid.RowCount);
                 grid.Controls.Add(control, 1, grid.RowCount);
                 grid.RowCount++;
