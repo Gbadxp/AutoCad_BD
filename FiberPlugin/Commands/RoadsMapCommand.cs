@@ -41,20 +41,33 @@ namespace FiberPlugin.Commands
                                         "(comandos UCS > World e PLAN > World). O mapa fica só na tela; depois de acertar a " +
                                         "vista, grave a imagem com GEOMAPIMAGE.");
             }
+            // Imagem de área grande: o AutoCAD baixa o mapa inteiro de uma vez e fica parado (parece travado) até acabar
+            double side = Math.Max(maxX - minX, maxY - minY);
+            if (image && side > MaxImageSide)
+            {
+                image = false;
+                doc.Editor.WriteMessage($"\n[AVISO]: A área tem {side / 1000:0.#} km de lado; a imagem do mapa só é gravada até " +
+                                        $"{MaxImageSide / 1000:0.#} km (maior que isso o AutoCAD fica parado baixando). O mapa fica só " +
+                                        "na tela; para gravar, use GEOMAPIMAGE marcando um pedaço menor.");
+            }
             if (image)
             {
                 _before = MapImages(doc.Database);
                 _kind = kind;
                 commands.Append(FormattableString.Invariant($"_.GEOMAPIMAGE *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "));
                 commands.Append("FIBRA_MAPA_FUNDO_FIM ");
+                doc.Editor.WriteMessage("\n[INFO]: Gravando a imagem do mapa: o AutoCAD pode levar alguns segundos baixando.");
             }
             else
             {
-                doc.Editor.WriteMessage($"\n[INFO]: Mapa de fundo ({kind}) ligado na tela: não sai na impressão. " +
-                                        "Para desligar, comando GEOMAP > Off. Precisa da conta Autodesk conectada.");
+                doc.Editor.WriteMessage($"\n[INFO]: Mapa de fundo ({kind}) ligado na tela (não sai na impressão). Ele aparece em " +
+                                        "alguns segundos se o AutoCAD estiver conectado à conta Autodesk (canto de cima) e com " +
+                                        "internet. Para desligar: GEOMAP > Off.");
             }
             doc.SendStringToExecute(commands.ToString(), true, false, false);
         }
+
+        private const double MaxImageSide = 3000; // m
 
         /// <summary>
         /// Depois do GEOMAPIMAGE (chamado pelo Importar Ruas): a imagem nova vai para a layer FIBRA_MAPA e para trás de

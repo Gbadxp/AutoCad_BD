@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.56.msi`](Instalador/FiberPlugin-1.9.56.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.57.msi`](Instalador/FiberPlugin-1.9.57.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -380,8 +380,15 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   - **Só na tela**: o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.
   - **Gravar no desenho (sai na impressão)**: grava a imagem da área (`GEOMAPIMAGE`) na layer `FIBRA_MAPA`, atrás
     das ruas, e desliga o mapa ao vivo. Congele a layer para esconder; `GEOMAPIMAGEUPDATE` atualiza a imagem. O
-    AutoCAD só grava a imagem com a vista de cima no UCS Universal (`UCS` > `World`, `PLAN` > `World`); fora disso o
-    mapa fica só na tela, com aviso.
+    AutoCAD só grava a imagem com a vista de cima no UCS Universal (`UCS` > `World`, `PLAN` > `World`) e de áreas de
+    até 3 km de lado (maior que isso ele fica parado baixando); fora disso o mapa fica só na tela, com aviso.
+  - Antes de ligar o mapa, o plugin confere se a geolocalização do desenho põe o centro da área na latitude/longitude
+    certa (mostra as duas na linha de comando). Errada, o mapa não é ligado: ele iria para outro lugar. A
+    geolocalização gravada pelas versões até a 1.9.56 (que podia mandar o mapa para o lugar errado) é consertada
+    sozinha ao rodar o Importar Ruas.
+  - Se o mapa não aparecer com a geolocalização conferida: confira se o AutoCAD está conectado à conta Autodesk (canto
+    de cima) e com internet; no AutoCAD 2021 a 2023 a Autodesk pede a atualização do *Autodesk Single Sign On*. Se o
+    AutoCAD ficar lento com o mapa ligado, `GEOMAP` > `Off` desliga.
 - Tudo é cortado reto na borda da área.
 - **Georreferenciado**: as coordenadas do desenho são as UTM do projeto, e o DWG recebe a geolocalização do
   AutoCAD (`SIRGAS2000.UTM-<zona>`, ou `UTM84-<zona>` se a biblioteca do AutoCAD não tiver o SIRGAS), em metros.

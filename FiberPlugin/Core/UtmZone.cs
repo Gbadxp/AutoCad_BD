@@ -104,7 +104,9 @@ namespace FiberPlugin.Core
                         geo.PostToDb();
                         tr.AddNewlyCreatedDBObject(geo, true);
                         geo.CoordinateSystem = code; // Código fora da biblioteca: exceção e a transação desfaz tudo
-                        geo.TypeOfCoordinates = TypeOfCoordinates.CoordinateTypeGrid;
+                        // Como o GEOGRAPHICLOCATION grava: grade local em metros com o ponto do desenho igual ao ponto
+                        // de referência (as coordenadas do desenho já são as UTM da zona)
+                        geo.TypeOfCoordinates = TypeOfCoordinates.CoordinateTypeLocal;
                         geo.HorizontalUnits = UnitsValue.Meters;
                         geo.VerticalUnits = UnitsValue.Meters;
                         geo.DesignPoint = point;
@@ -112,6 +114,7 @@ namespace FiberPlugin.Core
                         geo.ScaleEstimationMethod = ScaleEstimationMethod.ScaleEstMethodUnity;
                         geo.NorthDirectionVector = Vector2d.YAxis;
                         geo.UpDirection = Vector3d.ZAxis;
+                        geo.UpdateTransformationMatrix(); // Sem ele o AutoCAD fica com a transformação antiga (mapa no lugar errado)
                         tr.Commit();
                     }
                     if (db.Insunits == UnitsValue.Undefined) db.Insunits = UnitsValue.Meters;
@@ -145,6 +148,7 @@ namespace FiberPlugin.Core
                     {
                         var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForWrite);
                         geo.CoordinateSystem = code; // Código fora da biblioteca: exceção, e a transação desfaz
+                        geo.UpdateTransformationMatrix();
                         tr.Commit();
                     }
                     return code;
@@ -155,6 +159,95 @@ namespace FiberPlugin.Core
                 }
             }
             return null;
+        }
+
+        /// <summary>Resultado da conferência da geolocalização: certa, errada ou sem como conferir.</summary>
+        public enum GeoCheck { Ok, Wrong, Unknown }
+
+        private const double GeoTolerance = 0.001; // Graus (cerca de 100 m)
+
+        /// <summary>
+        /// Confere se a geolocalização do AutoCAD põe o ponto (em UTM do projeto) na latitude/longitude certa: é por ela
+        /// que o mapa de fundo (GEOMAP) é posicionado; errada, o mapa vai para outro lugar (e o AutoCAD pode travar
+        /// baixando ele). A geolocalização que o próprio plugin gravou até a 1.9.56 (grade projetada, sem recalcular a
+        /// transformação) é refeita do jeito do GEOGRAPHICLOCATION. <paramref name="detail"/>: onde o AutoCAD põe o ponto.
+        /// </summary>
+        public static GeoCheck CheckGeoLocation(Database db, UtmSettings utm, Point3d point, out string detail)
+        {
+            var (lat, lon) = ToGeographic(point.X, point.Y, utm.Zone, utm.South);
+            GeoCheck result = CompareGeoLocation(db, point, lat, lon, out detail);
+            if (result != GeoCheck.Ok && RepairGeoLocation(db)) result = CompareGeoLocation(db, point, lat, lon, out detail);
+            return result;
+        }
+
+        /// <summary>Mesma conferência, no ponto de referência da própria geolocalização (sem precisar de um ponto do projeto).</summary>
+        public static GeoCheck CheckGeoLocation(Database db, UtmSettings utm, out string detail)
+        {
+            detail = "";
+            Point3d point;
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+                {
+                    point = ((GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForRead)).DesignPoint;
+                }
+            }
+            catch (System.Exception)
+            {
+                return GeoCheck.Unknown;
+            }
+            return CheckGeoLocation(db, utm, point, out detail);
+        }
+
+        private static GeoCheck CompareGeoLocation(Database db, Point3d point, double lat, double lon, out string detail)
+        {
+            detail = "";
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+                {
+                    var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForRead);
+                    Point3d p = geo.TransformToLonLatAlt(point); // X = longitude, Y = latitude
+                    detail = string.Format(CultureInfo.InvariantCulture, "lat {0:F6}, long {1:F6} (o certo é lat {2:F6}, long {3:F6})",
+                        p.Y, p.X, lat, lon);
+                    // Aceita também a ordem trocada (lat, long): o que importa é o lugar, não a ordem do retorno
+                    bool same = Math.Abs(p.Y - lat) < GeoTolerance && Math.Abs(p.X - lon) < GeoTolerance ||
+                                Math.Abs(p.X - lat) < GeoTolerance && Math.Abs(p.Y - lon) < GeoTolerance;
+                    return same ? GeoCheck.Ok : GeoCheck.Wrong;
+                }
+            }
+            catch (System.Exception)
+            {
+                return GeoCheck.Unknown; // Sem geolocalização ou sem a biblioteca de sistemas de coordenadas
+            }
+        }
+
+        /// <summary>
+        /// Refaz a transformação da geolocalização gravada pelo plugin (sistema SIRGAS2000.UTM-/UTM84-, ponto do desenho
+        /// igual ao de referência): grade local e transformação recalculada. Geolocalização feita pelo usuário fica como está.
+        /// </summary>
+        private static bool RepairGeoLocation(Database db)
+        {
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForWrite);
+                    bool ours = Regex.IsMatch(geo.CoordinateSystem ?? "", @"(SIRGAS2000\.UTM-|UTM84-)\d{1,2}[NS]\b", RegexOptions.IgnoreCase) &&
+                                geo.DesignPoint.DistanceTo(geo.ReferencePoint) < 1e-6;
+                    if (!ours) return false;
+                    geo.TypeOfCoordinates = TypeOfCoordinates.CoordinateTypeLocal;
+                    geo.HorizontalUnits = UnitsValue.Meters;
+                    geo.ScaleEstimationMethod = ScaleEstimationMethod.ScaleEstMethodUnity;
+                    geo.UpdateTransformationMatrix();
+                    tr.Commit();
+                    return true;
+                }
+            }
+            catch (System.Exception)
+            {
+                return false;
+            }
         }
 
         public static bool HasGeoLocation(Database db)
