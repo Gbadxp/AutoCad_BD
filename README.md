@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.58.msi`](Instalador/FiberPlugin-1.9.58.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.59.msi`](Instalador/FiberPlugin-1.9.59.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -373,11 +373,19 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   ruas) e que são escritos de novo agora são trocados, para não ficarem dois; o de rua que não ganha nome agora
   fica. **Usar a área delas** preenche a área com o retângulo das ruas que já estão no desenho (linhas soltas longe
   delas, como uma legenda, ficam de fora).
-- **Mapa de fundo**: o mapa do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o Importar Ruas grava:
-  **Satélite**, **Mapa** (ruas) ou **Satélite com ruas**. Precisa da conta Autodesk conectada no AutoCAD (canto de
-  cima) e de internet; o fornecedor do mapa (Bing ou Esri) depende da versão do AutoCAD. O mapa sai mesmo que a
-  área não tenha ruas no OpenStreetMap.
-  - **Só na tela**: o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.
+- **Mapa de fundo** (sai mesmo que a área não tenha ruas no OpenStreetMap):
+  - **Mapa do OpenStreetMap** (não precisa de conta nenhuma): o plugin baixa a imagem do mapa da área (ruas, quadras
+    e nomes; não é foto de satélite) e coloca no desenho, atrás das ruas e no mesmo lugar delas (a menos de 1 m numa
+    área de 6 km), na layer `FIBRA_MAPA`, um pouco clara para o desenho ficar à frente. Sai na impressão. O detalhe
+    vem do tamanho da área (até 144 partes do mapa: cerca de 0,6 m por pixel numa área de 1 km, 2,4 m numa de 6 km).
+    O arquivo da imagem (PNG) fica na pasta `<desenho>_mapas`, ao lado do DWG (com o desenho ainda sem salvar, em
+    `Documentos\Fiber Plugin\Mapas`): mande essa pasta junto quando enviar o desenho. Pedir o mapa de novo na mesma
+    área troca a imagem anterior. O crédito "© colaboradores do OpenStreetMap", que a licença exige, vai no canto
+    da área. Esc cancela o download.
+  - **Satélite do AutoCAD**: a foto de satélite do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o
+    Importar Ruas grava. Precisa do AutoCAD conectado à conta Autodesk (canto de cima) e de internet; o fornecedor
+    (Bing ou Esri) depende da versão do AutoCAD.
+  - **Só na tela** (satélite): o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.
   - **Gravar no desenho (sai na impressão)**: grava a imagem da área (`GEOMAPIMAGE`) na layer `FIBRA_MAPA`, atrás
     das ruas, e desliga o mapa ao vivo. Congele a layer para esconder; `GEOMAPIMAGEUPDATE` atualiza a imagem. O
     AutoCAD só grava a imagem com a vista de cima no UCS Universal (`UCS` > `World`, `PLAN` > `World`) e de áreas de
@@ -386,9 +394,9 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
     certa (mostra as duas na linha de comando). Errada, o mapa não é ligado: ele iria para outro lugar. A
     geolocalização gravada pelas versões até a 1.9.56 (que podia mandar o mapa para o lugar errado) é consertada
     sozinha ao rodar o Importar Ruas.
-  - O mapa só funciona com o AutoCAD conectado à conta Autodesk (Sign In, no canto de cima). Sem o login a janela
-    deixa o mapa desativado e diz o motivo, porque chamado sem ele o AutoCAD não mostra nada e trava tentando. Desenho
-    aberto com o mapa ligado e sem login tem o mapa desligado sozinho ao abrir. No AutoCAD 2021 a 2023, se o login
+  - O satélite só funciona com o AutoCAD conectado à conta Autodesk (Sign In, no canto de cima). Sem o login a janela
+    deixa o satélite desativado (o mapa do OpenStreetMap continua), porque chamado sem ele o AutoCAD não mostra nada
+    e trava tentando. Desenho aberto com o satélite ligado e sem login tem ele desligado sozinho ao abrir. No AutoCAD 2021 a 2023, se o login
     não abre ou não fica conectado, a Autodesk pede a atualização do *Autodesk Single Sign On* (AdSSO).
   - Se o mapa não aparecer mesmo conectado e com a geolocalização conferida: confira a internet (firewall/proxy) e se
     a pergunta do AutoCAD sobre usar mapas online não foi respondida com "Não"; `GEOMAP` > `Off` desliga o mapa.

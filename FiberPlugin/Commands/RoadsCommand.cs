@@ -1,3 +1,4 @@
+using System.IO;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
@@ -86,22 +87,14 @@ namespace FiberPlugin.Commands
 
             // O download roda em segundo plano: o AutoCAD continua respondendo e o Esc cancela
             ed.WriteMessage("\nConsultando o OpenStreetMap (pode levar até um minuto; Esc cancela)...");
-            List<OsmRoad> roads;
-            var cancel = new CancellationTokenSource();
-            Task<List<OsmRoad>> download = Task.Run(() => OsmRoads.Download(corners.Min(c => c.Lat), corners.Min(c => c.Lon),
-                corners.Max(c => c.Lat), corners.Max(c => c.Lon), onlyVehicles, cancel.Token));
-            // Quando o download terminar (inclusive depois de cancelado), descarta o cancelamento e o erro dele
-            download.ContinueWith(t => { _ = t.Exception; cancel.Dispose(); }, TaskScheduler.Default);
-            // Espera pelo WaitHandle: o Task.Wait jogaria o erro do download aqui, fora do tratamento lá embaixo
-            while (!((IAsyncResult)download).AsyncWaitHandle.WaitOne(100))
+            Task<List<OsmRoad>> download = InBackground(cancel => OsmRoads.Download(corners.Min(c => c.Lat), corners.Min(c => c.Lon),
+                corners.Max(c => c.Lat), corners.Max(c => c.Lon), onlyVehicles, cancel), out bool finished);
+            if (!finished)
             {
-                System.Windows.Forms.Application.DoEvents();
-                if (!HostApplicationServices.Current.UserBreak()) continue;
-                // Devolve o AutoCAD na hora: a conexão é abortada e o download termina sozinho em segundo plano
-                try { cancel.Cancel(); } catch (ObjectDisposedException) { } // Terminou no mesmo instante do Esc
                 ed.WriteMessage("\n[INFO]: Importar Ruas cancelado.");
                 return;
             }
+            List<OsmRoad> roads;
             try
             {
                 roads = download.Result;
@@ -269,11 +262,83 @@ namespace FiberPlugin.Commands
             }
             if (!nothing) ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL)." + (namesOnly ? "" : " Largura das ruas aproximada."));
 
+            // Mapa do OpenStreetMap: imagem baixada pelo plugin e posta atrás das ruas (não precisa de conta)
+            if (settings.Background == "OSM") ShowOsmMap(doc, utm, corners, minX, minY, maxX, maxY);
+
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
 
-            // Mapa de fundo do AutoCAD, depois do zoom (precisa da geolocalização gravada acima, e certa: errada, o mapa vai
-            // para outro lugar e o AutoCAD pode travar baixando ele)
-            if (map) ShowMap(doc, settings, utm, reference, minX, minY, maxX, maxY);
+            // Satélite do AutoCAD, depois do zoom (precisa da geolocalização gravada acima, e certa: errada, o mapa vai para
+            // outro lugar e o AutoCAD pode travar baixando ele)
+            if (settings.Background == "Satelite") ShowMap(doc, settings, utm, reference, minX, minY, maxX, maxY);
+        }
+
+        /// <summary>Baixa a imagem do mapa do OpenStreetMap da área (Esc cancela) e coloca atrás das ruas.</summary>
+        private static void ShowOsmMap(Document doc, UtmSettings utm, IList<(double Lat, double Lon)> corners,
+            double minX, double minY, double maxX, double maxY)
+        {
+            Editor ed = doc.Editor;
+            double south = corners.Min(c => c.Lat), west = corners.Min(c => c.Lon), north = corners.Max(c => c.Lat), east = corners.Max(c => c.Lon);
+            int tiles = OsmTiles.TileCount(south, west, north, east, OsmTiles.Zoom(south, west, north, east));
+            ed.WriteMessage($"\nBaixando o mapa do OpenStreetMap ({tiles} parte(s); Esc cancela)...");
+
+            Task<MapImage> download = InBackground(cancel => OsmTiles.Download(south, west, north, east, cancel), out bool finished);
+            if (!finished)
+            {
+                // A imagem que ainda chegar depois do Esc é descartada
+                download.ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion) t.Result.Dispose(); }, TaskScheduler.Default);
+                ed.WriteMessage("\n[INFO]: Mapa de fundo cancelado (as ruas ficaram).");
+                return;
+            }
+            MapImage map;
+            try
+            {
+                map = download.Result;
+            }
+            catch (AggregateException ex)
+            {
+                ed.WriteMessage($"\n[ERRO]: Não foi possível baixar o mapa do OpenStreetMap ({ex.InnerException?.Message ?? ex.Message}). " +
+                                "Confira a internet e tente de novo.");
+                return;
+            }
+
+            using (map)
+            {
+                try
+                {
+                    string file = RoadsMapCommand.InsertOsm(doc, map, utm, minX, minY, maxX, maxY);
+                    ed.WriteMessage($"\n[SUCESSO]: Mapa do OpenStreetMap atrás das ruas, na layer {RoadImportSettings.MapLayer}. " +
+                                    $"A imagem fica em {file}: mantenha essa pasta junto do desenho.");
+                }
+                catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException ||
+                                                  ex is System.Runtime.InteropServices.ExternalException ||
+                                                  ex is Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    ed.WriteMessage($"\n[ERRO]: Não foi possível colocar o mapa no desenho ({ex.Message}).");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Roda o trabalho (download) em segundo plano, com o AutoCAD respondendo; Esc cancela e devolve o AutoCAD na hora
+        /// (<paramref name="finished"/> = false: a conexão é abortada e o trabalho termina sozinho em segundo plano).
+        /// </summary>
+        private static Task<T> InBackground<T>(Func<CancellationToken, T> work, out bool finished)
+        {
+            var cancel = new CancellationTokenSource();
+            Task<T> task = Task.Run(() => work(cancel.Token));
+            // Quando terminar (inclusive depois de cancelado), descarta o cancelamento e o erro dele
+            task.ContinueWith(t => { _ = t.Exception; cancel.Dispose(); }, TaskScheduler.Default);
+            // Espera pelo WaitHandle: o Task.Wait jogaria o erro do trabalho aqui, fora do tratamento de quem chamou
+            while (!((IAsyncResult)task).AsyncWaitHandle.WaitOne(100))
+            {
+                System.Windows.Forms.Application.DoEvents();
+                if (!HostApplicationServices.Current.UserBreak()) continue;
+                try { cancel.Cancel(); } catch (ObjectDisposedException) { } // Terminou no mesmo instante do Esc
+                finished = false;
+                return task;
+            }
+            finished = true;
+            return task;
         }
 
         private static void ShowMap(Document doc, RoadImportSettings settings, UtmSettings utm, Point3d center,

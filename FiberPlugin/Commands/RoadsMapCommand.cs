@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -10,10 +11,11 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Mapa de fundo do Importar Ruas, com o mapa do próprio AutoCAD (GEOMAP, que usa a geolocalização que o Importar Ruas
-    /// grava): satélite, mapa de ruas ou os dois. Só na tela (não sai na impressão) ou gravado como imagem no desenho
-    /// (GEOMAPIMAGE), que sai na impressão, vai para a layer FIBRA_MAPA e fica atrás das ruas. Precisa da conta Autodesk
-    /// conectada no AutoCAD.
+    /// Mapa de fundo do Importar Ruas, de dois jeitos:
+    /// - OpenStreetMap: o plugin baixa a imagem do mapa da área e coloca no desenho, atrás das ruas, no mesmo lugar delas
+    ///   (layer FIBRA_MAPA, sai na impressão). Não precisa de conta nenhuma.
+    /// - Satélite do AutoCAD (GEOMAP, pela geolocalização que o Importar Ruas grava): só na tela ou gravado como imagem
+    ///   (GEOMAPIMAGE). Precisa do AutoCAD conectado à conta Autodesk.
     /// </summary>
     public class RoadsMapCommand
     {
@@ -21,16 +23,104 @@ namespace FiberPlugin.Commands
         private static HashSet<ObjectId>? _before;
         private static string _kind = "";
 
-        /// <param name="background">Satelite, Mapa ou Hibrido.</param>
+        /// <summary>
+        /// Coloca a imagem do OpenStreetMap no desenho, atrás de tudo, na layer FIBRA_MAPA: o arquivo PNG vai para a pasta
+        /// "&lt;desenho&gt;_mapas" ao lado do DWG (ou Documentos\Fiber Plugin\Mapas, com o desenho ainda sem salvar) e a
+        /// imagem é posicionada pelos três cantos convertidos para a UTM do projeto, então fica em cima das ruas. A imagem
+        /// e o crédito do OSM que o plugin tinha posto antes na mesma área saem. Retorna o arquivo gravado.
+        /// </summary>
+        internal static string InsertOsm(Document doc, MapImage map, UtmSettings utm, double minX, double minY, double maxX, double maxY)
+        {
+            Database db = doc.Database;
+            string folder = Path.IsPathRooted(doc.Name) && Directory.Exists(Path.GetDirectoryName(doc.Name))
+                ? Path.Combine(Path.GetDirectoryName(doc.Name)!, Path.GetFileNameWithoutExtension(doc.Name) + "_mapas")
+                : Path.Combine(PluginPaths.UserRoot, "Mapas");
+            Directory.CreateDirectory(folder);
+            string file = Path.Combine(folder, $"mapa_osm_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+            map.Image.Save(file, System.Drawing.Imaging.ImageFormat.Png);
+
+            // Cantos da imagem (lat/long exatos dos pixels) na UTM do projeto: de baixo à esquerda, de baixo à direita e
+            // de cima à esquerda. Numa área de alguns km o mapa do OSM (Mercator) fica a menos de 1 m da UTM assim.
+            Point3d Utm(double lat, double lon)
+            {
+                var (e, n) = UtmZone.FromGeographic(lat, lon, utm.Zone, utm.South);
+                return new Point3d(e, n, 0);
+            }
+            Point3d bottomLeft = Utm(map.South, map.West), bottomRight = Utm(map.South, map.East), topLeft = Utm(map.North, map.West);
+
+            try
+            {
+                // Módulo de imagens do AutoCAD (o IMAGEATTACH carrega sozinho; pela API às vezes ainda não está carregado)
+                SystemObjects.DynamicLinker.LoadModule($"acismobj{AcApp.Version.Major}.dbx", false, false);
+            }
+            catch (System.Exception)
+            {
+                // Já carregado, ou com outro nome nesta versão: a criação da imagem diz se faltar
+            }
+
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
+                CadHelpers.EnsureLayer(tr, db, RoadImportSettings.MapLayer, 7);
+
+                // Mapa anterior do plugin na mesma área: sai (o arquivo dele fica na pasta)
+                CadHelpers.EraseUnlocked(tr, modelSpace.Cast<ObjectId>()
+                    .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent && XDataTags.IsMap(ent) && ent is not GeomapImage &&
+                                 Overlaps(ent, minX, minY, maxX, maxY))
+                    .ToList());
+
+                ObjectId dictionaryId = RasterImageDef.GetImageDictionary(db);
+                if (dictionaryId.IsNull) dictionaryId = RasterImageDef.CreateImageDictionary(db);
+                var dictionary = (DBDictionary)tr.GetObject(dictionaryId, OpenMode.ForWrite);
+                var definition = new RasterImageDef { SourceFileName = file };
+                definition.Load();
+                ObjectId definitionId = dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                tr.AddNewlyCreatedDBObject(definition, true);
+
+                var image = new RasterImage
+                {
+                    ImageDefId = definitionId,
+                    Orientation = new CoordinateSystem3d(bottomLeft, bottomRight - bottomLeft, topLeft - bottomLeft),
+                    ShowImage = true,
+                    Layer = RoadImportSettings.MapLayer,
+                    Fade = 25 // Um pouco claro: as ruas, postes e cabos desenhados ficam à frente
+                };
+                CadHelpers.Append(tr, modelSpace, image);
+                RasterImage.EnableReactors(true);
+                image.AssociateRasterDef(definition);
+                XDataTags.TagMap(tr, db, image);
+
+                // Crédito do OpenStreetMap (obrigatório junto do mapa), no canto de baixo à direita da área
+                double height = DrawingScale.TextHeight(db);
+                MText credit = CadHelpers.AddText(tr, modelSpace, new Point3d(maxX - height, minY + height, 0),
+                    CadHelpers.MTextLiteral(OsmTiles.Attribution), 0, AttachmentPoint.BottomRight, RoadImportSettings.MapLayer, height);
+                XDataTags.TagMap(tr, db, credit);
+
+                var drawOrder = (DrawOrderTable)tr.GetObject(modelSpace.DrawOrderTableId, OpenMode.ForWrite);
+                drawOrder.MoveToBottom(new ObjectIdCollection(new[] { image.ObjectId }));
+                tr.Commit();
+            }
+            return file;
+        }
+
+        private static bool Overlaps(Entity ent, double minX, double minY, double maxX, double maxY)
+        {
+            try
+            {
+                Extents3d e = ent.GeometricExtents;
+                return e.MinPoint.X <= maxX && e.MaxPoint.X >= minX && e.MinPoint.Y <= maxY && e.MaxPoint.Y >= minY;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <param name="background">Satelite (o único tipo pelo mapa do AutoCAD).</param>
         /// <param name="image">Grava a imagem da área no desenho.</param>
         internal static void Show(Document doc, string background, bool image, double minX, double minY, double maxX, double maxY)
         {
-            (string keyword, string kind) = background switch
-            {
-                "Satelite" => ("_Aerial", "satélite"),
-                "Mapa" => ("_Road", "mapa de ruas"),
-                _ => ("_Hybrid", "satélite com ruas")
-            };
+            (string keyword, string kind) = ("_Aerial", "satélite");
             var commands = new StringBuilder($"_.GEOMAP {keyword} ");
             // O GEOMAPIMAGE só roda na vista de cima no UCS Universal; fora dela ele sai na hora e os cantos enviados
             // virariam comandos desconhecidos

@@ -123,13 +123,16 @@ namespace FiberPlugin.Core
         /// </summary>
         public bool NamesOnly { get; set; }
 
-        /// <summary>Mapa de fundo do AutoCAD (GEOMAP): Nenhum, Satelite, Mapa ou Hibrido.</summary>
+        /// <summary>
+        /// Mapa de fundo: Nenhum; OSM = imagem do mapa do OpenStreetMap baixada pelo plugin e colocada atrás das ruas (não
+        /// precisa de conta); Satelite = mapa do próprio AutoCAD (GEOMAP), que precisa do AutoCAD conectado à conta Autodesk.
+        /// </summary>
         public string Background { get; set; } = "Nenhum";
 
-        /// <summary>Grava o mapa de fundo como imagem no desenho (GEOMAPIMAGE), que sai na impressão.</summary>
+        /// <summary>Satélite: grava a imagem no desenho (GEOMAPIMAGE), que sai na impressão; senão, só na tela.</summary>
         public bool BackgroundImage { get; set; }
 
-        public static readonly string[] Backgrounds = { "Nenhum", "Satelite", "Mapa", "Hibrido" };
+        public static readonly string[] Backgrounds = { "Nenhum", "OSM", "Satelite" };
 
         /// <summary>Layer da imagem do mapa gravada no desenho.</summary>
         public const string MapLayer = "FIBRA_MAPA";
@@ -156,7 +159,9 @@ namespace FiberPlugin.Core
             s.Style = v[11] is "Eixo" or "Ambos" ? v[11] : "Contorno";
             s.IncludePaths = v[12] == "1";
             s.IncludeNames = v.Length > 13 && v[13] == "1"; // Gravado a partir da 1.9.21
-            s.Background = v.Length > 14 && Backgrounds.Contains(v[14]) ? v[14] : "Nenhum"; // A partir da 1.9.54
+            // A partir da 1.9.54; o "Mapa" (de ruas do AutoCAD) e o "Hibrido" das 1.9.54 a 1.9.58 viram o OSM e o satélite
+            string background = v.Length > 14 ? v[14] : "";
+            s.Background = background switch { "Mapa" => "OSM", "Hibrido" => "Satelite", _ => Backgrounds.Contains(background) ? background : "Nenhum" };
             s.BackgroundImage = v.Length > 15 && v[15] == "1";
             return s;
         }

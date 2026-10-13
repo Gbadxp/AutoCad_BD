@@ -25,6 +25,8 @@ namespace FiberPlugin.UI
         private readonly Label _existingHint;
         private readonly ChoiceBar _background;
         private readonly ChoiceBar _backgroundImage;
+        private readonly Label _mapHint;
+        private readonly bool _mapBlocked;  // AutoCAD sem login na conta Autodesk: satélite desativado
         private bool _existingTouched;      // O usuário já escolheu entre desenhar e só os nomes
         private bool _drawnInArea;          // A área digitada tem ruas do desenho
         private bool _mostlyDrawn;          // E elas cobrem a maior parte dela
@@ -76,7 +78,7 @@ namespace FiberPlugin.UI
 
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
-            ClientSize = new Size(700, (hasDrawn ? 866 : 794) + (mapBlocked ? 40 : 0));
+            ClientSize = new Size(700, (hasDrawn ? 866 : 794) + 38);
 
             var header = new HeaderPanel
             {
@@ -142,12 +144,16 @@ namespace FiberPlugin.UI
             _existingHint = Hint();
             // Mapa do próprio AutoCAD (GEOMAP), na geolocalização que o Importar Ruas grava. Só na tela não sai na
             // impressão; a imagem gravada sai, atrás das ruas, na layer FIBRA_MAPA
-            _background = new ChoiceBar("Sem mapa", "Satélite", "Mapa", "Satélite com ruas");
+            // Mapa do OpenStreetMap (imagem baixada pelo plugin, sem conta) ou satélite do próprio AutoCAD (conta Autodesk)
+            _mapBlocked = mapBlocked;
+            _background = new ChoiceBar("Sem mapa", "Mapa do OpenStreetMap", "Satélite do AutoCAD");
+            _background.SetOptionEnabled(2, !mapBlocked);
             _backgroundImage = new ChoiceBar("Só na tela", "Gravar no desenho (sai na impressão)");
+            _mapHint = Hint();
 
             var existing = OptionGrid(("Ruas no desenho", existingRow));
             var drawing = OptionGrid(("Ruas como", _style), ("Vias", _paths), ("Nomes", _names));
-            var map = OptionGrid(("Mapa", _background), ("Imagem", _backgroundImage));
+            var map = OptionGrid(("Mapa", _background), ("Satélite", _backgroundImage));
 
             // Linhas de altura fixa; o retângulo da área (altura 0 aqui) fica com o resto e cresce junto com a janela
             var rows = new List<(Control Control, float Height)>
@@ -163,14 +169,7 @@ namespace FiberPlugin.UI
             rows.Add((drawing, 3 * RowHeight));
             rows.Add((new SectionLabel("Mapa de fundo"), 30));
             rows.Add((map, 2 * RowHeight));
-            if (mapBlocked)
-            {
-                // O mapa é o do AutoCAD (GEOMAP): sem o login ele não aparece e o AutoCAD trava tentando
-                Label mapHint = Hint();
-                mapHint.ForeColor = Theme.Error;
-                mapHint.Text = "Desativado: o mapa é o do AutoCAD e precisa dele conectado à conta Autodesk (Sign In, no canto de cima).";
-                rows.Add((mapHint, 40));
-            }
+            rows.Add((_mapHint, 38));
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -181,7 +180,7 @@ namespace FiberPlugin.UI
                 body.Controls.Add(control, 0, body.RowCount++);
             }
 
-            var footer = new FooterPanel { Hint = "OpenStreetMap (ODbL) · mapa do AutoCAD (conta Autodesk)" };
+            var footer = new FooterPanel { Hint = "Ruas e mapa: © colaboradores do OpenStreetMap (ODbL)" };
             _ok = new ThemedButton("Importar", true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             footer.AddButton(_ok);
@@ -206,10 +205,11 @@ namespace FiberPlugin.UI
             _style.SelectedIndex = Math.Max(0, Array.IndexOf(Styles, saved.Style));
             _paths.SelectedIndex = saved.IncludePaths ? 1 : 0;
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
-            _background.SelectedIndex = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
+            // Satélite escolhido antes, mas sem o login agora: vai o mapa do OpenStreetMap, que não precisa de conta
+            int background = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
+            _background.SelectedIndex = background == 2 && mapBlocked ? 1 : background;
             _backgroundImage.SelectedIndex = saved.BackgroundImage ? 1 : 0;
-            _backgroundImage.Enabled = _background.SelectedIndex > 0 && !mapBlocked;
-            _background.Enabled = !mapBlocked; // A escolha fica gravada para quando o login voltar
+            ApplyBackground();
             if (projectZone != null)
             {
                 // A zona do projeto vale para o desenho todo: troca só em Configurações > Projeto
@@ -242,7 +242,7 @@ namespace FiberPlugin.UI
                 if (!_loading) _existingTouched = true;
                 ApplyNamesOnly();
             };
-            _background.SelectedChanged += (s, e) => _backgroundImage.Enabled = _background.SelectedIndex > 0 && _background.Enabled;
+            _background.SelectedChanged += (s, e) => ApplyBackground();
             _useDrawn.Click += (s, e) => UseDrawnArea();
 
             // "-3.1019, -60.0250" colado no primeiro campo do centro vai para os dois campos
@@ -292,6 +292,21 @@ namespace FiberPlugin.UI
             Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)],
             BackgroundImage = _backgroundImage.SelectedIndex == 1
         };
+
+        /// <summary>A opção do satélite vale só para ele; a dica explica o mapa escolhido.</summary>
+        private void ApplyBackground()
+        {
+            int choice = _background.SelectedIndex;
+            _backgroundImage.Enabled = choice == 2;
+            _mapHint.ForeColor = Theme.Muted;
+            _mapHint.Text = choice switch
+            {
+                1 => "Imagem do mapa do OpenStreetMap (ruas, quadras e nomes; não é foto de satélite) colocada atrás das ruas, " +
+                     "no mesmo lugar delas. Não precisa de conta.",
+                2 => "Foto de satélite do próprio AutoCAD: precisa dele conectado à conta Autodesk (Sign In, no canto de cima).",
+                _ => _mapBlocked ? "O satélite do AutoCAD está desativado: precisa dele conectado à conta Autodesk." : ""
+            };
+        }
 
         /// <summary>"Só escrever os nomes" escolhido, numa área que tem ruas do desenho.</summary>
         private bool NamesOnlyChosen => _drawnInArea && _existing.SelectedIndex == 1;

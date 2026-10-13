@@ -16,6 +16,7 @@ namespace FiberPlugin.Core
         private const string PoleLabelKind = "ROTULO_POSTE";
         private const string BoxKind = "CAIXA";
         private const string CheckKind = "VERIFICACAO";
+        private const string MapKind = "MAPA";
 
         private static TypedValue Text(string value) => new TypedValue((int)DxfCode.ExtendedDataAsciiString, value);
         private static TypedValue Int(int value) => new TypedValue((int)DxfCode.ExtendedDataInteger32, value);
@@ -88,6 +89,11 @@ namespace FiberPlugin.Core
         public static void TagCheck(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, CheckKind);
 
         public static bool IsCheck(Entity ent) => Read(ent, CheckKind, 0) != null;
+
+        /// <summary>Marca a imagem do mapa de fundo (e o crédito dela) do Importar Ruas: trocadas ao pedir o mapa de novo.</summary>
+        public static void TagMap(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, MapKind);
+
+        public static bool IsMap(Entity ent) => Read(ent, MapKind, 0) != null;
 
         /// <summary>Marca a polilinha como cabo do tipo informado (nome curto do catálogo).</summary>
         public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>
