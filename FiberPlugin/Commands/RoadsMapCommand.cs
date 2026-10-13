@@ -24,20 +24,20 @@ namespace FiberPlugin.Commands
         private static string _kind = "";
 
         /// <summary>
-        /// Coloca a imagem do OpenStreetMap no desenho, atrás de tudo, na layer FIBRA_MAPA: o arquivo PNG vai para a pasta
-        /// "&lt;desenho&gt;_mapas" ao lado do DWG (ou Documentos\Fiber Plugin\Mapas, com o desenho ainda sem salvar) e a
-        /// imagem é posicionada pelos três cantos convertidos para a UTM do projeto, então fica em cima das ruas. A imagem
-        /// e o crédito do OSM que o plugin tinha posto antes na mesma área saem. Retorna o arquivo gravado.
+        /// Coloca a imagem do mapa (OpenStreetMap ou satélite da Esri) no desenho, atrás de tudo, na layer FIBRA_MAPA: o
+        /// arquivo vai para a pasta "&lt;desenho&gt;_mapas" ao lado do DWG (ou Documentos\Fiber Plugin\Mapas, com o desenho
+        /// ainda sem salvar) e a imagem é posicionada pelos três cantos convertidos para a UTM do projeto, então fica em
+        /// cima das ruas. A imagem e o crédito que o plugin tinha posto antes na mesma área saem. Retorna o arquivo gravado.
         /// </summary>
-        internal static string InsertOsm(Document doc, MapImage map, UtmSettings utm, double minX, double minY, double maxX, double maxY)
+        internal static string InsertTiles(Document doc, MapImage map, UtmSettings utm, double minX, double minY, double maxX, double maxY)
         {
             Database db = doc.Database;
             string folder = Path.IsPathRooted(doc.Name) && Directory.Exists(Path.GetDirectoryName(doc.Name))
                 ? Path.Combine(Path.GetDirectoryName(doc.Name)!, Path.GetFileNameWithoutExtension(doc.Name) + "_mapas")
                 : Path.Combine(PluginPaths.UserRoot, "Mapas");
             Directory.CreateDirectory(folder);
-            string file = Path.Combine(folder, $"mapa_osm_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-            map.Image.Save(file, System.Drawing.Imaging.ImageFormat.Png);
+            string file = Path.Combine(folder, $"{map.Source.FilePrefix}_{DateTime.Now:yyyyMMdd_HHmmss}.{(map.Source.Jpeg ? "jpg" : "png")}");
+            map.Save(file);
 
             // Cantos da imagem (lat/long exatos dos pixels) na UTM do projeto: de baixo à esquerda, de baixo à direita e
             // de cima à esquerda. Numa área de alguns km o mapa do OSM (Mercator) fica a menos de 1 m da UTM assim.
@@ -83,17 +83,17 @@ namespace FiberPlugin.Commands
                     Orientation = new CoordinateSystem3d(bottomLeft, bottomRight - bottomLeft, topLeft - bottomLeft),
                     ShowImage = true,
                     Layer = RoadImportSettings.MapLayer,
-                    Fade = 25 // Um pouco claro: as ruas, postes e cabos desenhados ficam à frente
+                    Fade = (byte)map.Source.Fade // Um pouco clara: as ruas, postes e cabos desenhados ficam à frente
                 };
                 CadHelpers.Append(tr, modelSpace, image);
                 RasterImage.EnableReactors(true);
                 image.AssociateRasterDef(definition);
                 XDataTags.TagMap(tr, db, image);
 
-                // Crédito do OpenStreetMap (obrigatório junto do mapa), no canto de baixo à direita da área
+                // Crédito do mapa (a licença exige junto da imagem), no canto de baixo à direita da área
                 double height = DrawingScale.TextHeight(db);
                 MText credit = CadHelpers.AddText(tr, modelSpace, new Point3d(maxX - height, minY + height, 0),
-                    CadHelpers.MTextLiteral(OsmTiles.Attribution), 0, AttachmentPoint.BottomRight, RoadImportSettings.MapLayer, height);
+                    CadHelpers.MTextLiteral(map.Source.Attribution), 0, AttachmentPoint.BottomRight, RoadImportSettings.MapLayer, height);
                 XDataTags.TagMap(tr, db, credit);
 
                 var drawOrder = (DrawOrderTable)tr.GetObject(modelSpace.DrawOrderTableId, OpenMode.ForWrite);

@@ -262,8 +262,9 @@ namespace FiberPlugin.Commands
             }
             if (!nothing) ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL)." + (namesOnly ? "" : " Largura das ruas aproximada."));
 
-            // Mapa do OpenStreetMap: imagem baixada pelo plugin e posta atrás das ruas (não precisa de conta)
-            if (settings.Background == "OSM") ShowOsmMap(doc, utm, corners, minX, minY, maxX, maxY);
+            // Mapa do OpenStreetMap ou satélite da Esri: imagem baixada pelo plugin e posta atrás das ruas (sem conta)
+            if (settings.Background == "OSM") ShowTileMap(doc, TileSource.OpenStreetMap, utm, corners, minX, minY, maxX, maxY);
+            if (settings.Background == "Esri") ShowTileMap(doc, TileSource.EsriImagery, utm, corners, minX, minY, maxX, maxY);
 
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
 
@@ -272,16 +273,16 @@ namespace FiberPlugin.Commands
             if (settings.Background == "Satelite") ShowMap(doc, settings, utm, reference, minX, minY, maxX, maxY);
         }
 
-        /// <summary>Baixa a imagem do mapa do OpenStreetMap da área (Esc cancela) e coloca atrás das ruas.</summary>
-        private static void ShowOsmMap(Document doc, UtmSettings utm, IList<(double Lat, double Lon)> corners,
+        /// <summary>Baixa a imagem do mapa da área (Esc cancela) e coloca atrás das ruas.</summary>
+        private static void ShowTileMap(Document doc, TileSource source, UtmSettings utm, IList<(double Lat, double Lon)> corners,
             double minX, double minY, double maxX, double maxY)
         {
             Editor ed = doc.Editor;
             double south = corners.Min(c => c.Lat), west = corners.Min(c => c.Lon), north = corners.Max(c => c.Lat), east = corners.Max(c => c.Lon);
-            int tiles = OsmTiles.TileCount(south, west, north, east, OsmTiles.Zoom(south, west, north, east));
-            ed.WriteMessage($"\nBaixando o mapa do OpenStreetMap ({tiles} parte(s); Esc cancela)...");
+            int tiles = MapTiles.TileCount(south, west, north, east, MapTiles.Zoom(source, south, west, north, east));
+            ed.WriteMessage($"\nBaixando o {source.Name} ({tiles} parte(s); Esc cancela)...");
 
-            Task<MapImage> download = InBackground(cancel => OsmTiles.Download(south, west, north, east, cancel), out bool finished);
+            Task<MapImage> download = InBackground(cancel => MapTiles.Download(source, south, west, north, east, cancel), out bool finished);
             if (!finished)
             {
                 // A imagem que ainda chegar depois do Esc é descartada
@@ -296,7 +297,7 @@ namespace FiberPlugin.Commands
             }
             catch (AggregateException ex)
             {
-                ed.WriteMessage($"\n[ERRO]: Não foi possível baixar o mapa do OpenStreetMap ({ex.InnerException?.Message ?? ex.Message}). " +
+                ed.WriteMessage($"\n[ERRO]: Não foi possível baixar o {source.Name} ({ex.InnerException?.Message ?? ex.Message}). " +
                                 "Confira a internet e tente de novo.");
                 return;
             }
@@ -305,9 +306,13 @@ namespace FiberPlugin.Commands
             {
                 try
                 {
-                    string file = RoadsMapCommand.InsertOsm(doc, map, utm, minX, minY, maxX, maxY);
-                    ed.WriteMessage($"\n[SUCESSO]: Mapa do OpenStreetMap atrás das ruas, na layer {RoadImportSettings.MapLayer}. " +
-                                    $"A imagem fica em {file}: mantenha essa pasta junto do desenho.");
+                    string file = RoadsMapCommand.InsertTiles(doc, map, utm, minX, minY, maxX, maxY);
+                    double pixel = (maxX - minX) / map.Image.Width;
+                    ed.WriteMessage($"\n[SUCESSO]: Imagem do {source.Name} atrás das ruas, na layer {RoadImportSettings.MapLayer} " +
+                                    $"(cerca de {pixel:0.0} m por pixel). A imagem fica em {file}: mantenha essa pasta junto do desenho.");
+                    if (source == TileSource.EsriImagery)
+                        ed.WriteMessage("\n[INFO]: Imagem de satélite da Esri: só para estudo, uso não comercial (termos da Esri); " +
+                                        "o crédito ficou no canto da área.");
                 }
                 catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException ||
                                                   ex is System.Runtime.InteropServices.ExternalException ||

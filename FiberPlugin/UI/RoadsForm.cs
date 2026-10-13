@@ -16,6 +16,7 @@ namespace FiberPlugin.UI
         private const int RowHeight = 36;  // Linha "rótulo | opções": botão de 28 + margens e folga
         private const int LabelWidth = 140; // Coluna dos rótulos das opções (cabe "Ruas no desenho" numa linha)
         private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "só os nomes" sozinho
+        private const int EsriSatellite = 2, AutoCadSatellite = 3; // Opções do mapa de fundo (RoadImportSettings.Backgrounds)
 
         private readonly UtmSettings? _projectZone;
         private readonly IReadOnlyList<DrawnRoad> _drawn;
@@ -146,14 +147,14 @@ namespace FiberPlugin.UI
             // impressão; a imagem gravada sai, atrás das ruas, na layer FIBRA_MAPA
             // Mapa do OpenStreetMap (imagem baixada pelo plugin, sem conta) ou satélite do próprio AutoCAD (conta Autodesk)
             _mapBlocked = mapBlocked;
-            _background = new ChoiceBar("Sem mapa", "Mapa do OpenStreetMap", "Satélite do AutoCAD");
-            _background.SetOptionEnabled(2, !mapBlocked);
+            _background = new ChoiceBar("Sem mapa", "OpenStreetMap", "Satélite Esri", "Satélite AutoCAD");
+            _background.SetOptionEnabled(AutoCadSatellite, !mapBlocked);
             _backgroundImage = new ChoiceBar("Só na tela", "Gravar no desenho (sai na impressão)");
             _mapHint = Hint();
 
             var existing = OptionGrid(("Ruas no desenho", existingRow));
             var drawing = OptionGrid(("Ruas como", _style), ("Vias", _paths), ("Nomes", _names));
-            var map = OptionGrid(("Mapa", _background), ("Satélite", _backgroundImage));
+            var map = OptionGrid(("Mapa", _background), ("Satélite AutoCAD", _backgroundImage));
 
             // Linhas de altura fixa; o retângulo da área (altura 0 aqui) fica com o resto e cresce junto com a janela
             var rows = new List<(Control Control, float Height)>
@@ -205,9 +206,9 @@ namespace FiberPlugin.UI
             _style.SelectedIndex = Math.Max(0, Array.IndexOf(Styles, saved.Style));
             _paths.SelectedIndex = saved.IncludePaths ? 1 : 0;
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
-            // Satélite escolhido antes, mas sem o login agora: vai o mapa do OpenStreetMap, que não precisa de conta
+            // Satélite do AutoCAD escolhido antes, mas sem o login agora: vai o satélite da Esri, que não precisa de conta
             int background = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
-            _background.SelectedIndex = background == 2 && mapBlocked ? 1 : background;
+            _background.SelectedIndex = background == AutoCadSatellite && mapBlocked ? EsriSatellite : background;
             _backgroundImage.SelectedIndex = saved.BackgroundImage ? 1 : 0;
             ApplyBackground();
             if (projectZone != null)
@@ -297,13 +298,15 @@ namespace FiberPlugin.UI
         private void ApplyBackground()
         {
             int choice = _background.SelectedIndex;
-            _backgroundImage.Enabled = choice == 2;
+            _backgroundImage.Enabled = choice == AutoCadSatellite;
             _mapHint.ForeColor = Theme.Muted;
             _mapHint.Text = choice switch
             {
                 1 => "Imagem do mapa do OpenStreetMap (ruas, quadras e nomes; não é foto de satélite) colocada atrás das ruas, " +
                      "no mesmo lugar delas. Não precisa de conta.",
-                2 => "Foto de satélite do próprio AutoCAD: precisa dele conectado à conta Autodesk (Sign In, no canto de cima).",
+                EsriSatellite => "Foto de satélite da Esri colocada atrás das ruas, no mesmo lugar delas. Sem conta, só para " +
+                                 "estudo (uso não comercial, termos da Esri); o crédito vai no canto da área.",
+                AutoCadSatellite => "Satélite do próprio AutoCAD: precisa dele conectado à conta Autodesk (Sign In, no canto de cima).",
                 _ => _mapBlocked ? "O satélite do AutoCAD está desativado: precisa dele conectado à conta Autodesk." : ""
             };
         }

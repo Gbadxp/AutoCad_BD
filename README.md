@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.59.msi`](Instalador/FiberPlugin-1.9.59.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.60.msi`](Instalador/FiberPlugin-1.9.60.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -382,7 +382,12 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
     `Documentos\Fiber Plugin\Mapas`): mande essa pasta junto quando enviar o desenho. Pedir o mapa de novo na mesma
     área troca a imagem anterior. O crédito "© colaboradores do OpenStreetMap", que a licença exige, vai no canto
     da área. Esc cancela o download.
-  - **Satélite do AutoCAD**: a foto de satélite do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o
+  - **Satélite Esri** (não precisa de conta; **só para estudo, uso não comercial**, como pedem os termos da Esri): a
+    foto de satélite da Esri (World Imagery) da área, baixada e colocada igual ao mapa do OpenStreetMap, atrás das
+    ruas e no mesmo lugar delas, na layer `FIBRA_MAPA`, com o crédito da Esri no canto da área. Mais detalhe que o
+    mapa: até 484 partes (cerca de 1,2 m por pixel numa área de 6 km, 0,6 m numa de 2 km). Arquivo JPG na mesma
+    pasta `<desenho>_mapas`. Para uso comercial, a Esri pede uma conta paga.
+  - **Satélite AutoCAD**: a foto de satélite do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o
     Importar Ruas grava. Precisa do AutoCAD conectado à conta Autodesk (canto de cima) e de internet; o fornecedor
     (Bing ou Esri) depende da versão do AutoCAD.
   - **Só na tela** (satélite): o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.

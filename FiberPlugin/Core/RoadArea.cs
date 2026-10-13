@@ -124,15 +124,16 @@ namespace FiberPlugin.Core
         public bool NamesOnly { get; set; }
 
         /// <summary>
-        /// Mapa de fundo: Nenhum; OSM = imagem do mapa do OpenStreetMap baixada pelo plugin e colocada atrás das ruas (não
-        /// precisa de conta); Satelite = mapa do próprio AutoCAD (GEOMAP), que precisa do AutoCAD conectado à conta Autodesk.
+        /// Mapa de fundo: Nenhum; OSM = imagem do mapa do OpenStreetMap e Esri = foto de satélite da Esri (uso não
+        /// comercial), baixadas pelo plugin e colocadas atrás das ruas, sem conta; Satelite = satélite do próprio AutoCAD
+        /// (GEOMAP), que precisa do AutoCAD conectado à conta Autodesk.
         /// </summary>
         public string Background { get; set; } = "Nenhum";
 
         /// <summary>Satélite: grava a imagem no desenho (GEOMAPIMAGE), que sai na impressão; senão, só na tela.</summary>
         public bool BackgroundImage { get; set; }
 
-        public static readonly string[] Backgrounds = { "Nenhum", "OSM", "Satelite" };
+        public static readonly string[] Backgrounds = { "Nenhum", "OSM", "Esri", "Satelite" };
 
         /// <summary>Layer da imagem do mapa gravada no desenho.</summary>
         public const string MapLayer = "FIBRA_MAPA";
