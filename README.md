@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.54.msi`](Instalador/FiberPlugin-1.9.54.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.55.msi`](Instalador/FiberPlugin-1.9.55.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -365,17 +365,23 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   da mesma rua são juntados: cada rua recebe um nome, repetido a cada 400 m (em 1:1000) nas longas, e trechos
   mais curtos que o texto ficam sem nome.
 - **Ruas no desenho**: se a área já tem linhas de rua (na layer das ruas, de uma importação anterior, ou numa layer
-  com nome de rua, como `RUA`, `MEIO-FIO`, `QUADRA` ou `SISTEMA VIARIO`), a janela avisa quantas e marca
-  **Só escrever os nomes**: as ruas não são desenhadas de novo, só os nomes, no eixo das ruas
-  do OpenStreetMap (apoiados no eixo, se houver eixo desenhado ali). Os nomes que o plugin já tinha escrito na área
-  (os mesmos do OpenStreetMap, na layer das ruas) são trocados, para não ficarem dois. **Usar a área delas**
-  preenche a área com o retângulo das ruas que já estão no desenho.
+  com nome de rua, como `RUA`, `MEIO-FIO`, `QUADRA` ou `SISTEMA VIARIO`, soltas no Model ou dentro de um XREF ou
+  bloco, como a base da prefeitura), a janela avisa quantas e libera **Só escrever os nomes**: as ruas não são
+  desenhadas de novo, só os nomes, no eixo das ruas do OpenStreetMap (apoiados no eixo, se houver eixo desenhado
+  ali). A opção já vem marcada quando as ruas do desenho cobrem a maior parte da área; com só um trecho num canto,
+  as ruas são desenhadas, a não ser que você marque. Os nomes que o plugin já tinha escrito na área (na layer das
+  ruas) e que são escritos de novo agora são trocados, para não ficarem dois; o de rua que não ganha nome agora
+  fica. **Usar a área delas** preenche a área com o retângulo das ruas que já estão no desenho (linhas soltas longe
+  delas, como uma legenda, ficam de fora).
 - **Mapa de fundo**: o mapa do próprio AutoCAD (comando `GEOMAP`), na geolocalização que o Importar Ruas grava:
   **Satélite**, **Mapa** (ruas) ou **Satélite com ruas**. Precisa da conta Autodesk conectada no AutoCAD (canto de
-  cima) e de internet; o fornecedor do mapa (Bing ou Esri) depende da versão do AutoCAD.
+  cima) e de internet; o fornecedor do mapa (Bing ou Esri) depende da versão do AutoCAD. O mapa sai mesmo que a
+  área não tenha ruas no OpenStreetMap.
   - **Só na tela**: o mapa fica atrás do desenho, mas não sai na impressão. `GEOMAP` > `Off` desliga.
   - **Gravar no desenho (sai na impressão)**: grava a imagem da área (`GEOMAPIMAGE`) na layer `FIBRA_MAPA`, atrás
-    das ruas, e desliga o mapa ao vivo. Congele a layer para esconder; `GEOMAPIMAGEUPDATE` atualiza a imagem.
+    das ruas, e desliga o mapa ao vivo. Congele a layer para esconder; `GEOMAPIMAGEUPDATE` atualiza a imagem. O
+    AutoCAD só grava a imagem com a vista de cima no UCS Universal (`UCS` > `World`, `PLAN` > `World`); fora disso o
+    mapa fica só na tela, com aviso.
 - Tudo é cortado reto na borda da área.
 - **Georreferenciado**: as coordenadas do desenho são as UTM do projeto, e o DWG recebe a geolocalização do
   AutoCAD (`SIRGAS2000.UTM-<zona>`, ou `UTM84-<zona>` se a biblioteca do AutoCAD não tiver o SIRGAS), em metros.

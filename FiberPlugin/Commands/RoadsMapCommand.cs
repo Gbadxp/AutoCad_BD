@@ -2,6 +2,7 @@ using System.Text;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
 using FiberPlugin.Core;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
@@ -31,6 +32,15 @@ namespace FiberPlugin.Commands
                 _ => ("_Hybrid", "satélite com ruas")
             };
             var commands = new StringBuilder($"_.GEOMAP {keyword} ");
+            // O GEOMAPIMAGE só roda na vista de cima no UCS Universal; fora dela ele sai na hora e os cantos enviados
+            // virariam comandos desconhecidos
+            if (image && !WorldTopView(doc.Editor))
+            {
+                image = false;
+                doc.Editor.WriteMessage("\n[AVISO]: A imagem do mapa só pode ser gravada com a vista de cima no UCS Universal " +
+                                        "(comandos UCS > World e PLAN > World). O mapa fica só na tela; depois de acertar a " +
+                                        "vista, grave a imagem com GEOMAPIMAGE.");
+            }
             if (image)
             {
                 _before = MapImages(doc.Database);
@@ -89,6 +99,16 @@ namespace FiberPlugin.Commands
                             "sai na impressão. Congele a layer para esconder; GEOMAPIMAGEUPDATE atualiza a imagem.");
             ed.Regen();
             doc.SendStringToExecute("_.GEOMAP _Off ", true, false, false); // Fica só a imagem gravada
+        }
+
+        /// <summary>UCS Universal e vista de cima, sem giro: o único jeito em que o GEOMAPIMAGE aceita capturar.</summary>
+        private static bool WorldTopView(Editor ed)
+        {
+            if (!ed.CurrentUserCoordinateSystem.IsEqualTo(Matrix3d.Identity)) return false;
+            using (ViewTableRecord view = ed.GetCurrentView())
+            {
+                return view.ViewDirection.GetNormal().IsEqualTo(Vector3d.ZAxis) && Math.Abs(view.ViewTwist) < 1e-9;
+            }
         }
 
         private static HashSet<ObjectId> MapImages(Database db)

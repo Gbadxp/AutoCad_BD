@@ -13,7 +13,9 @@ namespace FiberPlugin.UI
     internal class RoadsForm : Form
     {
         private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos" };
-        private const int RowHeight = 34; // Linha "rótulo | opções": botão de 28 + margens
+        private const int RowHeight = 34;  // Linha "rótulo | opções": botão de 28 + margens
+        private const int LabelWidth = 110; // Coluna dos rótulos das opções
+        private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "só os nomes" sozinho
 
         private readonly UtmSettings? _projectZone;
         private readonly IReadOnlyList<DrawnRoad> _drawn;
@@ -25,6 +27,7 @@ namespace FiberPlugin.UI
         private readonly ChoiceBar _backgroundImage;
         private bool _existingTouched;      // O usuário já escolheu entre desenhar e só os nomes
         private bool _drawnInArea;          // A área digitada tem ruas do desenho
+        private bool _mostlyDrawn;          // E elas cobrem a maior parte dela
         private int _namesBeforeOnly = -1;  // Escolha de nomes antes de passar para "só os nomes"
         private readonly ChoiceBar _mode;
         private readonly ChoiceBar _kind;
@@ -258,16 +261,20 @@ namespace FiberPlugin.UI
             SouthHemisphere = _projectZone?.South ?? _hemisphere.SelectedIndex == 0,
             Style = Styles[_style.SelectedIndex],
             IncludePaths = _paths.SelectedIndex == 1,
-            IncludeNames = _names.SelectedIndex == 1,
-            NamesOnly = _existing.Enabled && _existing.SelectedIndex == 1,
+            // Em "só os nomes" a opção de nomes fica marcada à força: vale (e fica gravada) a escolha de antes
+            IncludeNames = NamesOnlyChosen ? _namesBeforeOnly == 1 : _names.SelectedIndex == 1,
+            NamesOnly = NamesOnlyChosen,
             Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)],
             BackgroundImage = _backgroundImage.SelectedIndex == 1
         };
 
+        /// <summary>"Só escrever os nomes" escolhido, numa área que tem ruas do desenho.</summary>
+        private bool NamesOnlyChosen => _drawnInArea && _existing.SelectedIndex == 1;
+
         /// <summary>"Só escrever os nomes": as ruas não são desenhadas, então o jeito de desenhar não vale e os nomes vão.</summary>
         private void ApplyNamesOnly()
         {
-            bool only = _existing.Enabled && _existing.SelectedIndex == 1;
+            bool only = NamesOnlyChosen;
             if (only && _namesBeforeOnly < 0)
             {
                 _namesBeforeOnly = _names.SelectedIndex;
@@ -283,31 +290,37 @@ namespace FiberPlugin.UI
         }
 
         /// <summary>
-        /// Ruas que já estão no desenho, na área digitada: com elas, a opção de escrever só os nomes (marcada sozinha na
-        /// primeira vez, se o usuário ainda não escolheu).
+        /// Ruas que já estão no desenho, na área digitada: com elas, a opção de escrever só os nomes. Enquanto o usuário não
+        /// escolhe, ela fica marcada sozinha quando as ruas do desenho cobrem a maior parte da área (com só um trecho num
+        /// canto, as ruas são desenhadas).
         /// </summary>
         private void UpdateDrawn()
         {
             _useDrawn.Enabled = _drawn.Count > 0;
             List<DrawnRoad> inside = Area == null ? new List<DrawnRoad>() : _drawn.Where(r => r.Touches(Area)).ToList();
             int inArea = inside.Count;
-            bool had = _drawnInArea;
+            bool mostly = Area != null && inArea > 0 && DrawnRoad.Coverage(inside, Area) >= MostlyDrawn;
+            bool hadMostly = _mostlyDrawn;
             _drawnInArea = inArea > 0;
+            _mostlyDrawn = mostly;
             _existing.Enabled = inArea > 0;
-            if (inArea > 0 && !had && !_existingTouched)
+            if (mostly != hadMostly && !_existingTouched)
             {
                 _loading = true;
-                _existing.SelectedIndex = 1;
+                _existing.SelectedIndex = mostly ? 1 : 0;
                 _loading = false;
             }
             ApplyNamesOnly();
 
             _existingHint.Text = _drawn.Count == 0
                 ? $"Nenhuma rua no desenho ainda (layer {_roadLayer} ou com nome de rua, como MEIO-FIO)."
-                : inArea > 0
-                    ? $"Já há {inArea} linha(s) de rua aqui ({Layers(inside)}). \"Só escrever os nomes\" não redesenha as " +
-                      "ruas e troca os nomes antigos."
-                    : $"O desenho tem {_drawn.Count} linha(s) de rua ({Layers(_drawn)}), fora desta área (\"Usar a área delas\" vai até elas).";
+                : inArea == 0
+                    ? $"O desenho tem {_drawn.Count} linha(s) de rua ({Layers(_drawn)}), fora desta área (\"Usar a área delas\" vai até elas)."
+                    : mostly
+                        ? $"Já há {inArea} linha(s) de rua aqui ({Layers(inside)}). \"Só escrever os nomes\" não redesenha as " +
+                          "ruas e troca os nomes antigos."
+                        : $"Há {inArea} linha(s) de rua só em parte desta área ({Layers(inside)}). Marque \"Só escrever os " +
+                          "nomes\" se as ruas daqui já estão desenhadas.";
         }
 
         /// <summary>"layer RUAS" ou "layers RUAS, MEIO-FIO".</summary>
@@ -327,12 +340,8 @@ namespace FiberPlugin.UI
                 _status.Set("Informe a zona UTM do desenho para usar a área das ruas.", StatusKind.Error);
                 return;
             }
-            Write(new RoadArea
-            {
-                MinX = _drawn.Min(r => r.MinX), MinY = _drawn.Min(r => r.MinY),
-                MaxX = _drawn.Max(r => r.MaxX), MaxY = _drawn.Max(r => r.MaxY),
-                Utm = zone
-            });
+            var (minX, minY, maxX, maxY) = DrawnRoad.Bounds(_drawn);
+            Write(new RoadArea { MinX = minX, MinY = minY, MaxX = maxX, MaxY = maxY, Utm = zone });
             UpdateStatus();
         }
 
@@ -350,7 +359,7 @@ namespace FiberPlugin.UI
             AutoSize = false,
             ForeColor = Theme.Muted,
             Font = Theme.Small,
-            Margin = new Padding(110, 0, 0, 0),
+            Margin = new Padding(LabelWidth, 0, 0, 0), // Alinhada com as opções, depois da coluna dos rótulos
             Padding = new Padding(4, 0, 0, 0)
         };
 
@@ -505,7 +514,7 @@ namespace FiberPlugin.UI
         private static TableLayoutPanel OptionGrid(params (string Label, Control Control)[] rows)
         {
             var grid = new TableLayoutPanel { ColumnCount = 2, Margin = Padding.Empty, BackColor = Theme.Background };
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LabelWidth));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (label, control) in rows)
             {

@@ -176,16 +176,17 @@ namespace FiberPlugin.Commands
                     List<StreetLabel> labels = StreetLabels.Place(named, height, NameSpacing * DrawingScale.Factor(db));
                     if (labels.Count > 0) EnsureLayer();
 
-                    // Só os nomes, de novo na mesma área: os nomes de rua que já estavam ali (os mesmos do OpenStreetMap, na
-                    // layer das ruas) saem, para não ficarem dois. Nome escrito à mão diferente do OSM fica.
+                    // Só os nomes, de novo na mesma área: os nomes de rua que já estavam ali (na layer das ruas) e que vão
+                    // ser escritos agora saem, para não ficarem dois. Os de rua que não ganha nome agora (trecho curto
+                    // demais nesta área) ficam, e nome escrito à mão diferente do OSM também.
                     if (namesOnly && labels.Count > 0)
                     {
-                        var osmNames = new HashSet<string>(named.Select(n => n.Label.Trim()), StringComparer.OrdinalIgnoreCase);
+                        var placed = new HashSet<string>(labels.Select(l => l.Text.Trim()), StringComparer.OrdinalIgnoreCase);
                         List<ObjectId> old = modelSpace.Cast<ObjectId>()
                             .Where(id => tr.GetObject(id, OpenMode.ForRead) is MText t &&
                                          t.Layer.Equals(layer, StringComparison.OrdinalIgnoreCase) &&
                                          t.Location.X >= minX && t.Location.X <= maxX && t.Location.Y >= minY && t.Location.Y <= maxY &&
-                                         osmNames.Contains(t.Text.Trim()))
+                                         placed.Contains(t.Text.Trim()))
                             .ToList();
                         lockedNames = CadHelpers.EraseUnlocked(tr, old);
                         replaced = old.Count - lockedNames;
@@ -210,26 +211,32 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
 
+            // Sem ruas (ou sem nomes) na área, o mapa de fundo pedido sai assim mesmo
+            bool nothing = namesOnly ? names == 0 : counts.Count == 0;
+            bool map = settings.Background != "Nenhum";
             if (namesOnly)
             {
                 if (names == 0)
                 {
                     ed.WriteMessage("\n[AVISO]: Nenhuma rua com nome nessa área no OpenStreetMap (ou os trechos são curtos demais para o texto).");
-                    return;
+                    if (!map) return;
                 }
-                ed.WriteMessage($"\n[SUCESSO]: {names} nome(s) de rua na layer {layer}, sem desenhar as ruas de novo" +
-                                (replaced > 0 ? $" ({replaced} nome(s) que já estavam ali foram trocados)." : ".") +
-                                " Os nomes seguem o eixo das ruas do OpenStreetMap.");
+                else
+                {
+                    ed.WriteMessage($"\n[SUCESSO]: {names} nome(s) de rua na layer {layer}, sem desenhar as ruas de novo" +
+                                    (replaced > 0 ? $" ({replaced} nome(s) que já estavam ali foram trocados)." : ".") +
+                                    " Os nomes seguem o eixo das ruas do OpenStreetMap.");
+                }
                 if (lockedNames > 0)
                     ed.WriteMessage($"\n[AVISO]: {lockedNames} nome(s) antigo(s) em layer travada ficaram: pode haver nomes repetidos.");
             }
+            else if (nothing)
+            {
+                ed.WriteMessage("\n[AVISO]: Nenhuma rua encontrada nessa área.");
+                if (!map) return;
+            }
             else
             {
-                if (counts.Count == 0)
-                {
-                    ed.WriteMessage("\n[AVISO]: Nenhuma rua encontrada nessa área.");
-                    return;
-                }
                 ed.WriteMessage($"\n[SUCESSO]: {roads.Count} via(s) do OpenStreetMap na layer {layer}: " +
                                 string.Join(", ", counts.OrderByDescending(c => c.Value).Select(c => $"{c.Value} {c.Key}")) +
                                 (includeNames ? $"; {names} nome(s) de rua" : "") + ".");
@@ -254,41 +261,90 @@ namespace FiberPlugin.Commands
             {
                 ed.WriteMessage($"\n[AVISO]: O AutoCAD não aceitou gravar a geolocalização; as ruas estão em UTM {utm.Zone}{(utm.South ? "S" : "N")} mesmo assim.");
             }
-            ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL)." + (namesOnly ? "" : " Largura das ruas aproximada."));
+            if (!nothing) ed.WriteMessage("\n[INFO]: Dados © colaboradores do OpenStreetMap (ODbL)." + (namesOnly ? "" : " Largura das ruas aproximada."));
 
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
 
             // Mapa de fundo do AutoCAD, depois do zoom (precisa da geolocalização gravada acima)
-            if (settings.Background != "Nenhum")
+            if (map)
             {
                 if (UtmZone.HasGeoLocation(db)) RoadsMapCommand.Show(doc, settings.Background, settings.BackgroundImage, minX, minY, maxX, maxY);
                 else ed.WriteMessage("\n[AVISO]: Sem a geolocalização do desenho o AutoCAD não mostra o mapa de fundo.");
             }
         }
 
-        /// <summary>Linhas de rua que já estão no desenho: na layer das ruas ou numa layer com nome de rua (desenhadas à mão).</summary>
+        /// <summary>
+        /// Linhas de rua que já estão no desenho: na layer das ruas ou numa layer com nome de rua (desenhadas à mão), soltas
+        /// no Model ou dentro de um XREF/bloco inserido nele (a base da prefeitura costuma vir assim: BASE|MEIO-FIO).
+        /// </summary>
         private static List<DrawnRoad> DrawnRoads(Transaction tr, BlockTableRecord modelSpace, string layer)
         {
             var drawn = new List<DrawnRoad>();
+            var inBlocks = new Dictionary<ObjectId, List<(string Layer, bool Closed, Extents3d Extents)>>(); // Por definição de bloco
             foreach (ObjectId id in modelSpace)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not Curve curve || !DrawnRoad.IsRoadLayer(curve.Layer, layer)) continue;
-                try
+                DBObject obj = tr.GetObject(id, OpenMode.ForRead);
+                if (obj is Curve curve)
                 {
-                    Extents3d e = curve.GeometricExtents;
-                    drawn.Add(new DrawnRoad
-                    {
-                        Layer = curve.Layer,
-                        MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y,
-                        Closed = curve.Closed
-                    });
+                    if (DrawnRoad.IsRoadLayer(curve.Layer, layer) && Extents(curve) is Extents3d e) drawn.Add(Road(curve.Layer, curve.Closed, e));
                 }
-                catch (Autodesk.AutoCAD.Runtime.Exception)
+                else if (obj is BlockReference br)
                 {
-                    // Linha sem extensão (vazia)
+                    if (!inBlocks.TryGetValue(br.BlockTableRecord, out var curves))
+                    {
+                        curves = RoadCurvesIn(tr, br.BlockTableRecord, layer);
+                        inBlocks[br.BlockTableRecord] = curves;
+                    }
+                    foreach (var (name, closed, local) in curves) drawn.Add(Road(name, closed, Transform(local, br.BlockTransform)));
                 }
             }
             return drawn;
+
+            static DrawnRoad Road(string name, bool closed, Extents3d e) => new DrawnRoad
+            {
+                Layer = name,
+                MinX = e.MinPoint.X, MinY = e.MinPoint.Y, MaxX = e.MaxPoint.X, MaxY = e.MaxPoint.Y,
+                Closed = closed
+            };
+        }
+
+        /// <summary>Linhas de rua soltas dentro da definição do bloco/XREF: layer, se é fechada e extensão nas coordenadas dele.</summary>
+        private static List<(string Layer, bool Closed, Extents3d Extents)> RoadCurvesIn(Transaction tr, ObjectId blockId, string layer)
+        {
+            var curves = new List<(string, bool, Extents3d)>();
+            var definition = (BlockTableRecord)tr.GetObject(blockId, OpenMode.ForRead);
+            if (definition.IsLayout) return curves;
+            foreach (ObjectId id in definition)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is Curve curve && DrawnRoad.IsRoadLayer(curve.Layer, layer) &&
+                    Extents(curve) is Extents3d e)
+                {
+                    curves.Add((curve.Layer, curve.Closed, e));
+                }
+            }
+            return curves;
+        }
+
+        private static Extents3d? Extents(Entity ent)
+        {
+            try
+            {
+                return ent.GeometricExtents;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null; // Linha sem extensão (vazia)
+            }
+        }
+
+        /// <summary>Retângulo (no mundo) que cobre a extensão local transformada pelo bloco.</summary>
+        private static Extents3d Transform(Extents3d local, Matrix3d transform)
+        {
+            Point3d a = local.MinPoint, b = local.MaxPoint;
+            Point3d[] corners = new[] { a, new Point3d(b.X, a.Y, 0), b, new Point3d(a.X, b.Y, 0) }.Select(c => c.TransformBy(transform)).ToArray();
+            var box = new Extents3d(corners[0], corners[0]);
+            foreach (Point3d corner in corners.Skip(1)) box.AddPoint(corner);
+            return box;
         }
 
         /// <summary>

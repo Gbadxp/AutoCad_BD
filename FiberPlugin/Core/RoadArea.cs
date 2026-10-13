@@ -44,6 +44,46 @@ namespace FiberPlugin.Core
             MinX <= maxX && MaxX >= minX && MinY <= maxY && MaxY >= minY;
 
         public bool Touches(RoadArea area) => Touches(area.MinX, area.MinY, area.MaxX, area.MaxY);
+
+        /// <summary>
+        /// Quanto da área (0 a 1) fica dentro do retângulo que cobre as linhas que estão nela: perto de 1, as ruas da área
+        /// já estão desenhadas; pequeno, há só um trecho (ou uma linha solta) num canto.
+        /// </summary>
+        public static double Coverage(IEnumerable<DrawnRoad> roads, RoadArea area)
+        {
+            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+            foreach (DrawnRoad r in roads.Where(r => r.Touches(area)))
+            {
+                minX = Math.Min(minX, Math.Max(r.MinX, area.MinX));
+                minY = Math.Min(minY, Math.Max(r.MinY, area.MinY));
+                maxX = Math.Max(maxX, Math.Min(r.MaxX, area.MaxX));
+                maxY = Math.Max(maxY, Math.Min(r.MaxY, area.MaxY));
+            }
+            if (maxX < minX || maxY < minY || area.Width <= 0 || area.Height <= 0) return 0;
+            return (maxX - minX) * (maxY - minY) / (area.Width * area.Height);
+        }
+
+        /// <summary>
+        /// Retângulo das linhas do desenho, sem as que ficam muito longe do grupo (centro a mais de 5 vezes a distância
+        /// típica do centro mediano, e a mais de 500 m): uma legenda ou linha solta longe das ruas não estica a área.
+        /// </summary>
+        public static (double MinX, double MinY, double MaxX, double MaxY) Bounds(IReadOnlyCollection<DrawnRoad> roads)
+        {
+            static double Median(IEnumerable<double> values)
+            {
+                List<double> sorted = values.OrderBy(v => v).ToList();
+                return sorted[sorted.Count / 2];
+            }
+            double cx = Median(roads.Select(r => (r.MinX + r.MaxX) / 2)), cy = Median(roads.Select(r => (r.MinY + r.MaxY) / 2));
+            double Distance(DrawnRoad r)
+            {
+                double dx = (r.MinX + r.MaxX) / 2 - cx, dy = (r.MinY + r.MaxY) / 2 - cy;
+                return Math.Sqrt(dx * dx + dy * dy);
+            }
+            double reach = Math.Max(500, 5 * Median(roads.Select(Distance)));
+            List<DrawnRoad> kept = roads.Where(r => Distance(r) <= reach).ToList();
+            return (kept.Min(r => r.MinX), kept.Min(r => r.MinY), kept.Max(r => r.MaxX), kept.Max(r => r.MaxY));
+        }
     }
 
     /// <summary>
