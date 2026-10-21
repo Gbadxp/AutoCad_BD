@@ -12,7 +12,13 @@ namespace FiberPlugin.Core
         public string Where { get; set; } = "";      // Poste, caixa ou vão
         public Point3d Point { get; set; }
         public string Message { get; set; } = "";
-        public string Rule { get; set; } = "";       // Item da NDU 009
+        public string Rule { get; set; } = "";       // Item da NDU 009 (ou a origem da regra, fora da NDU)
+
+        /// <summary>Regra da NDU 009; false = de outra fonte (ex.: o vão para o qual o cabo é feito).</summary>
+        public bool FromNorm { get; set; } = true;
+
+        /// <summary>Referência para as mensagens: "NDU 009, 16.3 i" ou só a origem, quando não é da NDU.</summary>
+        public string Reference => FromNorm ? $"NDU 009, {Rule}" : Rule;
     }
 
     /// <summary>
@@ -192,6 +198,31 @@ namespace FiberPlugin.Core
                             Rule = "Tabela 02"
                         });
                     }
+                    // Vão maior que o vão para o qual o cabo é feito (ASU-80: 80 m; ASU-120: 120 m)
+                    if (run.Model.RatedSpanM is double rated && span > rated + 0.5)
+                    {
+                        issues.Add(new NormIssue
+                        {
+                            Severity = NormIssue.Error,
+                            Where = where,
+                            Point = mid,
+                            Message = $"Vão maior que o do cabo: o {run.Name} é para vãos de até {rated:F0} m (troque o cabo ou ponha um poste no meio)",
+                            Rule = "vão do cabo, pelo fabricante",
+                            FromNorm = false
+                        });
+                    }
+                    // Além do fim da Tabela 08 a tração é estendida na mesma proporção, sem valor da norma
+                    if (project.Traction.TableMaxSpan is double tableMax && span > tableMax + 0.5)
+                    {
+                        issues.Add(new NormIssue
+                        {
+                            Severity = NormIssue.Warning,
+                            Where = where,
+                            Point = mid,
+                            Message = $"Vão acima dos {tableMax:F0} m em que a Tabela 08 termina: a tração foi estendida na mesma proporção (confira com o fabricante)",
+                            Rule = "Tabela 08"
+                        });
+                    }
                     if (span > LongSpanM)
                     {
                         issues.Add(new NormIssue
@@ -249,9 +280,16 @@ namespace FiberPlugin.Core
             }
 
             // 7. Setas de esforço: só em fim de rede e deflexão acima de 10°, com resultante não nula (Anexo B 2.2.18, item 16.3 h)
+            // Ponta ou ângulo de cabo sem poste: a seta (e o esforço comparado com o nominal) é do poste, que falta inserir
             AddArrowIssues(issues,
-                project.Efforts.Where(e => e.NeedsArrow && !e.HasArrow).Select(e => (Where(e), e.Point, $"{e.Situation} sem a seta de esforço")).ToList(),
-                $"ponto(s) de fim de rede ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° sem a seta de esforço",
+                project.Efforts.Where(e => e.NeedsArrow && e.Pole == null)
+                    .Select(e => (Where(e), e.Point, $"{e.Situation} do cabo sem poste ({e.Kgf:F2} kgf no cabo)")).ToList(),
+                "ponta(s) ou ângulo(s) de cabo sem poste",
+                "insira o poste e rode o Esforço no Percurso", "insira os postes e rode o Esforço no Percurso", "Anexo B 2.2.18",
+                NormIssue.Error);
+            AddArrowIssues(issues,
+                project.Efforts.Where(e => e.NeedsArrow && !e.HasArrow && e.Pole != null).Select(e => (Where(e), e.Point, $"{e.Situation} sem a seta de esforço")).ToList(),
+                $"ponto(s) de fim de rede, derivação ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° sem a seta de esforço",
                 "rode o Esforço no Percurso", "rode o Esforço no Percurso", "Anexo B 2.2.18");
             AddArrowIssues(issues,
                 project.Efforts.Where(e => e.ArrowOutdated)
@@ -278,14 +316,14 @@ namespace FiberPlugin.Core
         /// seta em todos os postes), um só para o projeto com os primeiros postes, já que um Esforço no Percurso resolve todos.
         /// </summary>
         private static void AddArrowIssues(List<NormIssue> issues, List<(string Where, Point3d Point, string Message)> items,
-            string summary, string itemAction, string summaryAction, string rule)
+            string summary, string itemAction, string summaryAction, string rule, string severity = NormIssue.Warning)
         {
             if (items.Count > MaxArrowIssues)
             {
                 string first = string.Join(", ", items.Select(i => i.Where).Distinct().Take(MaxArrowIssues));
                 issues.Add(new NormIssue
                 {
-                    Severity = NormIssue.Warning,
+                    Severity = severity,
                     Where = "Projeto",
                     Message = $"{items.Count} {summary} ({first} e outros): {summaryAction}",
                     Rule = rule
@@ -294,7 +332,7 @@ namespace FiberPlugin.Core
             }
             foreach (var (where, point, message) in items)
             {
-                issues.Add(new NormIssue { Severity = NormIssue.Warning, Where = where, Point = point, Message = $"{message}: {itemAction}", Rule = rule });
+                issues.Add(new NormIssue { Severity = severity, Where = where, Point = point, Message = $"{message}: {itemAction}", Rule = rule });
             }
         }
 

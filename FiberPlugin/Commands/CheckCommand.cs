@@ -54,7 +54,7 @@ namespace FiberPlugin.Commands
             int k = 1;
             foreach (NormIssue issue in issues)
             {
-                ed.WriteMessage($"\n{(issue.Point != Point3d.Origin ? k++ + "." : "-")} [{issue.Severity}] {issue.Where}: {issue.Message} (NDU 009, {issue.Rule})");
+                ed.WriteMessage($"\n{(issue.Point != Point3d.Origin ? k++ + "." : "-")} [{issue.Severity}] {issue.Where}: {issue.Message} ({issue.Reference})");
             }
 
             if (issues.Count == 0) ed.WriteMessage("\n[SUCESSO]: Nenhuma não conformidade encontrada.");

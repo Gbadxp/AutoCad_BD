@@ -100,7 +100,9 @@ namespace FiberPlugin.Commands
                     if (load.NeedsReplacement) replace++;
 
                     string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({stop.Point.X:F1}; {stop.Point.Y:F1})";
-                    string arrow = result.NeedsArrow ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
+                    string arrow = !result.NeedsArrow ? result.WithoutArrowReason!
+                        : pole == null ? "sem seta: marcado \"SEM POSTE\" no desenho (insira o poste)"
+                        : $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°";
                     string? status = load.Text(pole);
                     ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf no cabo | {arrow}" +
                                     (status != null ? " | " + status : ""));
@@ -109,13 +111,14 @@ namespace FiberPlugin.Commands
                 tr.Commit();
 
                 ed.WriteMessage($"\n[SUCESSO]: {markers.Placed + markers.Skipped} ponto(s) calculado(s): {markers.Placed} com seta " +
-                                $"(fim de rede ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} sem seta, " +
+                                $"(fim de rede, derivação ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} sem seta, " +
                                 "que a NDU 009 dispensa (Anexo B 2.2.18 e item 16.3 h).");
                 if (markers.Cleared > 0)
                     ed.WriteMessage($"\n[INFO]: {markers.Cleared} seta(s) de cálculo anterior apagada(s) de pontos que não precisam dela.");
                 if (withoutPole > 0)
                     ed.WriteMessage($"\n[AVISO]: {withoutPole} ponto(s) em que o cabo termina ou faz ângulo sem poste a até {FiberSettings.PoleLinkRadius:F0} m: " +
-                                    "insira o poste para o cálculo levar a altura e o nominal.");
+                                    $"a seta é do poste, então ali ficou o aviso \"SEM POSTE\" (layer {EffortMarkers.NoPoleLayer}, não imprime). " +
+                                    "Insira o poste e rode de novo.");
                 if (exceeded > 0)
                     ed.WriteMessage($"\n[ATENÇÃO]: {exceeded} poste(s) com esforço ACIMA do nominal.");
                 if (replace > 0)

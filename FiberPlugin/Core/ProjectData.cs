@@ -15,10 +15,10 @@ namespace FiberPlugin.Core
         public PoleInfo? Pole { get; set; }
         public double Kgf { get; set; }                // Resultante dos cabos na altura de fixação
         public double AngleDeg { get; set; }           // Direção da resultante (anti-horário a partir do leste)
-        public string Situation { get; set; } = "";    // Fim de rede, Ângulo (x°), Passagem
+        public string Situation { get; set; } = "";    // Fim de rede, Derivação, Ângulo (x°), Passagem
         public int CableCount { get; set; }
 
-        /// <summary>A NDU 009 pede a seta aqui: fim de rede ou deflexão acima de 10°, com resultante não nula.</summary>
+        /// <summary>A NDU 009 pede a seta aqui: fim de rede, derivação ou deflexão acima de 10°, com resultante não nula.</summary>
         public bool NeedsArrow { get; set; }
 
         /// <summary>A seta está no desenho.</summary>
@@ -149,6 +149,7 @@ namespace FiberPlugin.Core
                     EffortMarkerData? marker = XDataTags.ReadEffortMarker(ent);
                     if (marker != null)
                     {
+                        if (marker.NoPole) continue; // Aviso "SEM POSTE" no lugar da seta: não é seta
                         var (point, pole) = EffortMarkers.Locate(ent, marker, data.PoleList, polesByHandle);
                         if (!seenPoints.Add(Key(point))) continue;
 

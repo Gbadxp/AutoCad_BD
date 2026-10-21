@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.60.msi`](Instalador/FiberPlugin-1.9.60.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.61.msi`](Instalador/FiberPlugin-1.9.61.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -169,7 +169,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
-| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha seta e aviso. |
+| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Na **derivação** (um cabo termina no poste e outro passa) também vai seta. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha o aviso **SEM POSTE** (não imprime) no lugar da seta. |
 | Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
 | Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
 
@@ -479,8 +479,11 @@ O botão **Verificar Projeto** lista na linha de comando (e na aba *Verificaçã
 | Aviso | CTO/CEO em poste com deflexão de 45° ou mais (confira se é esquina) | 17.5 c |
 | Erro | Cabos que somam mais de 1.680 kg/km ou 65 mm num ponto de fixação | 8 i |
 | Erro | Vão em que, com flecha de 1%, o cabo fica abaixo da altura mínima ao solo | Tabela 02 |
+| Erro | Vão maior que o vão para o qual o cabo é feito (ASU-80: 80 m, ASU-120: 120 m, pelo nome do cabo) | vão do cabo, pelo fabricante (fora da NDU) |
+| Aviso | Vão acima de 120 m, onde a Tabela 08 termina (a tração é estendida na mesma proporção) | Tabela 08 |
 | Aviso | Vão acima de 60 m (considerar vento e temperatura) | 16.3 i |
-| Aviso | Fim de rede ou ângulo acima de 10° sem a seta de esforço | Anexo B 2.2.18 |
+| Erro | Ponta ou ângulo de cabo sem poste (a seta é do poste: inserir o poste) | Anexo B 2.2.18 |
+| Aviso | Fim de rede, derivação ou ângulo acima de 10° sem a seta de esforço | Anexo B 2.2.18 |
 | Aviso | Seta com valor diferente do cálculo atual (cabo mudou depois dela, ou seta do modo Cabo) | 16.3 h |
 | Aviso | Seta em poste de passagem, que a norma dispensa (sobra de cálculo anterior) | Anexo B 2.2.18 |
 
@@ -509,14 +512,25 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 - **Limite do item 14.2 d**: o esforço do projeto no poste (o valor da seta, a 20 cm do topo, convertido de kgf para
   daN) acima de 50 daN em
   poste de até 300 daN, ou de 100 daN em poste de 600 daN ou mais, exige a substituição do poste.
-- **Onde vai a seta** (Anexo B, 2.2.18): a representação do esforço é obrigatória em todo poste de **fim de rede**
-  (aqui também o poste onde um dos cabos termina, que é ancoragem, como numa derivação) e em todo poste com
-  **deflexão acima de 10°**; onde o esforço resultante é nulo ela é dispensada (item 16.3 h). Nos demais postes
+- **Onde vai a seta** (Anexo B, 2.2.18): a representação do esforço é obrigatória em todo poste de **fim de rede**,
+  de **derivação** (um cabo termina no poste enquanto outro passa, ou os cabos que terminam saem para lados
+  diferentes: é ancoragem, igual ao fim de rede) e em todo poste com **deflexão acima de 10°**; onde o esforço
+  resultante é nulo ela é dispensada (item 16.3 h). Na derivação o esforço soma todos os cabos do poste: os que
+  passam entram com os dois vãos e o que deriva com um só. O relatório, o memorial e a linha de comando mostram a
+  situação de cada poste: Fim de rede, Derivação, Ângulo (x°) ou Passagem.
+- **Ponta ou ângulo de cabo sem poste** (a até 10 m): pela norma a seta é do poste, então ali não vai seta, e sim o
+  aviso **SEM POSTE: insira o poste** (círculo vermelho na layer `FIBRA_ESFORCO_SEM_POSTE`, que não imprime). No
+  relatório e no memorial o ponto aparece como "Sem poste", e o Verificar Projeto dá erro até o poste ser inserido.
+  Depois de inserir o poste, o Esforço no Percurso troca o aviso pela seta.
+- **Texto da seta sem encostar em outros textos**: se o valor ou o ângulo da seta cair em cima do texto do poste, do
+  vão ou de outra seta (ou do desenho de um poste ou caixa), os dois textos passam para o outro lado da seta ou
+  vão mais para a ponta, no primeiro lugar livre. Nos demais postes
   não vai seta, mas o esforço continua calculado e aparece no memorial, no relatório e no KML (item 13: esforço em
   cada poste). A seta mostra o esforço do projeto a 20 cm do topo (`KGF`) e o ângulo da resultante (`ANG.`,
   anti-horário a partir do leste); a ponta dá o sentido.
 - **Não considera** vento, variação de temperatura nem desnível entre postes (a Verificação avisa os vãos
-  acima de 60 m). Para um laudo formal, confirme com a concessionária.
+  acima de 60 m). Vãos acima de 120 m (fim da Tabela 08) e vãos maiores que o do cabo (ASU-80: 80 m) são avisados
+  também nos comandos de esforço. Para um laudo formal, confirme com a concessionária.
 
 ## Identificação dos elementos
 Cabos, postes (inclusive esforço existente e ID Energisa), CTO/CEO e setas de esforço guardam seus dados em XData (aplicação `FIBRA_PLUGIN`), então

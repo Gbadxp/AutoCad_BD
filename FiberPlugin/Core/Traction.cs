@@ -21,6 +21,16 @@ namespace FiberPlugin.Core
         /// <summary>Cabos calculados pelo peso no modo tabela, por não terem o número de fibras.</summary>
         public HashSet<string> WithoutFibers { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Último vão da Tabela 08 (120 m na norma); null fora do modo tabela.</summary>
+        public double? TableMaxSpan => UsesTable ? _spans.Max() : (double?)null;
+
+        /// <summary>Maior vão calculado além do fim da Tabela 08 (tração estendida na mesma proporção); 0 se nenhum.</summary>
+        public double LongestBeyondTable { get; private set; }
+
+        /// <summary>Cabos em vão maior que o vão para o qual são feitos (ASU-80: 80 m), com o maior vão de cada um.</summary>
+        public Dictionary<string, (double Span, double Rated)> OverRatedSpan { get; } =
+            new Dictionary<string, (double, double)>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Parâmetros do desenho e tabela de tração do plugin. Problemas com a tabela vão para o Editor.</summary>
         public static Traction Load(Autodesk.AutoCAD.DatabaseServices.Database db, Editor? ed = null)
         {
@@ -49,14 +59,32 @@ namespace FiberPlugin.Core
 
         public void WriteWarnings(Editor ed)
         {
-            if (WithoutFibers.Count == 0) return;
-            ed.WriteMessage($"\n[AVISO]: Sem o número de fibras, calculados pelo peso: {string.Join(", ", WithoutFibers)}. " +
-                            "Preencha a coluna Fibras em Configurações > Cabos.");
+            if (WithoutFibers.Count > 0)
+            {
+                ed.WriteMessage($"\n[AVISO]: Sem o número de fibras, calculados pelo peso: {string.Join(", ", WithoutFibers)}. " +
+                                "Preencha a coluna Fibras em Configurações > Cabos.");
+            }
+            if (OverRatedSpan.Count > 0)
+            {
+                ed.WriteMessage("\n[ATENÇÃO]: Vão maior que o do cabo: " +
+                                string.Join("; ", OverRatedSpan.Select(o => $"{o.Key} em vão de até {o.Value.Span:F1} m (o cabo é para {o.Value.Rated:F0} m)")) +
+                                ". Troque o cabo ou ponha um poste no meio do vão.");
+            }
+            if (LongestBeyondTable > 0 && TableMaxSpan is double max)
+            {
+                ed.WriteMessage($"\n[AVISO]: Vão de até {LongestBeyondTable:F1} m, acima dos {max:F0} m em que a Tabela 08 termina: a tração foi " +
+                                "estendida na mesma proporção. Confira com o fabricante do cabo.");
+            }
         }
 
         /// <summary>Tração do vão de <paramref name="span"/> metros para o cabo, em kgf.</summary>
         public double Tension(CableModel cable, double span)
         {
+            if (cable.RatedSpanM is double rated && span > rated + 0.5)
+            {
+                double worst = OverRatedSpan.TryGetValue(cable.ShortName, out var known) ? Math.Max(known.Span, span) : span;
+                OverRatedSpan[cable.ShortName] = (worst, rated);
+            }
             if (Settings.UseNormTable && _rows.Count > 0)
             {
                 if (cable.Fibers is int fibers) return FromTable(fibers, span);
@@ -88,7 +116,11 @@ namespace FiberPlugin.Core
             double[] t = Row(fibers).Values;
             int last = _spans.Length - 1;
             if (span <= _spans[0]) return t[0] * span / _spans[0];
-            if (span >= _spans[last]) return t[last] * span / _spans[last];
+            if (span >= _spans[last])
+            {
+                if (span > _spans[last] + 0.5) LongestBeyondTable = Math.Max(LongestBeyondTable, span);
+                return t[last] * span / _spans[last];
+            }
 
             int i = 1;
             while (_spans[i] < span) i++;

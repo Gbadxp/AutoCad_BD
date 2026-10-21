@@ -56,13 +56,15 @@ namespace FiberPlugin.Commands
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
                     PoleLoad load = markers.Place(points[i], result, pole);
                     string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
-                    string arrow = result.NeedsArrow ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°" : result.WithoutArrowReason!;
+                    string arrow = !result.NeedsArrow ? result.WithoutArrowReason!
+                        : pole == null ? "sem poste no clique: marcado \"SEM POSTE\" no desenho (insira o poste)"
+                        : $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°";
                     string? status = load.Text(pole);
                     ed.WriteMessage($"\n{label} | {result.Situation} | {result.Kgf:F2} kgf | {arrow}" + (status != null ? " | " + status : ""));
                 }
 
                 tr.Commit();
-                ed.WriteMessage($"\n[INFO]: Esforço calculado em {points.Count} postes: {markers.Placed} com seta (fim de rede ou ângulo acima de " +
+                ed.WriteMessage($"\n[INFO]: Esforço calculado em {points.Count} postes: {markers.Placed} com seta (fim de rede, derivação ou ângulo acima de " +
                                 $"{EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} em alinhamento, sem seta (NDU 009, Anexo B 2.2.18).");
                 traction.WriteWarnings(ed);
             }

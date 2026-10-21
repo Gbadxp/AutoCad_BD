@@ -61,9 +61,10 @@ namespace FiberPlugin.Commands
                     PoleLoad load = markers.Place(polePoint, result, pole);
                     tr.Commit();
 
-                    string arrow = result.NeedsArrow
-                        ? $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°"
-                        : result.WithoutArrowReason + (markers.Cleared > 0 ? " (a seta anterior foi apagada)" : "") + ": a NDU 009 dispensa (Anexo B 2.2.18)";
+                    string arrow = !result.NeedsArrow
+                        ? result.WithoutArrowReason + (markers.Cleared > 0 ? " (a seta anterior foi apagada)" : "") + ": a NDU 009 dispensa (Anexo B 2.2.18)"
+                        : pole == null ? "sem poste no clique: marcado \"SEM POSTE\" no desenho (insira o poste)"
+                        : $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°";
                     ed.WriteMessage($"\n[SUCESSO]: {(pole != null ? "Poste " + pole.Number : "Ponto sem poste")} | {result.Situation} | " +
                                     $"{result.Kgf:F2} kgf no cabo ({result.CableCount} cabo(s)) | {arrow}.");
 

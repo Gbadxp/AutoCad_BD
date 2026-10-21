@@ -70,9 +70,13 @@ namespace FiberPlugin.Commands
             {
                 if (data.Cables.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum cabo lançado no desenho.");
                 if (data.Efforts.Count == 0) ed.WriteMessage("\n[AVISO]: Nenhum poste com cabo no desenho: o memorial sai sem a tabela de esforços.");
-                int missing = project.Efforts.Count(e => e.NeedsArrow && !e.HasArrow);
+                int withoutPole = project.Efforts.Count(e => e.NeedsArrow && e.Pole == null);
+                if (withoutPole > 0)
+                    ed.WriteMessage($"\n[AVISO]: {withoutPole} ponta(s) ou ângulo(s) de cabo sem poste: insira o poste (no memorial " +
+                                    "eles aparecem como \"Sem poste\").");
+                int missing = project.Efforts.Count(e => e.NeedsArrow && !e.HasArrow && e.Pole != null);
                 if (missing > 0)
-                    ed.WriteMessage($"\n[AVISO]: {missing} poste(s) de fim de rede ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° ainda sem a seta " +
+                    ed.WriteMessage($"\n[AVISO]: {missing} poste(s) de fim de rede, derivação ou com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° ainda sem a seta " +
                                     "de esforço no desenho: rode o Esforço no Percurso (o memorial já traz o cálculo deles).");
             }
 

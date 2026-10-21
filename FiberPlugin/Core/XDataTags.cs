@@ -108,7 +108,8 @@ namespace FiberPlugin.Core
                 new TypedValue((int)DxfCode.ExtendedDataXCoordinate, data.Point),
                 Real(data.Kgf), Real(data.AngleDeg), Text(data.Situation), Text(data.PoleHandle), Int(data.CableCount),
                 Real(data.TopKgf ?? -1),
-                new TypedValue((int)DxfCode.ExtendedDataWorldXCoordinate, data.Point));
+                new TypedValue((int)DxfCode.ExtendedDataWorldXCoordinate, data.Point),
+                Int(data.NoPole ? 1 : 0)); // Aviso de ponto sem poste no lugar da seta (desde a 1.9.61)
 
         /// <summary>Dados completos da seta de esforço. Null em setas de versões antigas (só com o ponto).</summary>
         public static EffortMarkerData? ReadEffortMarker(Entity ent)
@@ -126,7 +127,8 @@ namespace FiberPlugin.Core
                 PoleHandle = d[4].Value as string ?? "",
                 CableCount = cables,
                 TopKgf = d.Length > 6 && d[6].Value is double top && top >= 0 ? top : (double?)null,
-                Current = CurrentEffortPoint(ent, d)
+                Current = CurrentEffortPoint(ent, d),
+                NoPole = d.Length > 8 && d[8].Value is int noPole && noPole == 1
             };
         }
 

@@ -10,7 +10,7 @@ namespace FiberPlugin.Core
         public Point3d Point { get; set; }           // De onde sai a seta (centro do poste vinculado)
         public double Kgf { get; set; }
         public double AngleDeg { get; set; }
-        public string Situation { get; set; } = ""; // Fim de rede, Ângulo (x°), Passagem
+        public string Situation { get; set; } = ""; // Fim de rede, Derivação, Ângulo (x°), Passagem
         public string PoleHandle { get; set; } = ""; // Handle do bloco do poste vinculado ("" = sem poste)
         public int CableCount { get; set; }
 
@@ -22,10 +22,16 @@ namespace FiberPlugin.Core
         /// cálculo. Null se não dá para saber (seta desenhada sem bloco por versões anteriores à 1.9.53).
         /// </summary>
         public Point3d? Current { get; set; }
+
+        /// <summary>
+        /// Aviso de ponta ou ângulo de cabo sem poste (no lugar da seta, que pela norma é do poste): não conta como seta no
+        /// relatório e sai ao recalcular, como as setas.
+        /// </summary>
+        public bool NoPole { get; set; }
     }
 
     /// <summary>
-    /// Coloca a seta de esforço num poste, só onde a NDU 009 pede (fim de rede e deflexão acima de 10°, com resultante
+    /// Coloca a seta de esforço num poste, só onde a NDU 009 pede (fim de rede, derivação e deflexão acima de 10°, com resultante
     /// não nula; veja EffortResult.NeedsArrow). Antes, apaga a seta anterior do mesmo poste: recalcular não duplica setas
     /// e tira as que ficaram em poste de passagem.
     /// </summary>
@@ -45,6 +51,8 @@ namespace FiberPlugin.Core
         private readonly double _attachHeight;
         // Setas já desenhadas: ponto de onde saem e handle do poste a que pertencem ("" = sem poste ou versão antiga)
         private readonly List<(ObjectId Id, Point3d Pole, string PoleHandle)> _existing = new List<(ObjectId, Point3d, string)>();
+        // Textos e desenho dos postes/caixas do espaço, em que os textos da seta não podem encostar
+        private readonly List<Extents3d> _obstacles = new List<Extents3d>();
 
         /// <summary>Setas colocadas.</summary>
         public int Placed { get; private set; }
@@ -54,6 +62,12 @@ namespace FiberPlugin.Core
 
         /// <summary>Desses, os que tinham seta de um cálculo anterior, apagada agora.</summary>
         public int Cleared { get; private set; }
+
+        /// <summary>Pontas e ângulos de cabo sem poste, marcados com o aviso "SEM POSTE" no lugar da seta.</summary>
+        public int WithoutPole { get; private set; }
+
+        /// <summary>Layer do aviso "SEM POSTE" (vermelha, não imprime).</summary>
+        public const string NoPoleLayer = "FIBRA_ESFORCO_SEM_POSTE";
 
         /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para desenhar a seta e os textos).</param>
         /// <param name="poles">Postes do espaço (null = levantados aqui), para saber de que poste é cada seta já desenhada.</param>
@@ -82,6 +96,11 @@ namespace FiberPlugin.Core
                 else if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
                 {
                     _existing.Add((id, pole, ""));
+                }
+                else if (ent is MText || ent is DBText ||
+                         ent is BlockReference symbol && (XDataTags.ReadPole(symbol) != null || XDataTags.ReadBox(symbol) != null))
+                {
+                    if (Extents(ent) is Extents3d box) _obstacles.Add(box);
                 }
                 else if (ent is BlockReference br &&
                          CadHelpers.GetBlockName(tr, br).Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
@@ -161,38 +180,59 @@ namespace FiberPlugin.Core
             }
             RemoveAt(pole, handle);
 
-            // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
-            // 20 cm do topo (NDU 009, item 16.3 h); sem o poste, o da altura do cabo.
             double angle = result.AngleRad;
-            string effortText = load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
-            string angleText = "ANG. " + NormalizeDegrees(angle).ToString("F0", CultureInfo.InvariantCulture) + "°";
-
-            var created = new List<Entity>();
-
-            if (!_arrowBlockId.IsNull)
-            {
-                // Bloco "SETA DE ESFORÇO" do desenho ou da biblioteca
-                created.Add(CadHelpers.InsertBlock(_tr, _space, _arrowBlockId, pole, angle, FiberSettings.EffortLayer, tag =>
-                    EffortTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? effortText
-                    : AngleTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? angleText
-                    : null, _scale));
-            }
-            else
-            {
-                created.AddRange(DrawArrow(pole, angle, effortText, angleText));
-            }
-            Placed++;
-
             var data = new EffortMarkerData
             {
                 Point = pole,
                 Kgf = result.Kgf,
                 AngleDeg = NormalizeDegrees(angle),
                 Situation = result.Situation,
-                PoleHandle = linkedPole?.Id.Handle.ToString() ?? "",
+                PoleHandle = handle,
                 CableCount = result.CableCount,
-                TopKgf = load.TopKgf
+                TopKgf = load.TopKgf,
+                NoPole = linkedPole == null
             };
+
+            var created = new List<Entity>();
+            if (linkedPole == null)
+            {
+                // Pela norma a seta é do poste: aqui, sem poste, fica o aviso para inserir o poste (não imprime)
+                created.AddRange(DrawNoPoleWarning(pole, result, load));
+                WithoutPole++;
+            }
+            else
+            {
+                // Mesmo formato do modelo de projeto: "24.98 KGF" / "ANG. 12°". O valor é o transferido a
+                // 20 cm do topo (NDU 009, item 16.3 h).
+                string effortText = load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture) + " KGF";
+                string angleText = "ANG. " + NormalizeDegrees(angle).ToString("F0", CultureInfo.InvariantCulture) + "°";
+                List<Entity> texts;
+                if (!_arrowBlockId.IsNull)
+                {
+                    // Bloco "SETA DE ESFORÇO" do desenho ou da biblioteca; os textos são os atributos dele
+                    BlockReference arrow = CadHelpers.InsertBlock(_tr, _space, _arrowBlockId, pole, angle, FiberSettings.EffortLayer, tag =>
+                        EffortTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? effortText
+                        : AngleTags.Contains(tag, StringComparer.OrdinalIgnoreCase) ? angleText
+                        : null, _scale);
+                    created.Add(arrow);
+                    texts = arrow.AttributeCollection.Cast<ObjectId>()
+                        .Select(id => (AttributeReference)_tr.GetObject(id, OpenMode.ForWrite))
+                        .Where(a => EffortTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase) ||
+                                    AngleTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase))
+                        .Cast<Entity>().ToList();
+                }
+                else
+                {
+                    created.AddRange(DrawArrow(pole, angle, effortText, angleText));
+                    texts = created.OfType<MText>().Cast<Entity>().ToList();
+                }
+                AvoidOverlap(texts, pole, angle);
+                foreach (Entity text in texts)
+                {
+                    if (Extents(text) is Extents3d box) _obstacles.Add(box); // A próxima seta também desvia destes textos
+                }
+                Placed++;
+            }
 
             foreach (Entity ent in created)
             {
@@ -201,6 +241,97 @@ namespace FiberPlugin.Core
             }
             return load;
         }
+
+        /// <summary>
+        /// Aviso no lugar da seta, onde o cabo termina ou faz ângulo sem poste: círculo vermelho e "SEM POSTE: insira o
+        /// poste", numa layer que não imprime. Sai ao recalcular depois de inserir o poste.
+        /// </summary>
+        private IEnumerable<Entity> DrawNoPoleWarning(Point3d at, EffortResult result, PoleLoad load)
+        {
+            CadHelpers.EnsureNonPlottingLayer(_tr, _db, NoPoleLayer, 1);
+            double radius = 2.5 * _scale, height = FiberSettings.TextHeight * _scale;
+            yield return CadHelpers.Append(_tr, _space, new Circle(at, Vector3d.ZAxis, radius) { Layer = NoPoleLayer });
+            string detail = $"{result.Situation}, {load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture)} kgf no cabo";
+            yield return CadHelpers.AddText(_tr, _space, at + new Vector3d(radius + height * 0.5, radius, 0),
+                CadHelpers.MTextLiteral("SEM POSTE: insira o poste") + "\\P" + CadHelpers.MTextLiteral(detail),
+                0, AttachmentPoint.TopLeft, NoPoleLayer, height);
+        }
+
+        /// <summary>
+        /// Textos da seta (esforço e ângulo) que encostam em outro texto (do poste, do vão, de outra seta) ou no desenho de
+        /// um poste/caixa: tenta, nesta ordem, passar os dois para o outro lado da seta, levá-los mais para a ponta e os dois
+        /// juntos. Ficam no primeiro lugar livre; sem nenhum, ficam onde estavam.
+        /// </summary>
+        private void AvoidOverlap(List<Entity> texts, Point3d pole, double angle)
+        {
+            var items = new List<(Entity Text, Extents3d Box)>();
+            foreach (Entity text in texts)
+            {
+                if (Extents(text) is Extents3d box) items.Add((text, box));
+            }
+            if (items.Count == 0) return;
+
+            double length = FiberSettings.EffortArrowLength * _scale;
+            double reach = 2 * (FiberSettings.EffortArrowGap * _scale + length);
+            List<Extents3d> near = _obstacles.Where(o => Distance(o, pole) <= reach).ToList();
+            if (near.Count == 0) return;
+
+            var along = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
+            var across = new Vector3d(-along.Y, along.X, 0);
+            // Outro lado da seta: o centro do texto espelhado na linha da seta (o texto continua de pé)
+            Vector3d Flip(Extents3d box) => across * (-2 * (Center(box) - pole).DotProduct(across));
+            var moves = new List<Func<Extents3d, Vector3d>>
+            {
+                b => new Vector3d(0, 0, 0),
+                b => Flip(b),
+                b => along * (0.35 * length),
+                b => Flip(b) + along * (0.35 * length),
+                b => along * (0.7 * length),
+                b => Flip(b) + along * (0.7 * length)
+            };
+            foreach (Func<Extents3d, Vector3d> move in moves)
+            {
+                bool free = items.All(item =>
+                {
+                    Vector3d v = move(item.Box);
+                    var moved = new Extents3d(item.Box.MinPoint + v, item.Box.MaxPoint + v);
+                    return !near.Any(o => Overlaps(o, moved));
+                });
+                if (!free) continue;
+                foreach (var (text, box) in items)
+                {
+                    Vector3d v = move(box);
+                    if (v.Length > 1e-9) text.TransformBy(Matrix3d.Displacement(v));
+                }
+                return;
+            }
+        }
+
+        private static Extents3d? Extents(Entity ent)
+        {
+            try
+            {
+                return ent.GeometricExtents;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null; // Texto vazio
+            }
+        }
+
+        private static Point3d Center(Extents3d e) =>
+            new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2, (e.MinPoint.Y + e.MaxPoint.Y) / 2, 0);
+
+        /// <summary>Distância do ponto ao retângulo (zero dentro dele).</summary>
+        private static double Distance(Extents3d e, Point3d p)
+        {
+            double dx = Math.Max(0, Math.Max(e.MinPoint.X - p.X, p.X - e.MaxPoint.X));
+            double dy = Math.Max(0, Math.Max(e.MinPoint.Y - p.Y, p.Y - e.MaxPoint.Y));
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        private static bool Overlaps(Extents3d a, Extents3d b) =>
+            a.MinPoint.X < b.MaxPoint.X && a.MaxPoint.X > b.MinPoint.X && a.MinPoint.Y < b.MaxPoint.Y && a.MaxPoint.Y > b.MinPoint.Y;
 
         /// <summary>
         /// Seta saindo do poste no sentido da resultante, com o esforço acima e o ângulo abaixo,

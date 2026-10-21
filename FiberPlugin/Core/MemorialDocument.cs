@@ -26,7 +26,7 @@ namespace FiberPlugin.Core
         public string Pole { get; set; } = "";
         public string Structure { get; set; } = "";
         public string Situation { get; set; } = "";
-        public bool Arrow { get; set; }                  // Leva seta no desenho (fim de rede ou ângulo acima de 10°)
+        public bool Arrow { get; set; }                  // Leva seta no desenho (fim de rede, derivação ou ângulo acima de 10°)
         public double CableKgf { get; set; }
         public double AngleDeg { get; set; }
         public double? TopKgf { get; set; }
@@ -425,7 +425,7 @@ namespace FiberPlugin.Core
                   {Row("Transferência", "Esforço referido a 20 cm do topo: Ft = F × hc / h, sendo h = L − e (altura útil) e e = L/10 + 0,60 m (engastamento), conforme Anexo A")}
                   {Row("Esforço existente", "Somado ao do projeto na comparação com o nominal do poste (item 8.1)")}
                   {Row("Limite do projeto", "50 daN no poste de até 300 daN e 100 daN no de 600 daN ou mais; acima disso, substituição do poste (item 14.2 d)")}
-                  {Row("Setas no desenho", $"Nos postes de fim de rede e com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h), com o esforço a 20 cm do topo (kgf) e o ângulo da resultante")}
+                  {Row("Setas no desenho", $"Nos postes de fim de rede, de derivação e com ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°, com resultante não nula (Anexo B 2.2.18 e item 16.3 h), com o esforço a 20 cm do topo (kgf) e o ângulo da resultante")}
                   {Row("Coordenadas", d.CoordinateSystem)}
                 </dl></div>
                 <h3>{number}.2 Dados mecânicos dos cabos</h3>
@@ -464,7 +464,7 @@ namespace FiberPlugin.Core
                 yield return $"""
                     <h3 class="page-title">{title}</h3>
                     <p class="muted fig-desc">Esforço do projeto em todos os postes ocupados, em kgf, transferido a 20 cm do topo; direção
-                    pelo ângulo da resultante (anti-horário a partir do leste). A seta vai no desenho só nos postes de fim de rede e com
+                    pelo ângulo da resultante (anti-horário a partir do leste). A seta vai no desenho só nos postes de fim de rede, de derivação e com
                     ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}° (NDU 009, Anexo B 2.2.18), com o valor da coluna Topo;
                     nos de passagem a norma dispensa a seta (—).</p>
                     <table class="small">

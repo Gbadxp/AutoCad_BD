@@ -45,9 +45,37 @@ namespace FiberPlugin.Core
         /// <summary>Deflexão acima da qual a seta é obrigatória com cabo óptico (NDU 009, Anexo B, 2.2.18).</summary>
         public const double ArrowDeflectionDeg = 10;
 
-        /// <summary>Situação do poste no percurso: "Fim de rede", "Ângulo (35°)" ou "Passagem".</summary>
+        /// <summary>Direções (radianos) dos cabos que terminam no poste, para separar fim de rede de derivação.</summary>
+        private readonly List<double> _endDirections = new List<double>();
+
+        /// <summary>
+        /// Derivação (ou emenda): um cabo termina no poste enquanto outro passa por ele, ou os cabos que terminam saem para
+        /// lados diferentes. Para o esforço é ancoragem igual ao fim de rede (leva seta); só o nome muda.
+        /// </summary>
+        public bool IsBranch => EndCount > 0 && (PassCount > 0 || EndSpreadDeg > ArrowDeflectionDeg);
+
+        /// <summary>Maior diferença de direção entre os cabos que terminam no poste (0 a 180°).</summary>
+        private double EndSpreadDeg
+        {
+            get
+            {
+                double spread = 0;
+                for (int i = 0; i < _endDirections.Count; i++)
+                {
+                    for (int j = i + 1; j < _endDirections.Count; j++)
+                    {
+                        double d = Math.Abs(_endDirections[i] - _endDirections[j]) % (2 * Math.PI);
+                        spread = Math.Max(spread, Math.Min(d, 2 * Math.PI - d) * 180.0 / Math.PI);
+                    }
+                }
+                return spread;
+            }
+        }
+
+        /// <summary>Situação do poste no percurso: "Fim de rede", "Derivação", "Ângulo (35°)" ou "Passagem".</summary>
         public string Situation =>
-            EndCount > 0 ? "Fim de rede"
+            IsBranch ? "Derivação"
+            : EndCount > 0 ? "Fim de rede"
             : MaxDeflectionDeg >= AngleThresholdDeg ? $"Ângulo ({MaxDeflectionDeg:F0}°)"
             : "Passagem";
 
@@ -62,7 +90,7 @@ namespace FiberPlugin.Core
         public string? WithoutArrowReason =>
             NeedsArrow ? null
             : Kgf <= NullKgf ? "resultante nula, sem seta"
-            : $"deflexão de {MaxDeflectionDeg:F0}°, sem seta (só acima de {ArrowDeflectionDeg:F0}° ou em fim de rede)";
+            : $"deflexão de {MaxDeflectionDeg:F0}°, sem seta (só acima de {ArrowDeflectionDeg:F0}° ou em fim de rede e derivação)";
 
         /// <summary>Registra a geometria do cabo no poste: ponta de rede ou passagem com deflexão.</summary>
         internal void AddGeometry(Point3d at, Point3d? previous, Point3d? next)
@@ -70,6 +98,8 @@ namespace FiberPlugin.Core
             if (previous == null || next == null)
             {
                 EndCount++;
+                if ((previous ?? next) is Point3d other && other.DistanceTo(at) > 1e-9)
+                    _endDirections.Add(Math.Atan2(other.Y - at.Y, other.X - at.X));
                 return;
             }
 

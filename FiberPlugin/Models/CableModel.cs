@@ -35,6 +35,18 @@ namespace FiberPlugin.Models
             return m.Success && int.TryParse(m.Groups[1].Value, out int n) && n > 0 ? n : (int?)null;
         }
 
+        /// <summary>
+        /// Vão para o qual o cabo autossustentado é feito, em m, pelo nome ("ASU-80 06F.O" → 80, "CFOA-SM-AS-120-S-12 FO" →
+        /// 120). Null se o nome não disser.
+        /// </summary>
+        public double? RatedSpanM => RatedSpanFromName(ShortName) ?? RatedSpanFromName(FullName);
+
+        public static double? RatedSpanFromName(string name)
+        {
+            Match m = Regex.Match(name, @"\bASU?-?(\d{2,3})\b", RegexOptions.IgnoreCase);
+            return m.Success && int.TryParse(m.Groups[1].Value, out int span) && span >= 20 ? span : (double?)null;
+        }
+
         public override string ToString()
         {
             return FullName; // Para exibir no ComboBox do formulário

@@ -113,18 +113,21 @@ namespace FiberPlugin.Commands
 
             sheet.Header("Esforços", "Quantidade");
             sheet.Row("Pontos de esforço calculados", effortPoints.Count);
-            sheet.Row($"Com seta (fim de rede ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°)", effortPoints.Count(e => e.NeedsArrow));
+            sheet.Row($"Com seta (fim de rede, derivação ou ângulo acima de {EffortResult.ArrowDeflectionDeg:F0}°)", effortPoints.Count(e => e.NeedsArrow));
             sheet.Row("Sem seta (passagem, a NDU 009 dispensa)", effortPoints.Count(e => !e.NeedsArrow));
-            sheet.Row("Setas faltando no desenho", effortPoints.Count(e => e.NeedsArrow && !e.HasArrow));
+            sheet.Row("Setas faltando no desenho", effortPoints.Count(e => e.NeedsArrow && !e.HasArrow && e.Pole != null));
             sheet.Row("Postes com esforço acima do nominal", effortPoints.Count(e => e.Load.Exceeded));
             sheet.Row("Postes acima do limite do item 14.2 d (substituir)", effortPoints.Count(e => e.Load.NeedsReplacement));
-            sheet.Row("Pontos de esforço sem poste vinculado", effortPoints.Count(e => e.Pole == null));
+            sheet.Row("Pontas ou ângulos de cabo sem poste (inserir o poste)", effortPoints.Count(e => e.Pole == null));
             if (legacyMarkers > 0) sheet.Row("Setas antigas sem dados (recalcule)", legacyMarkers);
         }
 
-        /// <summary>Seta do ponto no desenho: "Sim", "Falta", "Desatualizada" ou "Dispensada" (NDU 009, Anexo B 2.2.18).</summary>
+        /// <summary>
+        /// Seta do ponto no desenho: "Sim", "Falta", "Desatualizada", "Dispensada" (NDU 009, Anexo B 2.2.18) ou "Sem poste"
+        /// (ponta ou ângulo de cabo sem poste: a seta é do poste, então falta inserir o poste).
+        /// </summary>
         private static string ArrowText(EffortPoint e) =>
-            !e.NeedsArrow ? "Dispensada" : !e.HasArrow ? "Falta" : e.ArrowOutdated ? "Desatualizada" : "Sim";
+            !e.NeedsArrow ? "Dispensada" : e.Pole == null ? "Sem poste" : !e.HasArrow ? "Falta" : e.ArrowOutdated ? "Desatualizada" : "Sim";
 
         private static void WritePoles(XlsxWriter workbook, List<PoleInfo> poles, List<EffortPoint> effortPoints, UtmSettings? utm)
         {
@@ -281,11 +284,11 @@ namespace FiberPlugin.Commands
                 return;
             }
 
-            sheet.Header("Tipo", "Onde", "Descrição", "Item da NDU", "Coordenada E", "Coordenada N");
+            sheet.Header("Tipo", "Onde", "Descrição", "Referência", "Coordenada E", "Coordenada N");
             foreach (NormIssue i in issues)
             {
                 bool located = i.Point != Autodesk.AutoCAD.Geometry.Point3d.Origin;
-                sheet.Row(i.Severity, i.Where, i.Message, i.Rule,
+                sheet.Row(i.Severity, i.Where, i.Message, i.Reference,
                     located ? Math.Round(i.Point.X, 2) : (double?)null,
                     located ? Math.Round(i.Point.Y, 2) : (double?)null);
             }
