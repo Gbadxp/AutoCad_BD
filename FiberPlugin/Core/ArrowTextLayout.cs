@@ -35,17 +35,18 @@ namespace FiberPlugin.Core
 
     /// <summary>
     /// Lugar dos textos da seta de esforço (valor e ângulo) que não encosta em outros textos nem no desenho de postes e
-    /// caixas. Tenta, do menor deslocamento para o maior: os textos onde estão, trocados de lado, os dois empilhados do
-    /// mesmo lado da seta (em cima ou embaixo), um pouco mais afastados da seta e mais para a ponta dela.
+    /// caixas. Tenta, do menor deslocamento para o maior: os textos onde estão, os dois empilhados do mesmo lado da seta
+    /// (em cima ou embaixo), um pouco mais afastados da seta e mais para a ponta dela; sempre com o valor em cima do
+    /// ângulo ("24.98 KGF" / "ANG. 12°"). Trocar os dois de lado inverte essa ordem, então só vale sem outro lugar.
     /// </summary>
     public static class ArrowTextLayout
     {
         /// <summary>Mesma arrumação com obstáculos retos (alinhados aos eixos).</summary>
         public static List<(double X, double Y)>? Arrange(IList<TextBounds> texts, IList<TextBounds> obstacles, double poleX, double poleY,
-            double angle, double length, double textHeight) =>
-            Arrange(texts, obstacles.Select(Corners).ToList(), poleX, poleY, angle, length, textHeight);
+            double angle, double length, double textHeight, int upSide = 1) =>
+            Arrange(texts, obstacles.Select(Corners).ToList(), poleX, poleY, angle, length, textHeight, upSide);
 
-        /// <param name="texts">Textos da seta, na ordem em que vão empilhados (o valor primeiro).</param>
+        /// <param name="texts">Textos da seta de cima para baixo, como devem ficar (o valor primeiro).</param>
         /// <param name="obstacles">
         /// Textos e desenhos em que eles não podem encostar, pelos quatro cantos (um texto inclinado é um retângulo
         /// inclinado: a caixa reta em volta dele é bem maior que ele).
@@ -53,9 +54,13 @@ namespace FiberPlugin.Core
         /// <param name="angle">Direção da seta (radianos).</param>
         /// <param name="length">Comprimento da seta.</param>
         /// <param name="textHeight">Altura do texto da seta (passo dos afastamentos).</param>
+        /// <param name="upSide">
+        /// Lado da seta que fica para cima na leitura dos textos: 1 = o lado esquerdo de quem olha na direção da seta,
+        /// -1 = o direito (seta apontando para a esquerda, com os textos girados para não ficar de cabeça para baixo).
+        /// </param>
         /// <returns>Deslocamento de cada texto (zeros se já está livre); null se não há lugar livre.</returns>
         public static List<(double X, double Y)>? Arrange(IList<TextBounds> texts, IList<IReadOnlyList<(double X, double Y)>> obstacles,
-            double poleX, double poleY, double angle, double length, double textHeight)
+            double poleX, double poleY, double angle, double length, double textHeight, int upSide = 1)
         {
             int n = texts.Count;
             var none = Enumerable.Repeat((0.0, 0.0), n).ToList();
@@ -70,39 +75,42 @@ namespace FiberPlugin.Core
             double clear = Math.Max(textHeight * 0.25, Enumerable.Range(0, n).Min(i => Math.Abs(offset[i]) - half[i]));
             double gap = textHeight * 0.3;
 
-            // Afastamentos de destino de cada arrumação
-            var layouts = new List<double[]> { offset, offset.Select(o => -o).ToArray() };
+            // Afastamentos de destino de cada arrumação, com a penalidade dela (trocar de lado inverte valor e ângulo)
+            var layouts = new List<(double[] Target, double Penalty)> { (offset, 0), (offset.Select(o => -o).ToArray(), 1000 * textHeight) };
             foreach (int side in new[] { 1, -1 })
             {
+                // Empilhados do mesmo lado, a partir da seta: para cima, o de baixo vai primeiro (perto da seta) e o valor
+                // fica em cima; para baixo, o valor vai primeiro, logo abaixo da seta
                 var stacked = new double[n];
                 double edge = clear;
-                for (int i = 0; i < n; i++)
+                IEnumerable<int> outward = side == upSide ? Enumerable.Range(0, n).Reverse() : Enumerable.Range(0, n);
+                foreach (int i in outward)
                 {
                     stacked[i] = side * (edge + half[i]);
                     edge += 2 * half[i] + gap;
                 }
-                layouts.Add(stacked);
+                layouts.Add((stacked, 0));
             }
 
-            var candidates = new List<List<(double X, double Y)>>();
-            foreach (double[] target in layouts)
+            var candidates = new List<(List<(double X, double Y)> Moves, double Penalty)>();
+            foreach (var (target, penalty) in layouts)
             {
                 foreach (double push in new[] { 0, 1.0, 2.0 })
                 {
                     foreach (double slide in new[] { 0, 0.35, 0.7 })
                     {
-                        candidates.Add(Enumerable.Range(0, n).Select(i =>
+                        candidates.Add((Enumerable.Range(0, n).Select(i =>
                         {
                             double across = target[i] - offset[i] + Math.Sign(target[i]) * push * textHeight;
                             double along = slide * length;
                             return (across * cx + along * ax, across * cy + along * ay);
-                        }).ToList());
+                        }).ToList(), penalty));
                     }
                 }
             }
 
             // Do menor deslocamento para o maior: o primeiro sem encostar em nada
-            foreach (var moves in candidates.OrderBy(m => m.Sum(v => Math.Sqrt(v.X * v.X + v.Y * v.Y))))
+            foreach (var moves in candidates.OrderBy(c => c.Penalty + c.Moves.Sum(v => Math.Sqrt(v.X * v.X + v.Y * v.Y))).Select(c => c.Moves))
             {
                 bool free = true;
                 for (int i = 0; i < n && free; i++)

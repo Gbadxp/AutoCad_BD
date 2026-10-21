@@ -220,6 +220,7 @@ namespace FiberPlugin.Core
                         .Select(id => (AttributeReference)_tr.GetObject(id, OpenMode.ForWrite))
                         .Where(a => EffortTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase) ||
                                     AngleTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase))
+                        .OrderBy(a => EffortTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase) ? 0 : 1) // Valor em cima
                         .Cast<Entity>().ToList();
                 }
                 else
@@ -288,8 +289,12 @@ namespace FiberPlugin.Core
                 .ToList();
             if (near.Count == 0) return;
 
+            // Lado da seta que fica para cima na leitura do texto (seta para a esquerda: os textos são girados para não
+            // ficar de cabeça para baixo, e o "em cima" deles é o lado direito da seta)
+            double rotation = items[0].Text is MText m ? m.Rotation : items[0].Text is DBText t ? t.Rotation : angle;
+            int upSide = Math.Cos(rotation - angle) >= 0 ? 1 : -1;
             List<(double X, double Y)>? moves = ArrowTextLayout.Arrange(items.Select(i => i.Box).ToList(), near, 0, 0, 0, length,
-                FiberSettings.TextHeight * _scale);
+                FiberSettings.TextHeight * _scale, upSide);
             if (moves == null) return; // Sem lugar livre: os textos ficam onde estavam
             Vector3d along = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0), across = new Vector3d(-Math.Sin(angle), Math.Cos(angle), 0);
             for (int i = 0; i < items.Count; i++)
