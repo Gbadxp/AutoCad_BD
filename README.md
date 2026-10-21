@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.61.msi`](Instalador/FiberPlugin-1.9.61.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.62.msi`](Instalador/FiberPlugin-1.9.62.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -517,17 +517,18 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
   diferentes: é ancoragem, igual ao fim de rede) e em todo poste com **deflexão acima de 10°**; onde o esforço
   resultante é nulo ela é dispensada (item 16.3 h). Na derivação o esforço soma todos os cabos do poste: os que
   passam entram com os dois vãos e o que deriva com um só. O relatório, o memorial e a linha de comando mostram a
-  situação de cada poste: Fim de rede, Derivação, Ângulo (x°) ou Passagem.
+  situação de cada poste: Fim de rede, Derivação, Ângulo (x°) ou Passagem. Nos demais postes não vai seta, mas o
+  esforço continua calculado e aparece no memorial, no relatório e no KML (item 13: esforço em cada poste). A seta
+  mostra o esforço do projeto a 20 cm do topo (`KGF`) e o ângulo da resultante (`ANG.`, anti-horário a partir do
+  leste); a ponta dá o sentido.
 - **Ponta ou ângulo de cabo sem poste** (a até 10 m): pela norma a seta é do poste, então ali não vai seta, e sim o
   aviso **SEM POSTE: insira o poste** (círculo vermelho na layer `FIBRA_ESFORCO_SEM_POSTE`, que não imprime). No
   relatório e no memorial o ponto aparece como "Sem poste", e o Verificar Projeto dá erro até o poste ser inserido.
   Depois de inserir o poste, o Esforço no Percurso troca o aviso pela seta.
 - **Texto da seta sem encostar em outros textos**: se o valor ou o ângulo da seta cair em cima do texto do poste, do
-  vão ou de outra seta (ou do desenho de um poste ou caixa), os dois textos passam para o outro lado da seta ou
-  vão mais para a ponta, no primeiro lugar livre. Nos demais postes
-  não vai seta, mas o esforço continua calculado e aparece no memorial, no relatório e no KML (item 13: esforço em
-  cada poste). A seta mostra o esforço do projeto a 20 cm do topo (`KGF`) e o ângulo da resultante (`ANG.`,
-  anti-horário a partir do leste); a ponta dá o sentido.
+  vão ou de outra seta (ou do desenho de um poste ou caixa), os dois textos vão para o lugar livre mais perto: trocados
+  de lado, os dois do mesmo lado da seta (um embaixo do outro), um pouco mais afastados ou mais para a ponta. Sem
+  lugar livre, ficam onde estavam.
 - **Não considera** vento, variação de temperatura nem desnível entre postes (a Verificação avisa os vãos
   acima de 60 m). Vãos acima de 120 m (fim da Tabela 08) e vãos maiores que o do cabo (ASU-80: 80 m) são avisados
   também nos comandos de esforço. Para um laudo formal, confirme com a concessionária.

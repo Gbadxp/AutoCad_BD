@@ -259,53 +259,34 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Textos da seta (esforço e ângulo) que encostam em outro texto (do poste, do vão, de outra seta) ou no desenho de
-        /// um poste/caixa: tenta, nesta ordem, passar os dois para o outro lado da seta, levá-los mais para a ponta e os dois
-        /// juntos. Ficam no primeiro lugar livre; sem nenhum, ficam onde estavam.
+        /// um poste/caixa vão para o lugar livre mais perto (veja ArrowTextLayout: trocados de lado, os dois do mesmo lado,
+        /// mais afastados ou mais para a ponta). Sem nenhum lugar livre, ficam onde estavam.
         /// </summary>
         private void AvoidOverlap(List<Entity> texts, Point3d pole, double angle)
         {
-            var items = new List<(Entity Text, Extents3d Box)>();
+            var items = new List<(Entity Text, TextBounds Box)>();
             foreach (Entity text in texts)
             {
-                if (Extents(text) is Extents3d box) items.Add((text, box));
+                if (Extents(text) is Extents3d e) items.Add((text, Box(e)));
             }
             if (items.Count == 0) return;
 
             double length = FiberSettings.EffortArrowLength * _scale;
             double reach = 2 * (FiberSettings.EffortArrowGap * _scale + length);
-            List<Extents3d> near = _obstacles.Where(o => Distance(o, pole) <= reach).ToList();
+            List<TextBounds> near = _obstacles.Select(Box).Where(o => o.DistanceTo(pole.X, pole.Y) <= reach).ToList();
             if (near.Count == 0) return;
 
-            var along = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
-            var across = new Vector3d(-along.Y, along.X, 0);
-            // Outro lado da seta: o centro do texto espelhado na linha da seta (o texto continua de pé)
-            Vector3d Flip(Extents3d box) => across * (-2 * (Center(box) - pole).DotProduct(across));
-            var moves = new List<Func<Extents3d, Vector3d>>
+            List<(double X, double Y)>? moves = ArrowTextLayout.Arrange(items.Select(i => i.Box).ToList(), near, pole.X, pole.Y,
+                angle, length, FiberSettings.TextHeight * _scale);
+            if (moves == null) return; // Sem lugar livre: os textos ficam onde estavam
+            for (int i = 0; i < items.Count; i++)
             {
-                b => new Vector3d(0, 0, 0),
-                b => Flip(b),
-                b => along * (0.35 * length),
-                b => Flip(b) + along * (0.35 * length),
-                b => along * (0.7 * length),
-                b => Flip(b) + along * (0.7 * length)
-            };
-            foreach (Func<Extents3d, Vector3d> move in moves)
-            {
-                bool free = items.All(item =>
-                {
-                    Vector3d v = move(item.Box);
-                    var moved = new Extents3d(item.Box.MinPoint + v, item.Box.MaxPoint + v);
-                    return !near.Any(o => Overlaps(o, moved));
-                });
-                if (!free) continue;
-                foreach (var (text, box) in items)
-                {
-                    Vector3d v = move(box);
-                    if (v.Length > 1e-9) text.TransformBy(Matrix3d.Displacement(v));
-                }
-                return;
+                var v = new Vector3d(moves[i].X, moves[i].Y, 0);
+                if (v.Length > 1e-9) items[i].Text.TransformBy(Matrix3d.Displacement(v));
             }
         }
+
+        private static TextBounds Box(Extents3d e) => new TextBounds(e.MinPoint.X, e.MinPoint.Y, e.MaxPoint.X, e.MaxPoint.Y);
 
         private static Extents3d? Extents(Entity ent)
         {
@@ -318,20 +299,6 @@ namespace FiberPlugin.Core
                 return null; // Texto vazio
             }
         }
-
-        private static Point3d Center(Extents3d e) =>
-            new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2, (e.MinPoint.Y + e.MaxPoint.Y) / 2, 0);
-
-        /// <summary>Distância do ponto ao retângulo (zero dentro dele).</summary>
-        private static double Distance(Extents3d e, Point3d p)
-        {
-            double dx = Math.Max(0, Math.Max(e.MinPoint.X - p.X, p.X - e.MaxPoint.X));
-            double dy = Math.Max(0, Math.Max(e.MinPoint.Y - p.Y, p.Y - e.MaxPoint.Y));
-            return Math.Sqrt(dx * dx + dy * dy);
-        }
-
-        private static bool Overlaps(Extents3d a, Extents3d b) =>
-            a.MinPoint.X < b.MaxPoint.X && a.MaxPoint.X > b.MinPoint.X && a.MinPoint.Y < b.MaxPoint.Y && a.MaxPoint.Y > b.MinPoint.Y;
 
         /// <summary>
         /// Seta saindo do poste no sentido da resultante, com o esforço acima e o ângulo abaixo,
