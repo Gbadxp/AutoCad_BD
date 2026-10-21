@@ -52,7 +52,8 @@ namespace FiberPlugin.Core
         // Setas já desenhadas: ponto de onde saem e handle do poste a que pertencem ("" = sem poste ou versão antiga)
         private readonly List<(ObjectId Id, Point3d Pole, string PoleHandle)> _existing = new List<(ObjectId, Point3d, string)>();
         // Textos e desenho dos postes/caixas do espaço, em que os textos da seta não podem encostar
-        private readonly List<Extents3d> _obstacles = new List<Extents3d>();
+        // (quatro cantos: texto inclinado é um retângulo inclinado)
+        private readonly List<Point3d[]> _obstacles = new List<Point3d[]>();
 
         /// <summary>Setas colocadas.</summary>
         public int Placed { get; private set; }
@@ -100,7 +101,7 @@ namespace FiberPlugin.Core
                 else if (ent is MText || ent is DBText ||
                          ent is BlockReference symbol && (XDataTags.ReadPole(symbol) != null || XDataTags.ReadBox(symbol) != null))
                 {
-                    if (Extents(ent) is Extents3d box) _obstacles.Add(box);
+                    if (Corners(ent) is Point3d[] corners) _obstacles.Add(corners);
                 }
                 else if (ent is BlockReference br &&
                          CadHelpers.GetBlockName(tr, br).Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
@@ -229,7 +230,7 @@ namespace FiberPlugin.Core
                 AvoidOverlap(texts, pole, angle);
                 foreach (Entity text in texts)
                 {
-                    if (Extents(text) is Extents3d box) _obstacles.Add(box); // A próxima seta também desvia destes textos
+                    if (Corners(text) is Point3d[] corners) _obstacles.Add(corners); // A próxima seta também desvia destes textos
                 }
                 Placed++;
             }
@@ -264,29 +265,97 @@ namespace FiberPlugin.Core
         /// </summary>
         private void AvoidOverlap(List<Entity> texts, Point3d pole, double angle)
         {
+            // A conta é feita na direção da seta (eixo X ao longo dela): os textos da seta, inclinados junto com ela, ficam
+            // com o tamanho real; a caixa reta em volta de um texto inclinado é bem maior que ele e empurrava os textos
+            // para longe sem precisar
+            Matrix3d toLocal = Matrix3d.Rotation(-angle, Vector3d.ZAxis, pole);
             var items = new List<(Entity Text, TextBounds Box)>();
             foreach (Entity text in texts)
             {
-                if (Extents(text) is Extents3d e) items.Add((text, Box(e)));
+                if (AlignedExtents(text, toLocal) is Extents3d e) items.Add((text, Local(e, pole)));
             }
             if (items.Count == 0) return;
 
             double length = FiberSettings.EffortArrowLength * _scale;
             double reach = 2 * (FiberSettings.EffortArrowGap * _scale + length);
-            List<TextBounds> near = _obstacles.Select(Box).Where(o => o.DistanceTo(pole.X, pole.Y) <= reach).ToList();
+            List<IReadOnlyList<(double X, double Y)>> near = _obstacles
+                .Where(o => o.Min(p => p.DistanceTo(pole)) <= reach + Math.Max(o[0].DistanceTo(o[2]), o[1].DistanceTo(o[3])))
+                .Select(o => (IReadOnlyList<(double X, double Y)>)o.Select(p =>
+                {
+                    Point3d local = p.TransformBy(toLocal);
+                    return (local.X - pole.X, local.Y - pole.Y);
+                }).ToList())
+                .ToList();
             if (near.Count == 0) return;
 
-            List<(double X, double Y)>? moves = ArrowTextLayout.Arrange(items.Select(i => i.Box).ToList(), near, pole.X, pole.Y,
-                angle, length, FiberSettings.TextHeight * _scale);
+            List<(double X, double Y)>? moves = ArrowTextLayout.Arrange(items.Select(i => i.Box).ToList(), near, 0, 0, 0, length,
+                FiberSettings.TextHeight * _scale);
             if (moves == null) return; // Sem lugar livre: os textos ficam onde estavam
+            Vector3d along = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0), across = new Vector3d(-Math.Sin(angle), Math.Cos(angle), 0);
             for (int i = 0; i < items.Count; i++)
             {
-                var v = new Vector3d(moves[i].X, moves[i].Y, 0);
+                Vector3d v = along * moves[i].X + across * moves[i].Y;
                 if (v.Length > 1e-9) items[i].Text.TransformBy(Matrix3d.Displacement(v));
             }
         }
 
-        private static TextBounds Box(Extents3d e) => new TextBounds(e.MinPoint.X, e.MinPoint.Y, e.MaxPoint.X, e.MaxPoint.Y);
+        /// <summary>
+        /// Extensão do texto girado para a direção da seta (o tamanho real dele, sem a sobra da caixa reta de um texto
+        /// inclinado), pela cópia girada; sem ela, a caixa reta girada (maior, mas certa). Null se o texto não tem extensão.
+        /// </summary>
+        private static Extents3d? AlignedExtents(Entity text, Matrix3d toLocal)
+        {
+            try
+            {
+                using (Entity aligned = text.GetTransformedCopy(toLocal))
+                {
+                    if (Extents(aligned) is Extents3d e) return e;
+                }
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                // Cópia que o AutoCAD não mede fora do desenho: vale a caixa reta
+            }
+            if (Extents(text) is not Extents3d world) return null;
+            Point3d a = world.MinPoint, b = world.MaxPoint;
+            Point3d[] corners = new[] { a, new Point3d(b.X, a.Y, 0), b, new Point3d(a.X, b.Y, 0) }.Select(c => c.TransformBy(toLocal)).ToArray();
+            return new Extents3d(new Point3d(corners.Min(c => c.X), corners.Min(c => c.Y), 0), new Point3d(corners.Max(c => c.X), corners.Max(c => c.Y), 0));
+        }
+
+        /// <summary>Caixa já na direção da seta (extensão girada em volta do poste), com o poste na origem.</summary>
+        private static TextBounds Local(Extents3d aligned, Point3d pole) =>
+            new TextBounds(aligned.MinPoint.X - pole.X, aligned.MinPoint.Y - pole.Y, aligned.MaxPoint.X - pole.X, aligned.MaxPoint.Y - pole.Y);
+
+        /// <summary>
+        /// Os quatro cantos do texto (o retângulo inclinado junto com ele) ou, nos outros desenhos, da caixa reta em volta.
+        /// Null se não tem extensão.
+        /// </summary>
+        private static Point3d[]? Corners(Entity ent)
+        {
+            double rotation = ent is MText mtext ? mtext.Rotation : ent is DBText text ? text.Rotation : 0;
+            if (Math.Abs(rotation) > 1e-9)
+            {
+                // Texto girado de volta para a horizontal: a extensão dele é o retângulo do texto, que gira de novo
+                Matrix3d flat = Matrix3d.Rotation(-rotation, Vector3d.ZAxis, Point3d.Origin);
+                try
+                {
+                    using (Entity copy = ent.GetTransformedCopy(flat))
+                    {
+                        if (Extents(copy) is Extents3d e) return RectangleCorners(e).Select(p => p.TransformBy(flat.Inverse())).ToArray();
+                    }
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Cópia que o AutoCAD não mede fora do desenho: vale a caixa reta
+                }
+            }
+            return Extents(ent) is Extents3d box ? RectangleCorners(box) : null;
+        }
+
+        private static Point3d[] RectangleCorners(Extents3d e) => new[]
+        {
+            e.MinPoint, new Point3d(e.MaxPoint.X, e.MinPoint.Y, 0), e.MaxPoint, new Point3d(e.MinPoint.X, e.MaxPoint.Y, 0)
+        };
 
         private static Extents3d? Extents(Entity ent)
         {
