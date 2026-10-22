@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.65.msi`](Instalador/FiberPlugin-1.9.65.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.66.msi`](Instalador/FiberPlugin-1.9.66.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -151,6 +151,8 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 |---|---|---|
 | Lançar Cabo | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. |
 | Roteamento Automático | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. Antes da seleção, pergunta de que lado o cabo passa (`Cima`, `Baixo`, `Esquerda` ou `Direita`; a última escolha fica como padrão enquanto o AutoCAD estiver aberto) e mantém o cabo desse lado na rota inteira, sem trocar de lado nas curvas. No poste DT o cabo vai na face do poste que fica desse lado (segue a rotação do bloco); se o DT estiver girado com as faces na direção do cabo, ele é tratado como poste redondo e o comando avisa. |
+| Reserva Técnica | `FIBRA_RESERVA_TECNICA` | Pede a metragem (padrão 30 m; a última usada fica como padrão), o ponto da reserva (poste ou cabo) e o lado do texto, mostrando a seta enquanto o mouse anda. Desenha a seta vermelha apontando para o ponto, com **RESERVA TÉCNICA 30m** ao longo dela, na layer `FIBRA_RESERVA_TECNICA`. Clicando num poste, a seta aponta para o centro dele com a ponta encostada no desenho do poste. Repete para a próxima reserva até o Enter. |
+| Cordoalha | `FIBRA_CORDOALHA` | Desenha a cordoalha clicando nos pontos, como o Lançar Cabo: linha laranja tracejada (layer `FIBRA_CORDOALHA`) com a metragem de cada trecho em verde ("36.97", layer `FIBRA_CORDOALHA_TEXTO`). Não é cabo de fibra: não entra no esforço nem na metragem de cabos do relatório; aparece na Produção do Dia. |
 
 ### Inserir
 | Botão | Comando | Função |
@@ -537,8 +539,9 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 ## Produção do Dia
 
 O botão **Produção do Dia** (`FIBRA_PRODUCAO`, painel Documentos) mostra quanto foi feito no dia, somando todos os
-desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**, **CEO**, **postes** e **reservas
-técnicas** (textos com "RESERVA", como "RESERVA TÉCNICA 25m": conta a reserva e soma a metragem escrita).
+desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**, **CEO**, **postes**, **reservas
+técnicas** (as do comando Reserva Técnica e qualquer texto com "RESERVA", como "RESERVA TÉCNICA 25m": conta a reserva
+e soma a metragem escrita) e **metros de cordoalha** (a do comando Cordoalha ou linhas na layer `FIBRA_CORDOALHA`).
 
 - **Como conta**: o plugin anota o que cada desenho tem ao ser aberto (ou no primeiro comando do dia, se ficou aberto
   de um dia para o outro) e a cada vez que é salvo. A produção do dia é o que o desenho tem no fim (o último

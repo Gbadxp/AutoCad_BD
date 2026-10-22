@@ -17,6 +17,8 @@ namespace FiberPlugin.Core
         private const string BoxKind = "CAIXA";
         private const string CheckKind = "VERIFICACAO";
         private const string MapKind = "MAPA";
+        private const string ReserveKind = "RESERVA";
+        private const string StrandKind = "CORDOALHA";
 
         private static TypedValue Text(string value) => new TypedValue((int)DxfCode.ExtendedDataAsciiString, value);
         private static TypedValue Int(int value) => new TypedValue((int)DxfCode.ExtendedDataInteger32, value);
@@ -94,6 +96,15 @@ namespace FiberPlugin.Core
         public static void TagMap(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, MapKind);
 
         public static bool IsMap(Entity ent) => Read(ent, MapKind, 0) != null;
+
+        /// <summary>Marca a seta e o texto da reserva técnica com a metragem dela.</summary>
+        public static void TagReserve(Transaction tr, Database db, Entity ent, double meters) =>
+            Write(tr, db, ent, ReserveKind, Real(meters));
+
+        /// <summary>Marca a linha da cordoalha e os textos de metragem dela.</summary>
+        public static void TagStrand(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, StrandKind);
+
+        public static bool IsStrand(Entity ent) => Read(ent, StrandKind, 0) != null;
 
         /// <summary>Marca a polilinha como cabo do tipo informado (nome curto do catálogo).</summary>
         public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>

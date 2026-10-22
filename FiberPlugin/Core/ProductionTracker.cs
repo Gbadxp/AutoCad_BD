@@ -140,7 +140,7 @@ namespace FiberPlugin.Core
             return drawings;
         }
 
-        /// <summary>O que o desenho tem agora no Model: cabos, CTO, CEO, postes e reservas técnicas.</summary>
+        /// <summary>O que o desenho tem agora no Model: cabos, CTO, CEO, postes, reservas técnicas e cordoalha.</summary>
         public static ProductionCount Count(Database db)
         {
             var count = new ProductionCount();
@@ -158,8 +158,12 @@ namespace FiberPlugin.Core
 
                 foreach (ObjectId id in modelSpace)
                 {
-                    if (ReserveText(tr, tr.GetObject(id, OpenMode.ForRead)) is string text &&
-                        ProductionCount.IsReserve(text, out double meters))
+                    DBObject obj = tr.GetObject(id, OpenMode.ForRead);
+                    if (obj is Polyline poly && Strand.IsStrand(poly))
+                    {
+                        count.StrandMeters += poly.Length;
+                    }
+                    else if (ReserveText(tr, obj) is string text && ProductionCount.IsReserve(text, out double meters))
                     {
                         count.Reserves++;
                         count.ReserveMeters += meters;

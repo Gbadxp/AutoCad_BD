@@ -65,6 +65,8 @@ namespace FiberPlugin.UI
             ["FIBRA"] = PaintMenu,
             ["FIBRA_LANCAR_CABO"] = PaintCable,
             ["FIBRA_ROTEAMENTO_AUTO"] = PaintRoute,
+            ["FIBRA_RESERVA_TECNICA"] = PaintReserve,
+            ["FIBRA_CORDOALHA"] = PaintStrand,
             ["FIBRA_INSERIR_POSTE"] = PaintPole,
             ["FIBRA_INSERIR_CTO"] = PaintCto,
             ["FIBRA_INSERIR_CEO"] = PaintCeo,
@@ -429,6 +431,29 @@ namespace FiberPlugin.UI
             dc.DrawLine(lines, new W.Point(8.5, 17), new W.Point(20.5, 17));
             dc.DrawLine(lines, new W.Point(8.5, 20.5), new W.Point(17, 20.5));
             dc.DrawGeometry(ink.Red, null, G("M18,3 H22 V12 L20,10 L18,12 Z"));
+        }
+
+        private static void PaintReserve(M.DrawingContext dc, Ink ink)
+        {
+            // Poste visto de cima, a volta de cabo da reserva e a seta vermelha apontando para ele
+            dc.DrawEllipse(null, Ink.Pen(ink.Fiber, 1.6), new W.Point(17, 19), 6, 4);
+            dc.DrawEllipse(null, Ink.Pen(ink.Fiber, 1.6), new W.Point(17, 19), 4, 2.5);
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(8, 8), 3.2, 3.2);
+            Arrow(dc, ink.Red, 28, 28, 10.5, 10.5, 2.2);
+        }
+
+        private static void PaintStrand(M.DrawingContext dc, Ink ink)
+        {
+            // Dois postes com a cordoalha laranja tracejada entre eles
+            M.Brush orange = new M.SolidColorBrush(M.Color.FromRgb(0xF2, 0x8C, 0x28));
+            orange.Freeze();
+            M.Pen dash = Ink.Pen(orange, 2.4);
+            for (double t = 0.12; t < 0.9; t += 0.2)
+            {
+                dc.DrawLine(dash, new W.Point(6 + 20 * t, 25 - 18 * t), new W.Point(6 + 20 * (t + 0.09), 25 - 18 * (t + 0.09)));
+            }
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(6, 25), 3.2, 3.2);
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(26, 7), 3.2, 3.2);
         }
 
         private static void PaintProduction(M.DrawingContext dc, Ink ink)
