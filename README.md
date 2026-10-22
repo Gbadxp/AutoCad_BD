@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.64.msi`](Instalador/FiberPlugin-1.9.64.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.65.msi`](Instalador/FiberPlugin-1.9.65.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -182,6 +182,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
+| Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes e reservas técnicas (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
@@ -525,13 +526,30 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
   aviso **SEM POSTE: insira o poste** (círculo vermelho na layer `FIBRA_ESFORCO_SEM_POSTE`, que não imprime). No
   relatório e no memorial o ponto aparece como "Sem poste", e o Verificar Projeto dá erro até o poste ser inserido.
   Depois de inserir o poste, o Esforço no Percurso troca o aviso pela seta.
-- **Texto da seta sem encostar em outros textos**: se o valor ou o ângulo da seta cair em cima do texto do poste, do
-  vão ou de outra seta (ou do desenho de um poste ou caixa), os dois textos vão para o lugar livre mais perto: trocados
-  de lado, os dois do mesmo lado da seta (um embaixo do outro), um pouco mais afastados ou mais para a ponta. Sem
-  lugar livre, ficam onde estavam.
+- **Seta sem encostar em outros textos**: a seta fica sempre no formato do projeto, com o valor em cima e o ângulo
+  embaixo, e os textos nunca saem desse lugar. Se um deles cair em cima do texto do poste, do vão ou de outra seta (ou
+  do desenho de um poste ou caixa), a seta inteira, com os dois textos, anda mais para a ponta, na direção do esforço,
+  até um comprimento de seta. Sem lugar livre, fica onde estava; para mudar de lugar, arraste a seta com os textos.
 - **Não considera** vento, variação de temperatura nem desnível entre postes (a Verificação avisa os vãos
   acima de 60 m). Vãos acima de 120 m (fim da Tabela 08) e vãos maiores que o do cabo (ASU-80: 80 m) são avisados
   também nos comandos de esforço. Para um laudo formal, confirme com a concessionária.
+
+## Produção do Dia
+
+O botão **Produção do Dia** (`FIBRA_PRODUCAO`, painel Documentos) mostra quanto foi feito no dia, somando todos os
+desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**, **CEO**, **postes** e **reservas
+técnicas** (textos com "RESERVA", como "RESERVA TÉCNICA 25m": conta a reserva e soma a metragem escrita).
+
+- **Como conta**: o plugin anota o que cada desenho tem ao ser aberto (ou no primeiro comando do dia, se ficou aberto
+  de um dia para o outro) e a cada vez que é salvo. A produção do dia é o que o desenho tem no fim (o último
+  salvamento, ou agora, se ainda está aberto) menos o que tinha no começo. O que foi apagado desconta.
+- **Salvar como**: o desenho novo começa do ponto em que o anterior foi salvo, então nada conta duas vezes. Desenho
+  novo, ainda sem salvar, também entra (como "não salvo").
+- **Janela**: os números do dia, o cabo por tipo e os desenhos que mudaram (os abertos só para consulta não
+  aparecem). As setas mudam o dia; **Copiar Resumo** copia o texto para colar numa mensagem e **Excel do Mês** gera a
+  planilha do mês com a produção de cada dia, de cada desenho e de cada tipo de cabo.
+- As anotações ficam em `Documentos\Fiber Plugin\Producao` (um arquivo de texto por mês). A contagem começa na
+  instalação desta versão: os dias anteriores não têm anotação.
 
 ## Identificação dos elementos
 Cabos, postes (inclusive esforço existente e ID Energisa), CTO/CEO e setas de esforço guardam seus dados em XData (aplicação `FIBRA_PLUGIN`), então

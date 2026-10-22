@@ -84,6 +84,7 @@ namespace FiberPlugin.UI
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
             ["FIBRA_NORMA"] = PaintNorm,
+            ["FIBRA_PRODUCAO"] = PaintProduction,
             ["FIBRA_CONFIGURACOES"] = PaintSettings,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
@@ -428,6 +429,19 @@ namespace FiberPlugin.UI
             dc.DrawLine(lines, new W.Point(8.5, 17), new W.Point(20.5, 17));
             dc.DrawLine(lines, new W.Point(8.5, 20.5), new W.Point(17, 20.5));
             dc.DrawGeometry(ink.Red, null, G("M18,3 H22 V12 L20,10 L18,12 Z"));
+        }
+
+        private static void PaintProduction(M.DrawingContext dc, Ink ink)
+        {
+            // Calendário (faixa azul com as argolas) e as barras do que foi feito no dia, a maior em verde
+            dc.DrawRoundedRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(4, 6, 24, 23), 2, 2);
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(4.6, 6.6, 22.8, 5));
+            M.Pen ring = Ink.Pen(ink.Line, 1.8);
+            dc.DrawLine(ring, new W.Point(10, 3.5), new W.Point(10, 8.5));
+            dc.DrawLine(ring, new W.Point(22, 3.5), new W.Point(22, 8.5));
+            dc.DrawRectangle(ink.Fiber, null, new W.Rect(8, 20, 4, 6));
+            dc.DrawRectangle(ink.Fiber, null, new W.Rect(14, 17, 4, 9));
+            dc.DrawRectangle(ink.Green, null, new W.Rect(20, 14, 4, 12));
         }
 
         private static void PaintPoleCoordinates(M.DrawingContext dc, Ink ink)

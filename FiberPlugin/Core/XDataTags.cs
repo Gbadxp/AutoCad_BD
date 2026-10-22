@@ -145,13 +145,14 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Onde a seta está hoje: o ponto de inserção do bloco da seta (inserido no ponto do cálculo) ou o ponto 1011
-        /// gravado nas desenhadas sem bloco. Null nas desenhadas sem bloco por versões anteriores à 1.9.53.
+        /// Onde a seta está hoje: o ponto 1011, gravado no ponto do cálculo e que anda junto com a seta (copiada, movida,
+        /// ou mais para a ponta para o texto não encostar em nada). Nas setas de antes dele, o ponto de inserção do bloco
+        /// (inserido no ponto do cálculo); null nas desenhadas sem bloco por versões anteriores à 1.9.53.
         /// </summary>
         private static Point3d? CurrentEffortPoint(Entity ent, TypedValue[] d)
         {
-            if (ent is BlockReference br) return br.Position;
-            return d.Length > 7 && d[7].Value is Point3d world ? world : (Point3d?)null;
+            if (d.Length > 7 && d[7].Value is Point3d world) return world;
+            return ent is BlockReference br ? br.Position : (Point3d?)null;
         }
 
         /// <summary>

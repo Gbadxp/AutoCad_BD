@@ -66,6 +66,16 @@ namespace FiberPlugin
             AcApp.DocumentManager.DocumentActivated += (s, e) => Commands.RoadsMapCommand.TurnOffWithoutSignIn(e.Document);
             Commands.RoadsMapCommand.TurnOffWithoutSignIn(AcApp.DocumentManager.MdiActiveDocument);
 
+            // Produção do dia: anota o que cada desenho tem ao abrir e a cada vez que é salvo
+            try
+            {
+                ProductionTracker.Start();
+            }
+            catch (System.Exception)
+            {
+                // Sem acompanhar: a Produção do Dia começa a anotar quando o comando for usado
+            }
+
             Document? doc = AcApp.DocumentManager.MdiActiveDocument;
             doc?.Editor.WriteMessage(
                 $"\n{PluginInfo.Name} v{PluginInfo.Version} carregado. Digite FIBRA ou use a aba \"Fibra\" da faixa de opções.\n");

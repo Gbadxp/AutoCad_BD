@@ -220,7 +220,6 @@ namespace FiberPlugin.Core
                         .Select(id => (AttributeReference)_tr.GetObject(id, OpenMode.ForWrite))
                         .Where(a => EffortTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase) ||
                                     AngleTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase))
-                        .OrderBy(a => EffortTags.Contains(a.Tag.Trim(), StringComparer.OrdinalIgnoreCase) ? 0 : 1) // Valor em cima
                         .Cast<Entity>().ToList();
                 }
                 else
@@ -228,7 +227,7 @@ namespace FiberPlugin.Core
                     created.AddRange(DrawArrow(pole, angle, effortText, angleText));
                     texts = created.OfType<MText>().Cast<Entity>().ToList();
                 }
-                AvoidOverlap(texts, pole, angle);
+                AvoidOverlap(created, texts, pole, angle);
                 foreach (Entity text in texts)
                 {
                     if (Corners(text) is Point3d[] corners) _obstacles.Add(corners); // A próxima seta também desvia destes textos
@@ -260,22 +259,24 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Textos da seta (esforço e ângulo) que encostam em outro texto (do poste, do vão, de outra seta) ou no desenho de
-        /// um poste/caixa vão para o lugar livre mais perto (veja ArrowTextLayout: trocados de lado, os dois do mesmo lado,
-        /// mais afastados ou mais para a ponta). Sem nenhum lugar livre, ficam onde estavam.
+        /// Seta cujos textos (esforço e ângulo) encostam em outro texto (do poste, do vão, de outra seta) ou no desenho de
+        /// um poste/caixa: a seta inteira, com os textos, anda mais para a ponta até ficar livre (veja ArrowTextLayout). Os
+        /// textos nunca mudam de lugar em relação à seta; sem lugar livre, tudo fica onde estava.
         /// </summary>
-        private void AvoidOverlap(List<Entity> texts, Point3d pole, double angle)
+        /// <param name="arrow">Tudo o que forma a seta (bloco com os atributos, ou polilinha e textos).</param>
+        /// <param name="texts">Os textos dela, que não podem encostar em nada.</param>
+        private void AvoidOverlap(List<Entity> arrow, List<Entity> texts, Point3d pole, double angle)
         {
             // A conta é feita na direção da seta (eixo X ao longo dela): os textos da seta, inclinados junto com ela, ficam
             // com o tamanho real; a caixa reta em volta de um texto inclinado é bem maior que ele e empurrava os textos
             // para longe sem precisar
             Matrix3d toLocal = Matrix3d.Rotation(-angle, Vector3d.ZAxis, pole);
-            var items = new List<(Entity Text, TextBounds Box)>();
+            var boxes = new List<TextBounds>();
             foreach (Entity text in texts)
             {
-                if (AlignedExtents(text, toLocal) is Extents3d e) items.Add((text, Local(e, pole)));
+                if (AlignedExtents(text, toLocal) is Extents3d e) boxes.Add(Local(e, pole));
             }
-            if (items.Count == 0) return;
+            if (boxes.Count == 0) return;
 
             double length = FiberSettings.EffortArrowLength * _scale;
             double reach = 2 * (FiberSettings.EffortArrowGap * _scale + length);
@@ -289,19 +290,10 @@ namespace FiberPlugin.Core
                 .ToList();
             if (near.Count == 0) return;
 
-            // Lado da seta que fica para cima na leitura do texto (seta para a esquerda: os textos são girados para não
-            // ficar de cabeça para baixo, e o "em cima" deles é o lado direito da seta)
-            double rotation = items[0].Text is MText m ? m.Rotation : items[0].Text is DBText t ? t.Rotation : angle;
-            int upSide = Math.Cos(rotation - angle) >= 0 ? 1 : -1;
-            List<(double X, double Y)>? moves = ArrowTextLayout.Arrange(items.Select(i => i.Box).ToList(), near, 0, 0, 0, length,
-                FiberSettings.TextHeight * _scale, upSide);
-            if (moves == null) return; // Sem lugar livre: os textos ficam onde estavam
-            Vector3d along = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0), across = new Vector3d(-Math.Sin(angle), Math.Cos(angle), 0);
-            for (int i = 0; i < items.Count; i++)
-            {
-                Vector3d v = along * moves[i].X + across * moves[i].Y;
-                if (v.Length > 1e-9) items[i].Text.TransformBy(Matrix3d.Displacement(v));
-            }
+            // Sem lugar livre, ou já livre: fica onde está. O bloco da seta leva os atributos junto
+            if (ArrowTextLayout.Slide(boxes, near, length) is not double along || along <= 0) return;
+            Matrix3d move = Matrix3d.Displacement(new Vector3d(Math.Cos(angle), Math.Sin(angle), 0) * along);
+            foreach (Entity ent in arrow) ent.TransformBy(move);
         }
 
         /// <summary>

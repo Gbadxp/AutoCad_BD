@@ -83,7 +83,8 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo"),
                 new Tool("FIBRA_MEMORIAL_ESFORCO", "Memorial de Esforço", "PDF só com o cálculo de esforço mecânico dos postes", "Memorial de Esforço", largeOnRibbon: false),
                 new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", largeOnRibbon: false),
-                new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", largeOnRibbon: false)
+                new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", largeOnRibbon: false),
+                new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", largeOnRibbon: false)
             }),
             ("Pranchas", new[]
             {
