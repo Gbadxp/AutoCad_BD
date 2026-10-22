@@ -85,6 +85,12 @@ namespace FiberPlugin.Core
         private const double DashLength = 1.6;
         private const double LinetypeDash = 12.7;
 
+        /// <summary>
+        /// Largura da linha, em metros na escala 1:1000 (0,5 mm no papel). É a largura da polilinha, que aparece na tela e
+        /// na impressão sem depender da espessura de linha (LWDISPLAY).
+        /// </summary>
+        private const double Width = 0.5;
+
         public static Polyline Draw(Transaction tr, Database db, BlockTableRecord space, IList<Point3d> points)
         {
             CadHelpers.EnsureLayer(tr, db, Layer, Style);
@@ -99,6 +105,7 @@ namespace FiberPlugin.Core
                 Plinegen = true
             };
             for (int i = 0; i < points.Count; i++) poly.AddVertexAt(i, new Point2d(points[i].X, points[i].Y), 0, 0, 0);
+            poly.ConstantWidth = Width * factor;
             CadHelpers.Append(tr, space, poly);
             XDataTags.TagStrand(tr, db, poly);
 

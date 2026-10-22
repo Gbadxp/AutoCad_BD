@@ -24,6 +24,7 @@ namespace FiberPlugin.UI
         private readonly ThemedListBox _cables, _drawings;
         private readonly SectionLabel _drawingsTitle;
         private readonly FooterPanel _footer;
+        private readonly TableLayoutPanel _body;
 
         /// <param name="open">Desenhos abertos agora, com o que têm (a produção de hoje conta o que ainda não foi salvo).</param>
         public ProductionForm(ProductionLog log, List<LiveDrawing> open)
@@ -37,7 +38,7 @@ namespace FiberPlugin.UI
 
             _header = new HeaderPanel { IconCommand = "FIBRA_PRODUCAO", Title = "Produção do Dia" };
 
-            var body = new TableLayoutPanel
+            var body = _body = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
@@ -48,7 +49,7 @@ namespace FiberPlugin.UI
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
             body.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            body.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+            body.RowStyles.Add(new RowStyle(SizeType.Absolute, 92)); // Acertada no Load pela altura real dos textos
             body.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -109,7 +110,7 @@ namespace FiberPlugin.UI
                 Dock = DockStyle.Fill,
                 Margin = new Padding(6, 0, 0, 0),
                 Describe = item => item is DrawingProduction d
-                    ? (d.Name, DayProduction.Describe(d.Done), d.Unnamed ? "não salvo" : d.Open ? "aberto" : null)
+                    ? (d.Name + (d.Unnamed ? "  (não salvo)" : d.Open ? "  (aberto)" : ""), DayProduction.Describe(d.Done), null)
                     : (item.ToString() ?? "", null, null)
             };
             var cablesTitle = new SectionLabel("Cabo lançado por tipo") { Dock = DockStyle.Fill };
@@ -155,13 +156,13 @@ namespace FiberPlugin.UI
                 : DayProduction.Describe(total);
             _header.Invalidate();
 
-            _cable.Set(total.CableTotal.ToString("#,##0.0", DataFiles.Br), "metros", total.CableTotal < -0.005);
+            _cable.Set(total.CableTotal.ToString("#,##0.0", DataFiles.Br), "m", total.CableTotal < -0.005);
             _cto.Set(total.Cto.ToString(CultureInfo.InvariantCulture), "", total.Cto < 0);
             _ceo.Set(total.Ceo.ToString(CultureInfo.InvariantCulture), "", total.Ceo < 0);
             _poles.Set(total.Poles.ToString(CultureInfo.InvariantCulture), "", total.Poles < 0);
             _reserves.Set(total.Reserves.ToString(CultureInfo.InvariantCulture),
-                Math.Abs(total.ReserveMeters) >= 0.01 ? DayProduction.Meters(total.ReserveMeters) : "", total.Reserves < 0);
-            _strand.Set(total.StrandMeters.ToString("#,##0.0", DataFiles.Br), "metros", total.StrandMeters < -0.005);
+                Math.Abs(total.ReserveMeters) >= 0.01 ? "(" + DayProduction.Meters(total.ReserveMeters) + ")" : "", total.Reserves < 0);
+            _strand.Set(total.StrandMeters.ToString("#,##0.0", DataFiles.Br), "m", total.StrandMeters < -0.005);
 
             _cables.Items.Clear();
             foreach (var cable in total.CableMeters.OrderByDescending(c => c.Value))
@@ -172,6 +173,17 @@ namespace FiberPlugin.UI
             foreach (DrawingProduction d in _production.Drawings) _drawings.Items.Add(d);
             if (_drawings.Items.Count == 0) _drawings.Items.Add("Nenhum desenho mudou");
             _drawingsTitle.Text = ("Desenhos" + (_production.Unchanged > 0 ? $" · {_production.Unchanged} aberto(s) sem mudança" : "")).ToUpperInvariant();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // Altura dos quadros pela altura real dos textos na tela (com a escala do Windows os textos crescem)
+            using (Graphics g = CreateGraphics())
+            {
+                int needed = _cable.NeededHeight(g) + _cable.Margin.Vertical + Theme.Scale(this, 8);
+                if (_body.RowStyles[1].Height < needed) _body.RowStyles[1].Height = needed;
+            }
         }
 
         private void CopySummary()
@@ -263,13 +275,19 @@ namespace FiberPlugin.UI
             }
         }
 
-        /// <summary>Quadro de um número do dia: título em cima, número grande e detalhe embaixo.</summary>
+        /// <summary>
+        /// Quadro de um número do dia: título em cima e o número grande embaixo, com a unidade ou o detalhe logo depois
+        /// dele, menor ("242,3 m", "1 · 30,0 m"). Tudo posicionado pela altura real dos textos, que muda com a escala do
+        /// Windows; número que não cabe usa uma letra menor.
+        /// </summary>
         private sealed class StatTile : Control
         {
-            private static readonly Font ValueFont = new Font("Segoe UI Semibold", 17f);
+            private static readonly Font ValueFont = new Font("Segoe UI Semibold", 16f);
+            private static readonly Font SmallValueFont = new Font("Segoe UI Semibold", 12f);
+            private const TextFormatFlags Flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
             private readonly string _caption;
             private string _value = "0";
-            private string _detail = "";
+            private string _suffix = "";
             private bool _negative;
 
             public StatTile(string caption)
@@ -280,34 +298,59 @@ namespace FiberPlugin.UI
                 BackColor = Theme.Background;
             }
 
+            /// <param name="suffix">Unidade ou detalhe depois do número ("m", "30,0 m"); vazio = só o número.</param>
             /// <param name="negative">Saldo negativo (mais apagado que feito): o número fica em vermelho.</param>
-            public void Set(string value, string detail, bool negative)
+            public void Set(string value, string suffix, bool negative)
             {
                 _value = value;
-                _detail = detail;
+                _suffix = suffix;
                 _negative = negative;
                 Invalidate();
             }
+
+            private int Pad => Theme.Scale(this, 10);
+
+            private static int LineHeight(Graphics g, Font font) => TextRenderer.MeasureText(g, "Ág", font, Size.Empty, Flags).Height;
+
+            /// <summary>Altura que o quadro precisa: título, número e as margens.</summary>
+            public int NeededHeight(Graphics g) => Pad + LineHeight(g, Theme.Section) + Theme.Scale(this, 4) + LineHeight(g, ValueFont) + Pad;
 
             protected override void OnPaint(PaintEventArgs e)
             {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.Clear(BackColor);
-                int S(int v) => Theme.Scale(this, v);
                 var r = new RectangleF(0.5f, 0.5f, Width - 1f, Height - 1f);
-                Theme.FillRounded(g, Theme.Surface, r, S(Theme.Radius));
-                Theme.DrawRounded(g, Theme.Border, r, S(Theme.Radius));
+                Theme.FillRounded(g, Theme.Surface, r, Theme.Scale(this, Theme.Radius));
+                Theme.DrawRounded(g, Theme.Border, r, Theme.Scale(this, Theme.Radius));
 
-                const TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
-                int left = S(10), width = Width - S(20);
-                TextRenderer.DrawText(g, _caption, Theme.Section, new Rectangle(left, S(8), width, Theme.Section.Height), Theme.Muted, flags);
-                TextRenderer.DrawText(g, _value, ValueFont, new Rectangle(left, S(24), width, ValueFont.Height + S(2)),
-                    _negative ? Theme.Error : Theme.TextStrong, flags);
-                if (_detail.Length > 0)
+                int left = Pad, width = Math.Max(0, Width - 2 * Pad);
+                int captionHeight = LineHeight(g, Theme.Section);
+                TextRenderer.DrawText(g, _caption, Theme.Section, new Rectangle(left, Pad, width, captionHeight), Theme.Muted,
+                    Flags | TextFormatFlags.EndEllipsis);
+
+                // Número e unidade na mesma linha, pela base; sem caber, letra menor
+                string suffix = _suffix.Length > 0 ? " " + _suffix : "";
+                Font font = ValueFont;
+                int valueWidth = TextRenderer.MeasureText(g, _value, font, Size.Empty, Flags).Width;
+                int suffixWidth = suffix.Length > 0 ? TextRenderer.MeasureText(g, suffix, Theme.Body, Size.Empty, Flags).Width : 0;
+                if (valueWidth + suffixWidth > width)
                 {
-                    TextRenderer.DrawText(g, _detail, Theme.Small, new Rectangle(left, Height - S(8) - Theme.Small.Height, width, Theme.Small.Height),
-                        Theme.Muted, flags);
+                    font = SmallValueFont;
+                    valueWidth = TextRenderer.MeasureText(g, _value, font, Size.Empty, Flags).Width;
+                }
+                int valueTop = Pad + captionHeight + Theme.Scale(this, 4);
+                int valueHeight = LineHeight(g, font);
+                if (font != ValueFont) valueTop += (LineHeight(g, ValueFont) - valueHeight) / 2;
+                TextRenderer.DrawText(g, _value, font, new Rectangle(left, valueTop, width, valueHeight),
+                    _negative ? Theme.Error : Theme.TextStrong, Flags | TextFormatFlags.EndEllipsis);
+                if (suffix.Length > 0 && valueWidth < width)
+                {
+                    // Base do texto pequeno na base do número (descida proporcional à altura de cada letra)
+                    int smallHeight = LineHeight(g, Theme.Body);
+                    int smallTop = valueTop + (int)Math.Round(valueHeight * 0.78 - smallHeight * 0.78);
+                    TextRenderer.DrawText(g, suffix, Theme.Body, new Rectangle(left + valueWidth, smallTop, width - valueWidth, smallHeight),
+                        Theme.Muted, Flags | TextFormatFlags.EndEllipsis);
                 }
             }
         }
