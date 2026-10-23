@@ -35,8 +35,8 @@ namespace FiberPlugin.Commands
             ObjectId blockId = LoadBlock(ed, db, model.Type);
             if (blockId.IsNull) return;
 
-            // Zona UTM definida em Configurações > Projeto (sem ela, o texto sai sem a linha "20 L")
-            UtmSettings? utm = UtmZone.Get(db);
+            // Zona UTM do texto do poste (a linha "20 L"): desenho novo, sem ela, recebe a do projeto
+            UtmSettings? utm = UtmZone.Ensure(ed, db, out bool zoneAssigned);
             if (utm == null)
             {
                 ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Defina em Configurações > Projeto para incluir a zona (ex.: 20 L) nos textos.");
@@ -48,6 +48,8 @@ namespace FiberPlugin.Commands
                 used = Poles.UsedNumbers(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
                 tr.Commit();
             }
+            // Os postes que já estavam no desenho, com o texto sem a zona, ganham a linha da zona também
+            if (zoneAssigned && used.Count > 0) UtmZoneCommand.UpdateCoordinates(ed, db, utm!);
 
             int? start = Poles.AskNumber(ed, Poles.NextFree(used, 1));
             if (start == null) return;

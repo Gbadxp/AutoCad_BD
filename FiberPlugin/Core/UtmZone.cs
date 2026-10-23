@@ -37,6 +37,34 @@ namespace FiberPlugin.Core
                 new TypedValue((int)DxfCode.Int32, settings.Zone),
                 new TypedValue((int)DxfCode.Int32, settings.South ? 1 : 0));
 
+        /// <summary>
+        /// Zona do desenho. Desenho que ainda não tem (desenho novo) recebe a do projeto, a mesma que a janela Configurações
+        /// mostra (a do último projeto, em projeto.txt) ou, sem ela, a da geolocalização do DWG, com aviso; sem nenhuma das
+        /// duas, pergunta. <paramref name="assigned"/> = a zona foi gravada agora. Null só se o usuário cancelar a pergunta.
+        /// </summary>
+        public static UtmSettings? Ensure(Editor ed, Database db, out bool assigned)
+        {
+            assigned = false;
+            if (Get(db) is UtmSettings current) return current;
+
+            UtmSettings? zone = ProjectInfo.Load(db).Zone ?? FromGeoLocation(db);
+            if (zone == null)
+            {
+                zone = Ask(ed, db, null);
+                assigned = zone != null;
+                return zone;
+            }
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                Set(tr, db, zone);
+                tr.Commit();
+            }
+            assigned = true;
+            ed.WriteMessage($"\n[INFO]: Desenho sem zona UTM: gravada a do projeto, {zone.Zone} {(zone.South ? "Sul" : "Norte")}. " +
+                            "Se este projeto for de outra zona, troque em Configurações > Projeto.");
+            return zone;
+        }
+
         /// <summary>Pergunta zona e hemisfério (sugerindo o atual, ou o da geolocalização do DWG) e grava.</summary>
         public static UtmSettings? Ask(Editor ed, Database db, UtmSettings? current)
         {
