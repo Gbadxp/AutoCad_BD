@@ -49,9 +49,8 @@ namespace FiberPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                DrawingScale.Set(tr, db, scale);
-                DrawingScale.SetElements(tr, db, elements);
-
+                // O que já está desenhado é achado e ajustado com as escalas de antes (o texto de cada poste é procurado
+                // pelo tamanho que ele tem agora); as escalas novas só são gravadas depois
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
                 Annotations existing = FindAnnotations(tr, modelSpace);
                 int count = existing.CountChanging(ratios);
@@ -62,6 +61,8 @@ namespace FiberPlugin.Commands
                     (adjusted, locked) = Rescale(tr, existing, ratios, PoleLabels.IndexLabels(tr, modelSpace));
                 }
 
+                DrawingScale.Set(tr, db, scale);
+                DrawingScale.SetElements(tr, db, elements);
                 tr.Commit();
 
                 string own = elements.Summary(scale);

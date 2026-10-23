@@ -143,18 +143,35 @@ namespace FiberPlugin.Core
         /// </summary>
         private const string SpareSuffix = "_2";
 
-        /// <summary>Dados gravados no dicionário do desenho (escala, zona UTM...). Null se não houver.</summary>
+        /// <summary>
+        /// Dados gravados no dicionário do desenho (escala, zona UTM...). Null se não houver (ou se o AutoCAD não deixar
+        /// ler: vale o padrão, sem derrubar o comando). Dentro de uma transação aberta, lê por ela: ela enxerga o que acabou
+        /// de gravar, e uma transação à parte não abre o dicionário que ela mudou (eInvalidObjectId na troca de escala).
+        /// </summary>
         public static TypedValue[]? ReadDrawingRecord(Database db, string key)
         {
-            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            try
             {
-                var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
-                if ((OpenRecord(tr, nod, key + SpareSuffix, OpenMode.ForRead) ?? OpenRecord(tr, nod, key, OpenMode.ForRead)) is not Xrecord xrec)
-                    return null;
-                using (ResultBuffer? data = xrec.Data)
+                if (db.TransactionManager.TopTransaction is Transaction open) return ReadRecord(open, db, key);
+                using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
                 {
-                    return data?.AsArray();
+                    return ReadRecord(tr, db, key);
                 }
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null;
+            }
+        }
+
+        private static TypedValue[]? ReadRecord(Transaction tr, Database db, string key)
+        {
+            var nod = (DBDictionary)tr.GetObject(db.NamedObjectsDictionaryId, OpenMode.ForRead);
+            if ((OpenRecord(tr, nod, key + SpareSuffix, OpenMode.ForRead) ?? OpenRecord(tr, nod, key, OpenMode.ForRead)) is not Xrecord xrec)
+                return null;
+            using (ResultBuffer? data = xrec.Data)
+            {
+                return data?.AsArray();
             }
         }
 
