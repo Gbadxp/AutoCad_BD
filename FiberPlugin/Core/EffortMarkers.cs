@@ -81,6 +81,9 @@ namespace FiberPlugin.Core
         /// <summary>Layer do aviso "SEM POSTE" (vermelha, não imprime).</summary>
         public const string NoPoleLayer = "FIBRA_ESFORCO_SEM_POSTE";
 
+        /// <summary>Raio do círculo do aviso "SEM POSTE" na escala 1:1000.</summary>
+        public const double NoPoleRadius = 2.5;
+
         /// <param name="arrowBlockId">Bloco "SETA DE ESFORÇO" (ObjectId.Null para desenhar a seta e os textos).</param>
         /// <param name="poles">Postes do espaço (null = levantados aqui), para saber de que poste é cada seta já desenhada.</param>
         public EffortMarkers(Transaction tr, Database db, BlockTableRecord space, ObjectId arrowBlockId, IList<PoleInfo>? poles = null)
@@ -262,7 +265,7 @@ namespace FiberPlugin.Core
         private IEnumerable<Entity> DrawNoPoleWarning(Point3d at, EffortResult result, PoleLoad load)
         {
             CadHelpers.EnsureNonPlottingLayer(_tr, _db, NoPoleLayer, 1);
-            double radius = 2.5 * _scale, height = FiberSettings.TextHeight * _scale;
+            double radius = NoPoleRadius * _scale, height = FiberSettings.TextHeight * _scale;
             yield return CadHelpers.Append(_tr, _space, new Circle(at, Vector3d.ZAxis, radius) { Layer = NoPoleLayer });
             string detail = $"{result.Situation}, {load.ProjectKgf.ToString("F2", CultureInfo.InvariantCulture)} kgf no cabo";
             yield return CadHelpers.AddText(_tr, _space, at + new Vector3d(radius + height * 0.5, radius, 0),

@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.72.msi`](Instalador/FiberPlugin-1.9.72.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.73.msi`](Instalador/FiberPlugin-1.9.73.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -167,6 +167,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Numerar Clicando | `FIBRA_NUMERAR_MANUAL` | Numeração na ordem dos cliques: digite o número inicial (ex.: `10`, `P10`) e clique nos postes (ou nos textos deles) na ordem que quiser; cada clique já recebe o próximo número (P-10, P-11, P-12...), com o texto atualizado na hora. **Desfazer** volta o último clique, **Numero** muda o próximo número e Enter termina. No fim avisa os números que ficaram repetidos com postes que não foram clicados. **U** desfaz tudo. |
 | Numerar Auto | `FIBRA_NUMERAR_AUTO` | Numeração automática: clique no primeiro poste (ou no texto dele) e digite o número dele (`1`, `P1` ou `P-01`); vale para todos os postes do desenho, ou só para os escolhidos com a opção **Selecionar** antes do clique. A numeração segue os cabos: continua pelo mesmo cabo até o fim (na esquina também) e depois entra nas derivações, como na numeração feita à mão; postes sem cabo entram no fim, pelo mais próximo. Pergunta se numera também as CTO e CEO desses postes, na ordem deles (CTO-01 no primeiro poste que tem CTO...). Com seleção, os números dos postes de fora são pulados. Atualiza atributo, texto e dados; **U** desfaz. |
 | Tamanho | `FIBRA_TAMANHO_BLOCO` | Muda o tamanho de blocos já inseridos: selecione um ou vários e digite o novo tamanho (maior lado, em m) ou use **Fator** (2 = dobro, 0,5 = metade). Cada bloco continua no ponto em que foi inserido (CTO/CEO: no centro do símbolo) e o texto de identificação acompanha. Também funciona selecionando antes. |
+| Padronizar | `FIBRA_PADRONIZAR_TAMANHOS` | Deixa postes, CTO/CEO, textos, setas de esforço, reservas e cordoalhas no tamanho da escala do desenho (o mesmo da inserção): o que foi colado de um desenho em outra escala fica igual ao resto. Com objetos selecionados antes, só eles. |
 
 ### Esforços
 | Botão | Comando | Função |
@@ -433,10 +434,17 @@ definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
 
-Ao trocar a escala, o comando oferece ajustar o que já está desenhado: altura dos textos, afastamento dos textos em
-relação ao cabo, tamanho das setas (em torno do poste) e o símbolo das CTO/CEO. O bloco do poste tem escala própria
-(1:1000 por padrão, veja abaixo) e só muda quando ela muda. Para mudar só alguns blocos, use o botão **Tamanho**.
-O que estiver em layer travada fica como estava, e o comando avisa quantos.
+Ao trocar a escala (ou rodar o `FIBRA_ESCALA` com a mesma), o comando oferece deixar o que já está desenhado **no
+tamanho da escala**: altura dos textos (com o afastamento do cabo junto), setas de esforço (em torno do poste),
+símbolo das CTO/CEO, bloco do poste, reservas técnicas e cordoalhas. Cada elemento vai para o tamanho que a escala
+manda, o mesmo da inserção, e não só multiplicado: o que veio de outro desenho em outra escala, ou foi aumentado à mão,
+fica igual ao resto. O bloco do poste tem escala própria (1:1000 por padrão, veja abaixo). O que estiver em layer
+travada fica como estava, e o comando avisa quantos.
+
+**Padronizar Tamanhos** (`FIBRA_PADRONIZAR_TAMANHOS`, painel Inserir): deixa tudo no tamanho da escala atual sem trocar
+a escala, por exemplo depois de colar postes de um desenho em outra escala. Com objetos selecionados antes, só eles
+(a seta de esforço vai inteira). Tamanho mudado de propósito com o botão **Tamanho** também volta ao da escala: para
+postes ou CTO maiores em todo o desenho, use a escala por elemento.
 
 **Escala por elemento** (botão **Por elemento...** ao lado da escala): cada elemento pode ter a sua escala 1:X, com o
 **ícone** e o **texto** separados. Campo vazio = escala do desenho.
@@ -449,9 +457,9 @@ O que estiver em layer travada fica como estava, e o comando avisa quantos.
 | Setas de esforço | seta com os textos | — |
 
 A linha **Todos** preenche a coluna inteira de uma vez (todos os ícones ou todos os textos). As escalas ficam
-gravadas no DWG. Ao salvar com escala nova (do desenho ou de algum elemento), o plugin pergunta se ajusta o que já está
-desenhado: cada tipo muda na proporção da sua escala, inclusive os blocos dos postes e das CTO/CEO (no lugar, com o
-texto acompanhando).
+gravadas no DWG. Ao salvar com escala nova (do desenho ou de algum elemento), o plugin pergunta se deixa o que já está
+desenhado no tamanho dela: cada tipo vai para o tamanho da sua escala, inclusive os blocos dos postes e das CTO/CEO (no
+lugar, com o texto acompanhando).
 
 ## Verificação com a NDU 009
 

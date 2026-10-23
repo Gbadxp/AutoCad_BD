@@ -101,6 +101,8 @@ namespace FiberPlugin.Core
         public static void TagReserve(Transaction tr, Database db, Entity ent, double meters) =>
             Write(tr, db, ent, ReserveKind, Real(meters));
 
+        public static bool IsReserve(Entity ent) => Read(ent, ReserveKind, 0) != null;
+
         /// <summary>Marca a linha da cordoalha e os textos de metragem dela.</summary>
         public static void TagStrand(Transaction tr, Database db, Entity ent) => Write(tr, db, ent, StrandKind);
 

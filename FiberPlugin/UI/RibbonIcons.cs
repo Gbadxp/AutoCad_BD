@@ -77,6 +77,7 @@ namespace FiberPlugin.UI
             ["FIBRA_NUMERAR_AUTO"] = PaintAutoNumber,
             ["FIBRA_NUMERAR_MANUAL"] = PaintManualNumber,
             ["FIBRA_TAMANHO_BLOCO"] = PaintBlockSize,
+            ["FIBRA_PADRONIZAR_TAMANHOS"] = PaintStandardize,
             ["FIBRA_ESFORCO_TOTAL"] = PaintEffortPole,
             ["FIBRA_ESFORCO_PERCURSO"] = PaintEffortRoute,
             ["FIBRA_PARAMETROS"] = PaintParameters,
@@ -432,6 +433,19 @@ namespace FiberPlugin.UI
             dc.DrawLine(lines, new W.Point(8.5, 17), new W.Point(20.5, 17));
             dc.DrawLine(lines, new W.Point(8.5, 20.5), new W.Point(17, 20.5));
             dc.DrawGeometry(ink.Red, null, G("M18,3 H22 V12 L20,10 L18,12 Z"));
+        }
+
+        private static void PaintStandardize(M.DrawingContext dc, Ink ink)
+        {
+            // Um elemento pequeno e um grande (em cima) que ficam do mesmo tamanho (embaixo), com o "=" azul no meio
+            M.Pen outline = Ink.Pen(ink.Line, 1.3);
+            dc.DrawRectangle(ink.Paper, outline, new W.Rect(6, 6.5, 5, 5));
+            dc.DrawRectangle(ink.Paper, outline, new W.Rect(17, 2, 10, 10));
+            M.Pen equal = Ink.Pen(ink.Blue, 2.2);
+            dc.DrawLine(equal, new W.Point(12, 15), new W.Point(20, 15));
+            dc.DrawLine(equal, new W.Point(12, 18.5), new W.Point(20, 18.5));
+            dc.DrawRectangle(ink.Green, outline, new W.Rect(4, 22, 8, 8));
+            dc.DrawRectangle(ink.Green, outline, new W.Rect(19, 22, 8, 8));
         }
 
         private static void PaintSwapCable(M.DrawingContext dc, Ink ink)

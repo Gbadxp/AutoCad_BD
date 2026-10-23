@@ -97,15 +97,9 @@ namespace FiberPlugin.Core
             CadHelpers.EnsureLayer(tr, db, TextLayer, TextColor);
             double factor = DrawingScale.Factor(db, ScaleItem.CableText);
 
-            // Traço curto qualquer que seja a escala de tipo de linha do desenho (LTSCALE), e contínuo nos vértices
-            var poly = new Polyline
-            {
-                Layer = Layer,
-                LinetypeScale = DashLength * factor / LinetypeDash / (db.Ltscale > 1e-9 ? db.Ltscale : 1),
-                Plinegen = true
-            };
+            var poly = new Polyline { Layer = Layer, Plinegen = true }; // Tracejado contínuo nos vértices
             for (int i = 0; i < points.Count; i++) poly.AddVertexAt(i, new Point2d(points[i].X, points[i].Y), 0, 0, 0);
-            poly.ConstantWidth = Width * factor;
+            ApplyLineStyle(poly, factor, db);
             CadHelpers.Append(tr, space, poly);
             XDataTags.TagStrand(tr, db, poly);
 
@@ -125,6 +119,20 @@ namespace FiberPlugin.Core
                 XDataTags.TagStrand(tr, db, text);
             }
             return poly;
+        }
+
+        /// <summary>Largura da linha na escala (fator 1 em 1:1000).</summary>
+        public static double LineWidth(double factor) => Width * factor;
+
+        /// <summary>
+        /// Largura e traço da linha na escala: o traço fica curto qualquer que seja a escala de tipo de linha do desenho
+        /// (LTSCALE). <paramref name="db"/>: o desenho da linha (null = o dela, já gravada).
+        /// </summary>
+        public static void ApplyLineStyle(Polyline poly, double factor, Database? db = null)
+        {
+            double ltscale = (db ?? poly.Database).Ltscale;
+            poly.LinetypeScale = DashLength * factor / LinetypeDash / (ltscale > 1e-9 ? ltscale : 1);
+            poly.ConstantWidth = LineWidth(factor);
         }
 
         /// <summary>A polilinha é cordoalha: feita pelo comando (XData) ou desenhada à mão na layer da cordoalha.</summary>

@@ -133,7 +133,7 @@ namespace FiberPlugin.Commands
             bool boxNames = before.CtoPrefix != after.CtoPrefix || before.CeoPrefix != after.CeoPrefix || before.NumberDigits != after.NumberDigits;
             if (poleNames || boxNames) UpdateNames(ed, db, poleNames, boxNames);
 
-            if (Math.Abs(after.TextHeight - before.TextHeight) > 1e-9) ScaleCommand.ResizeTexts(ed, db, after.TextHeight / before.TextHeight);
+            if (Math.Abs(after.TextHeight - before.TextHeight) > 1e-9) ScaleCommand.ResizeTexts(ed, db);
 
             if (updateBlocks) doc.SendStringToExecute("FIBRA_ATUALIZAR_BLOCOS ", true, false, false);
         }
@@ -170,7 +170,7 @@ namespace FiberPlugin.Commands
             else if (updateCoordinates) ed.WriteMessage("\n[AVISO]: Defina a zona UTM do projeto (ou cole a coordenada do local) para atualizar as coordenadas.");
 
             // Escala nova, do desenho ou de algum elemento: grava e oferece ajustar o que já está desenhado
-            if (scale != scaleBefore || !elements.SameAs(elementsBefore)) ScaleCommand.Apply(ed, db, scaleBefore, elementsBefore, scale, elements);
+            if (scale != scaleBefore || !elements.SameAs(elementsBefore)) ScaleCommand.Apply(ed, db, scale, elements);
         }
 
         /// <summary>Precisa gravar: mudou na janela ou ainda está na planilha antiga (sem o arquivo do plugin).</summary>

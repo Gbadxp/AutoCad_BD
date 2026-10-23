@@ -8,11 +8,18 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace FiberPlugin.Commands
 {
+    /// <summary>
+    /// Escala do desenho e tamanho do que já está desenhado. Cada elemento do plugin tem o tamanho que a escala dele manda,
+    /// o mesmo da inserção (texto: altura das Configurações × fator da escala; bloco do poste: o fator; CTO/CEO: lado do
+    /// símbolo × fator; seta de esforço: o fator). Ao trocar a escala, e no Padronizar Tamanhos, tudo vai para esse tamanho,
+    /// inclusive o que veio de outro desenho em outra escala ou foi mudado à mão: nada é só multiplicado.
+    /// </summary>
     public class ScaleCommand
     {
         /// <summary>
-        /// Define a escala do desenho. Textos dos vãos, pontos e setas de esforço passam a ser criados no
-        /// tamanho certo para essa escala, e as anotações já desenhadas podem ser ajustadas na hora.
+        /// Define a escala do desenho. Textos dos vãos, pontos e setas de esforço passam a ser criados no tamanho certo para
+        /// essa escala, e o que já está desenhado pode ir para esse tamanho na hora (também com a mesma escala: deixa do
+        /// tamanho dela o que estiver diferente).
         /// </summary>
         [CommandMethod("FIBRA_ESCALA")]
         public void SetScale()
@@ -21,44 +28,71 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
-            int current = DrawingScale.Get(db);
-
-            int? asked = DrawingScale.Ask(ed, "\nEscala do desenho 1:X (ex.: 500, 1000, 2000)", current);
+            int? asked = DrawingScale.Ask(ed, "\nEscala do desenho 1:X (ex.: 500, 1000, 2000)", DrawingScale.Get(db));
             if (asked == null) return;
-            int scale = asked.Value;
-
-            if (scale == current)
-            {
-                ed.WriteMessage($"\n[INFO]: Escala mantida em 1:{current}.");
-                return;
-            }
-            ElementScales elements = DrawingScale.GetElements(db);
-            Apply(ed, db, current, elements, scale, elements);
+            Apply(ed, db, asked.Value, DrawingScale.GetElements(db));
         }
 
         /// <summary>
-        /// Grava a escala do desenho e as escalas por elemento novas e pergunta se ajusta o que já está desenhado: cada
-        /// tipo de elemento (bloco e texto dos postes, símbolo e texto das CTO/CEO, textos dos cabos e setas) muda na
-        /// proporção da escala dele. Usado também pela aba Projeto da janela Configurações.
+        /// Deixa todos os postes, CTO/CEO, textos, setas de esforço, reservas e cordoalhas do desenho (ou só os já
+        /// selecionados) no tamanho da escala atual: o que foi colado de um desenho em outra escala fica igual ao resto.
         /// </summary>
-        internal static void Apply(Editor ed, Database db, int scaleBefore, ElementScales elementsBefore, int scale, ElementScales elements)
+        [CommandMethod("FIBRA_PADRONIZAR_TAMANHOS", CommandFlags.UsePickSet)]
+        public void Standardize()
         {
-            // Quanto cada tipo de elemento muda de tamanho
-            var ratios = ElementScales.Items.ToDictionary(i => i,
-                i => (double)elements.Effective(i, scale) / elementsBefore.Effective(i, scaleBefore));
+            Document doc = AcApp.DocumentManager.MdiActiveDocument;
+            Database db = doc.Database;
+            Editor ed = doc.Editor;
+            if (!CadHelpers.InModelSpace(ed, db)) return;
 
+            PromptSelectionResult implied = ed.SelectImplied();
+            HashSet<ObjectId>? only = implied.Status == PromptStatus.OK ? new HashSet<ObjectId>(implied.Value.GetObjectIds()) : null;
+            int scale = DrawingScale.Get(db);
+            Dictionary<ScaleItem, double> factors = Factors(scale, DrawingScale.GetElements(db));
+
+            int count, adjusted = 0, locked = 0;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                // O que já está desenhado é achado e ajustado com as escalas de antes (o texto de cada poste é procurado
-                // pelo tamanho que ele tem agora); as escalas novas só são gravadas depois
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
+                Annotations found = FindAnnotations(tr, modelSpace, only);
+                count = found.CountChanging(tr, factors);
+                if (count > 0) (adjusted, locked) = Normalize(tr, found, factors, PoleLabels.IndexLabels(tr, modelSpace));
+                tr.Commit();
+            }
+
+            string where = only != null ? "Dos selecionados, tudo" : "Tudo";
+            if (count == 0)
+            {
+                ed.WriteMessage($"\n[INFO]: {where} já está no tamanho da escala 1:{scale}.");
+                return;
+            }
+            ed.WriteMessage($"\n[SUCESSO]: {adjusted} elemento(s) no tamanho da escala 1:{scale} (texto de {DrawingScale.TextHeight(db):0.##} unidades).");
+            if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} elemento(s) em layer travada ficaram como estavam.");
+            ed.Regen();
+        }
+
+        /// <summary>
+        /// Grava a escala do desenho e as escalas por elemento novas e pergunta se deixa o que já está desenhado no tamanho
+        /// delas (bloco e texto dos postes, símbolo e texto das CTO/CEO, textos dos cabos, setas, reservas e cordoalhas).
+        /// Usado também pela aba Projeto da janela Configurações.
+        /// </summary>
+        internal static void Apply(Editor ed, Database db, int scale, ElementScales elements)
+        {
+            Dictionary<ScaleItem, double> factors = Factors(scale, elements);
+            int before = DrawingScale.Get(db);
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                // O texto de cada poste é procurado pelo tamanho que ele tem agora (escala de antes): as escalas novas só
+                // são gravadas depois
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
                 Annotations existing = FindAnnotations(tr, modelSpace);
-                int count = existing.CountChanging(ratios);
+                int count = existing.CountChanging(tr, factors);
 
                 int adjusted = 0, locked = 0;
-                if (count > 0 && CadHelpers.AskYes(ed, $"\nAjustar os {count} elementos já desenhados para as escalas novas? [Sim/Nao] <Sim>: "))
+                if (count > 0 && CadHelpers.AskYes(ed, $"\nDeixar os {count} elementos já desenhados no tamanho da escala 1:{scale} (todos iguais, " +
+                                                       "inclusive os que vieram de outro desenho)? [Sim/Nao] <Sim>: "))
                 {
-                    (adjusted, locked) = Rescale(tr, existing, ratios, PoleLabels.IndexLabels(tr, modelSpace));
+                    (adjusted, locked) = Normalize(tr, existing, factors, PoleLabels.IndexLabels(tr, modelSpace));
                 }
 
                 DrawingScale.Set(tr, db, scale);
@@ -66,89 +100,39 @@ namespace FiberPlugin.Commands
                 tr.Commit();
 
                 string own = elements.Summary(scale);
-                ed.WriteMessage($"\n[SUCESSO]: Escala do desenho: 1:{scale} (texto de {DrawingScale.TextHeight(db):0.##} unidades)" +
-                                (own.Length > 0 ? $"; com escala própria: {own}." : "."));
-                if (adjusted > 0) ed.WriteMessage($"\n[INFO]: {adjusted} elemento(s) ajustado(s).");
+                ed.WriteMessage(scale == before
+                    ? $"\n[INFO]: Escala mantida em 1:{scale}" + (own.Length > 0 ? $"; com escala própria: {own}." : ".")
+                    : $"\n[SUCESSO]: Escala do desenho: 1:{scale} (texto de {DrawingScale.TextHeight(db):0.##} unidades)" +
+                      (own.Length > 0 ? $"; com escala própria: {own}." : "."));
+                if (adjusted > 0) ed.WriteMessage($"\n[INFO]: {adjusted} elemento(s) no tamanho da escala.");
                 if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} elemento(s) em layer travada ficaram com o tamanho antigo.");
             }
             ed.Regen();
         }
 
-        private class Annotations
-        {
-            public List<(ObjectId Id, Point3d Pole)> EffortMarkers { get; } = new List<(ObjectId, Point3d)>();
-            public List<ObjectId> SpanLabels { get; } = new List<ObjectId>();
-            public List<ObjectId> PoleLabels { get; } = new List<ObjectId>();
-            public List<ObjectId> BoxLabels { get; } = new List<ObjectId>();
-            public List<ObjectId> PoleBlocks { get; } = new List<ObjectId>();
-            public List<ObjectId> BoxBlocks { get; } = new List<ObjectId>();
-
-            /// <summary>Elementos que mudam de tamanho com essas proporções.</summary>
-            public int CountChanging(Dictionary<ScaleItem, double> ratios)
-            {
-                int Count(ScaleItem item, int n) => Math.Abs(ratios[item] - 1) > 1e-9 ? n : 0;
-                return Count(ScaleItem.Effort, EffortMarkers.Count) + Count(ScaleItem.CableText, SpanLabels.Count) +
-                       Count(ScaleItem.PoleText, PoleLabels.Count) + Count(ScaleItem.BoxText, BoxLabels.Count) +
-                       Count(ScaleItem.PoleIcon, PoleBlocks.Count) + Count(ScaleItem.BoxIcon, BoxBlocks.Count);
-            }
-        }
-
-        /// <summary>Anotações e blocos criados pelo plugin: setas de esforço, textos dos vãos e dos postes/CTO/CEO, postes e CTO/CEO.</summary>
-        private static Annotations FindAnnotations(Transaction tr, BlockTableRecord space)
-        {
-            var found = new Annotations();
-            List<PoleInfo> poles = Poles.Collect(tr, space);
-            var polesByHandle = Poles.ByHandle(poles);
-            foreach (ObjectId id in space)
-            {
-                if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
-
-                // Seta copiada: escala em torno do poste de agora, não do da original
-                if (XDataTags.ReadEffortMarker(ent) is EffortMarkerData marker)
-                {
-                    found.EffortMarkers.Add((id, Core.EffortMarkers.Locate(ent, marker, poles, polesByHandle).Point));
-                }
-                else if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
-                {
-                    found.EffortMarkers.Add((id, pole));
-                }
-                else if (ent is MText txt)
-                {
-                    if (txt.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
-                        found.SpanLabels.Add(id);
-                    else if (txt.Layer.Equals(Core.PoleLabels.Layer, StringComparison.OrdinalIgnoreCase))
-                        found.PoleLabels.Add(id);
-                    else if (txt.Layer.Equals(Core.PoleLabels.BoxLayer, StringComparison.OrdinalIgnoreCase))
-                        found.BoxLabels.Add(id);
-                }
-                else if (ent is BlockReference br)
-                {
-                    if (XDataTags.ReadPole(br) != null) found.PoleBlocks.Add(id);
-                    else if (XDataTags.ReadBox(br) != null) found.BoxBlocks.Add(id);
-                }
-            }
-            return found;
-        }
-
         /// <summary>
-        /// Altura dos textos mudada na janela Configurações: pergunta se ajusta os textos dos vãos e dos postes/CTO/CEO
-        /// já desenhados (altura multiplicada por <paramref name="ratio"/>, mantendo o lugar de cada um).
+        /// Altura dos textos mudada na janela Configurações: pergunta se deixa os textos dos vãos, dos postes/CTO/CEO e da
+        /// cordoalha já desenhados na altura nova (cada um no seu lugar).
         /// </summary>
-        internal static void ResizeTexts(Editor ed, Database db, double ratio)
+        internal static void ResizeTexts(Editor ed, Database db)
         {
+            Dictionary<ScaleItem, double> factors = Factors(DrawingScale.Get(db), DrawingScale.GetElements(db));
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Annotations existing = FindAnnotations(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
-                int count = existing.SpanLabels.Count + existing.PoleLabels.Count + existing.BoxLabels.Count;
+                Annotations all = FindAnnotations(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
+                var texts = new Annotations();
+                texts.SpanLabels.AddRange(all.SpanLabels);
+                texts.StrandLabels.AddRange(all.StrandLabels);
+                texts.PoleLabels.AddRange(all.PoleLabels);
+                texts.BoxLabels.AddRange(all.BoxLabels);
+                int count = texts.CountChanging(tr, factors);
                 if (count == 0 || !CadHelpers.AskYes(ed, $"\nAjustar a altura dos {count} textos já desenhados neste desenho? [Sim/Nao] <Sim>: "))
                 {
                     tr.Commit();
                     return;
                 }
 
-                int locked = 0;
-                int adjusted = RescaleSpanLabels(tr, existing.SpanLabels, ratio, ref locked) +
-                               RescaleHeights(tr, existing.PoleLabels.Concat(existing.BoxLabels), ratio, ref locked);
+                var (adjusted, locked) = Normalize(tr, texts, factors, new Dictionary<string, List<ObjectId>>());
                 tr.Commit();
                 ed.WriteMessage($"\n[INFO]: {adjusted} texto(s) ajustado(s).");
                 if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} texto(s) em layer travada ficaram com a altura antiga.");
@@ -156,56 +140,224 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
+        /// <summary>Fator de cada tipo de elemento na escala (1 em 1:1000).</summary>
+        private static Dictionary<ScaleItem, double> Factors(int scale, ElementScales elements) =>
+            ElementScales.Items.ToDictionary(i => i, i => elements.Effective(i, scale) / (double)DrawingScale.Reference);
+
+        private sealed class Annotations
+        {
+            public List<(ObjectId Id, Point3d Pole)> EffortMarkers { get; } = new List<(ObjectId, Point3d)>();
+            public List<ObjectId> SpanLabels { get; } = new List<ObjectId>();
+            public List<ObjectId> StrandLabels { get; } = new List<ObjectId>();
+            public List<ObjectId> StrandLines { get; } = new List<ObjectId>();
+            public List<ObjectId> ReserveTexts { get; } = new List<ObjectId>();
+            public List<ObjectId> ReserveArrows { get; } = new List<ObjectId>();
+            public List<ObjectId> PoleLabels { get; } = new List<ObjectId>();
+            public List<ObjectId> BoxLabels { get; } = new List<ObjectId>();
+            public List<ObjectId> PoleBlocks { get; } = new List<ObjectId>();
+            public List<ObjectId> BoxBlocks { get; } = new List<ObjectId>();
+
+            /// <summary>Elementos fora do tamanho da escala (os que o ajuste muda).</summary>
+            public int CountChanging(Transaction tr, Dictionary<ScaleItem, double> factors)
+            {
+                bool Off(double ratio) => Math.Abs(ratio - 1) > 1e-4;
+                return EffortGroups(tr, this, factors).Sum(g => Off(g.Ratio) ? g.Ids.Count : 0) +
+                       SpanLabels.Concat(StrandLabels).Concat(ReserveTexts).Count(id => Off(TextRatio(tr, id, factors[ScaleItem.CableText]))) +
+                       PoleLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.PoleText]))) +
+                       BoxLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.BoxText]))) +
+                       StrandLines.Count(id => Off(StrandWidthRatio(tr, id, factors[ScaleItem.CableText]))) +
+                       PoleBlocks.Count(id => Off(PoleBlockRatio(tr, id, factors[ScaleItem.PoleIcon]))) +
+                       BoxBlocks.Count(id => Off(BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon])));
+            }
+        }
+
         /// <summary>
-        /// Muda o tamanho de cada tipo pela proporção dele. O que está em layer travada (o bloco, um atributo ou o texto
-        /// dele) fica como estava. Retorna os ajustados e os que ficaram por estar em layer travada.
+        /// Anotações e blocos criados pelo plugin: setas de esforço, textos dos vãos, da cordoalha e dos postes/CTO/CEO,
+        /// reservas técnicas, cordoalhas, postes e CTO/CEO. <paramref name="only"/>: só esses objetos (null = todos); de uma
+        /// seta de esforço com algum pedaço selecionado vai a seta inteira, e o texto da reserva leva a seta dele.
         /// </summary>
-        private static (int Adjusted, int Locked) Rescale(Transaction tr, Annotations annotations, Dictionary<ScaleItem, double> ratios,
+        private static Annotations FindAnnotations(Transaction tr, BlockTableRecord space, ISet<ObjectId>? only = null)
+        {
+            var found = new Annotations();
+            List<PoleInfo> poles = Poles.Collect(tr, space);
+            var polesByHandle = Poles.ByHandle(poles);
+            var markers = new List<(ObjectId Id, Point3d Pole, bool Selected)>();
+            foreach (ObjectId id in space)
+            {
+                bool selected = only == null || only.Contains(id);
+                if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
+
+                // Seta copiada: escala em torno do poste de agora, não do da original
+                if (XDataTags.ReadEffortMarker(ent) is EffortMarkerData marker)
+                {
+                    markers.Add((id, Core.EffortMarkers.Locate(ent, marker, poles, polesByHandle).Point, selected));
+                }
+                else if (XDataTags.TryGetEffortPole(ent, out Point3d pole))
+                {
+                    markers.Add((id, pole, selected));
+                }
+                else if (XDataTags.IsReserve(ent))
+                {
+                    if (ent is MText && selected) found.ReserveTexts.Add(id);
+                    else if (ent is Polyline) found.ReserveArrows.Add(id); // Todas: cada texto acha a dele
+                }
+                else if (!selected)
+                {
+                    continue;
+                }
+                else if (ent is MText txt)
+                {
+                    if (txt.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
+                        found.SpanLabels.Add(id);
+                    else if (txt.Layer.Equals(Strand.TextLayer, StringComparison.OrdinalIgnoreCase))
+                        found.StrandLabels.Add(id);
+                    else if (txt.Layer.Equals(Core.PoleLabels.Layer, StringComparison.OrdinalIgnoreCase))
+                        found.PoleLabels.Add(id);
+                    else if (txt.Layer.Equals(Core.PoleLabels.BoxLayer, StringComparison.OrdinalIgnoreCase))
+                        found.BoxLabels.Add(id);
+                }
+                else if (ent is Polyline poly && Strand.IsStrand(poly))
+                {
+                    found.StrandLines.Add(id);
+                }
+                else if (ent is BlockReference br)
+                {
+                    if (XDataTags.ReadPole(br) != null) found.PoleBlocks.Add(id);
+                    else if (XDataTags.ReadBox(br) != null) found.BoxBlocks.Add(id);
+                }
+            }
+
+            var chosen = new HashSet<(double, double)>(markers.Where(m => m.Selected).Select(m => PoleKey(m.Pole)));
+            found.EffortMarkers.AddRange(markers.Where(m => chosen.Contains(PoleKey(m.Pole))).Select(m => (m.Id, m.Pole)));
+            return found;
+        }
+
+        /// <summary>Ponto do poste arredondado: a seta e os textos de um mesmo ponto têm a mesma chave.</summary>
+        private static (double, double) PoleKey(Point3d pole) => (Math.Round(pole.X, 3), Math.Round(pole.Y, 3));
+
+        /// <summary>
+        /// Leva cada elemento ao tamanho da escala. O que está em layer travada (o bloco, um atributo ou o texto dele) fica
+        /// como estava. Retorna os ajustados e os que ficaram por estar em layer travada.
+        /// </summary>
+        private static (int Adjusted, int Locked) Normalize(Transaction tr, Annotations annotations, Dictionary<ScaleItem, double> factors,
             Dictionary<string, List<ObjectId>> labels)
         {
             int adjusted = 0, locked = 0;
-            bool Changes(ScaleItem item) => Math.Abs(ratios[item] - 1) > 1e-9;
+            bool Off(double ratio) => Math.Abs(ratio - 1) > 1e-4;
 
-            // Setas de esforço (seta + textos, ou bloco): escala em torno do centro do poste
-            if (Changes(ScaleItem.Effort))
+            // Setas de esforço (seta + textos, ou bloco): a seta inteira muda junto, em torno do centro do poste
+            foreach (var (ids, pole, ratio) in EffortGroups(tr, annotations, factors))
             {
-                foreach (var (id, pole) in annotations.EffortMarkers)
+                if (!Off(ratio)) continue;
+                foreach (ObjectId id in ids)
                 {
-                    if (id.IsErased) continue;
                     if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
-                    var ent = (Entity)tr.GetObject(id, OpenMode.ForWrite);
-                    ent.TransformBy(Matrix3d.Scaling(ratios[ScaleItem.Effort], pole));
+                    ((Entity)tr.GetObject(id, OpenMode.ForWrite)).TransformBy(Matrix3d.Scaling(ratio, pole));
                     adjusted++;
                 }
             }
-            if (Changes(ScaleItem.CableText)) adjusted += RescaleSpanLabels(tr, annotations.SpanLabels, ratios[ScaleItem.CableText], ref locked);
+
+            double cable = factors[ScaleItem.CableText];
+            adjusted += NormalizeLineTexts(tr, annotations.SpanLabels.Concat(annotations.StrandLabels), cable, ref locked);
+            adjusted += NormalizeReserves(tr, annotations, cable, ref locked);
+            foreach (ObjectId id in annotations.StrandLines)
+            {
+                if (!Off(StrandWidthRatio(tr, id, cable))) continue;
+                if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
+                Strand.ApplyLineStyle((Polyline)tr.GetObject(id, OpenMode.ForWrite), cable);
+                adjusted++;
+            }
 
             // Blocos antes dos textos: o texto acompanha o bloco e depois muda de altura no lugar
-            foreach (var (item, blocks) in new[] { (ScaleItem.PoleIcon, annotations.PoleBlocks), (ScaleItem.BoxIcon, annotations.BoxBlocks) })
+            foreach (var (blocks, ratioOf) in new (List<ObjectId>, Func<ObjectId, double>)[]
+                     {
+                         (annotations.PoleBlocks, id => PoleBlockRatio(tr, id, factors[ScaleItem.PoleIcon])),
+                         (annotations.BoxBlocks, id => BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon]))
+                     })
             {
-                if (!Changes(item)) continue;
                 foreach (ObjectId id in blocks)
                 {
+                    double ratio = ratioOf(id);
+                    if (!Off(ratio)) continue;
                     var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
                     bool anyLocked = CadHelpers.IsOnLockedLayer(tr, id) ||
                                      br.AttributeCollection.Cast<ObjectId>().Any(a => CadHelpers.IsOnLockedLayer(tr, a)) ||
                                      (labels.TryGetValue(br.Handle.ToString(), out List<ObjectId>? own) && own.Any(l => !l.IsErased && CadHelpers.IsOnLockedLayer(tr, l)));
-                    if (!anyLocked && BlockSizeCommand.Scale(tr, br, ratios[item], labels)) adjusted++;
+                    if (!anyLocked && BlockSizeCommand.Scale(tr, br, ratio, labels)) adjusted++;
                     else locked++;
                 }
             }
-            if (Changes(ScaleItem.PoleText)) adjusted += RescaleHeights(tr, annotations.PoleLabels, ratios[ScaleItem.PoleText], ref locked);
-            if (Changes(ScaleItem.BoxText)) adjusted += RescaleHeights(tr, annotations.BoxLabels, ratios[ScaleItem.BoxText], ref locked);
+            adjusted += NormalizeHeights(tr, annotations.PoleLabels, factors[ScaleItem.PoleText], ref locked);
+            adjusted += NormalizeHeights(tr, annotations.BoxLabels, factors[ScaleItem.BoxText], ref locked);
             return (adjusted, locked);
         }
 
-        /// <summary>Textos dos vãos: altura nova e afastamento da linha proporcional, sem mudar de vão. Retorna os ajustados.</summary>
-        private static int RescaleSpanLabels(Transaction tr, List<ObjectId> labels, double ratio, ref int locked)
+        /// <summary>
+        /// Setas de esforço agrupadas pelo poste (a seta e os textos de um ponto), com a proporção que leva a seta ao tamanho
+        /// da escala: pelo bloco da seta, ou pelo texto, pelo círculo do aviso "SEM POSTE" ou pelo comprimento da seta.
+        /// </summary>
+        private static List<(List<ObjectId> Ids, Point3d Pole, double Ratio)> EffortGroups(Transaction tr, Annotations annotations,
+            Dictionary<ScaleItem, double> factors)
+        {
+            double f = factors[ScaleItem.Effort];
+            var groups = new List<(List<ObjectId>, Point3d, double)>();
+            foreach (var group in annotations.EffortMarkers.Where(m => !m.Id.IsErased).GroupBy(m => PoleKey(m.Pole)))
+            {
+                List<Entity> entities = group.Select(m => (Entity)tr.GetObject(m.Id, OpenMode.ForRead)).ToList();
+                double? ratio = entities.OfType<BlockReference>().Select(b => Ratio(f, Math.Abs(b.ScaleFactors.X))).FirstOrDefault()
+                                ?? entities.OfType<MText>().Select(t => Ratio(FiberSettings.TextHeight * f, t.TextHeight)).FirstOrDefault()
+                                ?? entities.OfType<DBText>().Select(t => Ratio(FiberSettings.TextHeight * f, t.Height)).FirstOrDefault()
+                                ?? entities.OfType<Circle>().Select(c => Ratio(Core.EffortMarkers.NoPoleRadius * f, c.Radius)).FirstOrDefault()
+                                ?? entities.OfType<Polyline>().Select(p => Ratio(FiberSettings.EffortArrowLength * f, p.Length)).FirstOrDefault();
+                if (ratio is double r) groups.Add((group.Select(m => m.Id).ToList(), group.First().Pole, r));
+            }
+            return groups;
+        }
+
+        /// <summary>Proporção do tamanho de agora para o certo (null se não dá para medir).</summary>
+        private static double? Ratio(double target, double current) => current > 1e-9 && target > 1e-9 ? target / current : (double?)null;
+
+        private static double TextRatio(Transaction tr, ObjectId id, double factor) =>
+            !id.IsErased && tr.GetObject(id, OpenMode.ForRead) is MText t ? Ratio(FiberSettings.TextHeight * factor, t.TextHeight) ?? 1 : 1;
+
+        private static double PoleBlockRatio(Transaction tr, ObjectId id, double factor) =>
+            Ratio(factor, Math.Abs(((BlockReference)tr.GetObject(id, OpenMode.ForRead)).ScaleFactors.X)) ?? 1;
+
+        /// <summary>CTO/CEO: o maior lado do símbolo igual ao das Configurações × fator, como na inserção.</summary>
+        private static double BoxBlockRatio(Transaction tr, ObjectId id, double factor)
+        {
+            var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
+            if (BlockInsertHelpers.DefinitionExtents(tr, br.BlockTableRecord) is not Extents3d e) return 1;
+            double side = Math.Max(e.MaxPoint.X - e.MinPoint.X, e.MaxPoint.Y - e.MinPoint.Y) * Math.Abs(br.ScaleFactors.X);
+            return Ratio(FiberSettings.BoxSymbolSize * factor, side) ?? 1;
+        }
+
+        private static double StrandWidthRatio(Transaction tr, ObjectId id, double factor)
+        {
+            var poly = (Polyline)tr.GetObject(id, OpenMode.ForRead);
+            double width;
+            try
+            {
+                width = poly.ConstantWidth;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                width = 0; // Larguras diferentes por trecho: vai para a do padrão
+            }
+            return Ratio(Strand.LineWidth(factor), width) ?? 2; // Sem largura (cordoalha da 1.9.66): muda
+        }
+
+        /// <summary>
+        /// Textos ao longo de uma linha (vãos do cabo, trechos da cordoalha): altura da escala e afastamento da linha na
+        /// mesma proporção, sem sair do vão. Retorna os ajustados.
+        /// </summary>
+        private static int NormalizeLineTexts(Transaction tr, IEnumerable<ObjectId> labels, double factor, ref int locked)
         {
             int count = 0;
             foreach (ObjectId id in labels)
             {
-                if (id.IsErased) continue;
+                double ratio = TextRatio(tr, id, factor);
+                if (Math.Abs(ratio - 1) <= 1e-4) continue;
                 if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
                 double extraGap = txt.TextHeight * FiberSettings.LabelGapRatio * (ratio - 1);
@@ -220,16 +372,49 @@ namespace FiberPlugin.Commands
             return count;
         }
 
+        /// <summary>
+        /// Reservas técnicas: o texto na altura da escala e a seta dele na mesma proporção, em torno da ponta (que fica no
+        /// poste). A seta de cada texto é a reserva mais perto dele. Retorna os ajustados.
+        /// </summary>
+        private static int NormalizeReserves(Transaction tr, Annotations annotations, double factor, ref int locked)
+        {
+            int count = 0;
+            var arrows = annotations.ReserveArrows.Where(id => !id.IsErased).Select(id => (Id: id, Poly: (Polyline)tr.GetObject(id, OpenMode.ForRead)))
+                .Where(a => a.Poly.NumberOfVertices >= 2).ToList();
+            foreach (ObjectId id in annotations.ReserveTexts)
+            {
+                double ratio = TextRatio(tr, id, factor);
+                if (Math.Abs(ratio - 1) <= 1e-4) continue;
+                var text = (MText)tr.GetObject(id, OpenMode.ForRead);
+                var arrow = arrows.OrderBy(a => text.Location.DistanceTo(Midpoint(a.Poly))).Select(a => ((ObjectId Id, Polyline Poly)?)a).FirstOrDefault();
+                Point3d tip = arrow?.Poly.GetPoint3dAt(arrow.Value.Poly.NumberOfVertices - 1) ?? text.Location;
+
+                var group = arrow != null ? new[] { id, arrow.Value.Id } : new[] { id };
+                if (group.Any(g => CadHelpers.IsOnLockedLayer(tr, g))) { locked += group.Length; continue; }
+                foreach (ObjectId g in group) ((Entity)tr.GetObject(g, OpenMode.ForWrite)).TransformBy(Matrix3d.Scaling(ratio, tip));
+                if (arrow != null) arrows.Remove(arrow.Value);
+                count += group.Length;
+            }
+            return count;
+        }
+
+        private static Point3d Midpoint(Polyline poly)
+        {
+            Point3d a = poly.GetPoint3dAt(0), b = poly.GetPoint3dAt(1);
+            return a + (b - a) / 2;
+        }
+
         /// <summary>Textos de identificação dos postes e CTO/CEO: só a altura, no mesmo lugar. Retorna os ajustados.</summary>
-        private static int RescaleHeights(Transaction tr, IEnumerable<ObjectId> labels, double ratio, ref int locked)
+        private static int NormalizeHeights(Transaction tr, IEnumerable<ObjectId> labels, double factor, ref int locked)
         {
             int count = 0;
             foreach (ObjectId id in labels)
             {
                 if (id.IsErased) continue; // Texto repetido apagado ao levantar os textos (PoleLabels.IndexLabels)
+                double ratio = TextRatio(tr, id, factor);
+                if (Math.Abs(ratio - 1) <= 1e-4) continue;
                 if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
-                var txt = (MText)tr.GetObject(id, OpenMode.ForWrite);
-                txt.TextHeight *= ratio;
+                ((MText)tr.GetObject(id, OpenMode.ForWrite)).TextHeight *= ratio;
                 count++;
             }
             return count;
