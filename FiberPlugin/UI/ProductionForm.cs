@@ -259,7 +259,7 @@ namespace FiberPlugin.UI
             {
                 workbook.Save(path);
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 _footer.Hint = $"Não deu para salvar ({ex.Message}): se estiver aberta no Excel, feche e tente de novo";
                 return;

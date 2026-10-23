@@ -63,8 +63,8 @@ namespace FiberPlugin
             FiberRibbon.Install();
 
             // Desenho com o mapa do AutoCAD ligado e sem login na conta Autodesk: o AutoCAD trava tentando baixar o mapa
-            AcApp.DocumentManager.DocumentActivated += (s, e) => Commands.RoadsMapCommand.TurnOffWithoutSignIn(e.Document);
-            Commands.RoadsMapCommand.TurnOffWithoutSignIn(AcApp.DocumentManager.MdiActiveDocument);
+            AcApp.DocumentManager.DocumentActivated += (s, e) => Commands.BackgroundMap.TurnOffWithoutSignIn(e.Document);
+            Commands.BackgroundMap.TurnOffWithoutSignIn(AcApp.DocumentManager.MdiActiveDocument);
 
             // Produção do dia: anota o que cada desenho tem ao abrir e a cada vez que é salvo
             try

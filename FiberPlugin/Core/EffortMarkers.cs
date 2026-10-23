@@ -52,8 +52,19 @@ namespace FiberPlugin.Core
         // Setas já desenhadas: ponto de onde saem e handle do poste a que pertencem ("" = sem poste ou versão antiga)
         private readonly List<(ObjectId Id, Point3d Pole, string PoleHandle)> _existing = new List<(ObjectId, Point3d, string)>();
         // Textos e desenho dos postes/caixas do espaço, em que os textos da seta não podem encostar
-        // (quatro cantos: texto inclinado é um retângulo inclinado)
-        private readonly List<Point3d[]> _obstacles = new List<Point3d[]>();
+        private readonly List<Obstacle> _obstacles = new List<Obstacle>();
+
+        /// <summary>
+        /// Obstáculo: a caixa reta (rápida) separa os que estão perto da seta, e só desses se calculam os quatro cantos
+        /// (texto inclinado é um retângulo inclinado, que precisa de uma cópia girada do texto para medir).
+        /// </summary>
+        private sealed class Obstacle
+        {
+            public ObjectId Id;
+            public Extents3d Box;
+            public Point3d[]? Corners;
+            public bool Measured;
+        }
 
         /// <summary>Setas colocadas.</summary>
         public int Placed { get; private set; }
@@ -101,7 +112,7 @@ namespace FiberPlugin.Core
                 else if (ent is MText || ent is DBText ||
                          ent is BlockReference symbol && (XDataTags.ReadPole(symbol) != null || XDataTags.ReadBox(symbol) != null))
                 {
-                    if (Corners(ent) is Point3d[] corners) _obstacles.Add(corners);
+                    if (Extents(ent) is Extents3d box) _obstacles.Add(new Obstacle { Id = id, Box = box });
                 }
                 else if (ent is BlockReference br &&
                          CadHelpers.GetBlockName(tr, br).Equals(FiberSettings.EffortBlockName, StringComparison.OrdinalIgnoreCase))
@@ -230,7 +241,8 @@ namespace FiberPlugin.Core
                 AvoidOverlap(created, texts, pole, angle);
                 foreach (Entity text in texts)
                 {
-                    if (Corners(text) is Point3d[] corners) _obstacles.Add(corners); // A próxima seta também desvia destes textos
+                    // A próxima seta também desvia destes textos
+                    if (Extents(text) is Extents3d box) _obstacles.Add(new Obstacle { Id = text.ObjectId, Box = box, Corners = Corners(text), Measured = true });
                 }
                 Placed++;
             }
@@ -280,14 +292,24 @@ namespace FiberPlugin.Core
 
             double length = FiberSettings.EffortArrowLength * _scale;
             double reach = 2 * (FiberSettings.EffortArrowGap * _scale + length);
-            List<IReadOnlyList<(double X, double Y)>> near = _obstacles
-                .Where(o => o.Min(p => p.DistanceTo(pole)) <= reach + Math.Max(o[0].DistanceTo(o[2]), o[1].DistanceTo(o[3])))
-                .Select(o => (IReadOnlyList<(double X, double Y)>)o.Select(p =>
+            var near = new List<IReadOnlyList<(double X, double Y)>>();
+            foreach (Obstacle o in _obstacles)
+            {
+                double dx = Math.Max(0, Math.Max(o.Box.MinPoint.X - pole.X, pole.X - o.Box.MaxPoint.X));
+                double dy = Math.Max(0, Math.Max(o.Box.MinPoint.Y - pole.Y, pole.Y - o.Box.MaxPoint.Y));
+                if (dx * dx + dy * dy > reach * reach) continue;
+                if (!o.Measured)
+                {
+                    o.Measured = true;
+                    o.Corners = !o.Id.IsErased && _tr.GetObject(o.Id, OpenMode.ForRead) is Entity ent ? Corners(ent) : null;
+                }
+                if (o.Corners == null) continue;
+                near.Add(o.Corners.Select(p =>
                 {
                     Point3d local = p.TransformBy(toLocal);
                     return (local.X - pole.X, local.Y - pole.Y);
-                }).ToList())
-                .ToList();
+                }).ToList());
+            }
             if (near.Count == 0) return;
 
             // Sem lugar livre, ou já livre: fica onde está. O bloco da seta leva os atributos junto

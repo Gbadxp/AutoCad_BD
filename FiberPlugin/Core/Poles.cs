@@ -143,37 +143,38 @@ namespace FiberPlugin.Core
             var poles = new List<PoleInfo>();
             foreach (ObjectId id in space)
             {
-                if (tr.GetObject(id, OpenMode.ForRead) is not BlockReference br) continue;
+                if (tr.GetObject(id, OpenMode.ForRead) is BlockReference br && Read(tr, id, br) is PoleInfo pole) poles.Add(pole);
+            }
+            return poles;
+        }
 
-                PoleData? data = XDataTags.ReadPole(br);
-                if (data != null)
-                {
-                    poles.Add(new PoleInfo
-                    {
-                        Id = id,
-                        Position = br.Position,
-                        Number = PoleData.NumberText(data.Number),
-                        Name = data.Designation,
-                        Data = data
-                    });
-                    continue;
-                }
-
-                if (br.AttributeCollection.Count == 0) continue;
-
-                string? number = CadHelpers.GetAttributeValue(tr, br, CadHelpers.NumberTags);
-                if (number == null) continue;
-
-                string? name = CadHelpers.GetAttributeValue(tr, br, CadHelpers.NameTags);
-                poles.Add(new PoleInfo
+        /// <summary>O bloco como poste (veja Collect); null se não é poste.</summary>
+        public static PoleInfo? Read(Transaction tr, ObjectId id, BlockReference br)
+        {
+            if (XDataTags.ReadPole(br) is PoleData data)
+            {
+                return new PoleInfo
                 {
                     Id = id,
                     Position = br.Position,
-                    Number = string.IsNullOrWhiteSpace(number) ? "-" : number,
-                    Name = name == null || name.Trim().Length == 0 ? "Poste" : name
-                });
+                    Number = PoleData.NumberText(data.Number),
+                    Name = data.Designation,
+                    Data = data
+                };
             }
-            return poles;
+
+            if (br.AttributeCollection.Count == 0) return null;
+            string? number = CadHelpers.GetAttributeValue(tr, br, CadHelpers.NumberTags);
+            if (number == null) return null;
+
+            string? name = CadHelpers.GetAttributeValue(tr, br, CadHelpers.NameTags);
+            return new PoleInfo
+            {
+                Id = id,
+                Position = br.Position,
+                Number = string.IsNullOrWhiteSpace(number) ? "-" : number,
+                Name = name == null || name.Trim().Length == 0 ? "Poste" : name
+            };
         }
 
         public static PoleInfo? Nearest(IEnumerable<PoleInfo> poles, Point3d point, double tolerance)

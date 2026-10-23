@@ -1,7 +1,6 @@
 using System.IO;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
-using FiberPlugin.Models;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace FiberPlugin.Core
@@ -140,33 +139,43 @@ namespace FiberPlugin.Core
             return drawings;
         }
 
-        /// <summary>O que o desenho tem agora no Model: cabos, CTO, CEO, postes, reservas técnicas e cordoalha.</summary>
+        /// <summary>
+        /// O que o desenho tem agora no Model: cabos, CTO, CEO, postes, reservas técnicas e cordoalha. Uma passada só (roda a
+        /// cada vez que o desenho é salvo), com as regras do relatório: cabo pelo nome (CableDrawing.Totals), CTO/CEO pelo
+        /// XData (Boxes.Collect) e postes como no Poles.Collect.
+        /// </summary>
         public static ProductionCount Count(Database db)
         {
             var count = new ProductionCount();
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
-                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
-                foreach (CableTotal cable in CableDrawing.Totals(tr, modelSpace, new List<CableModel>()))
-                    count.CableMeters[cable.Name] = cable.Length;
-                foreach (BoxInfo box in Boxes.Collect(tr, modelSpace))
+                foreach (ObjectId id in CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead))
                 {
-                    if (box.Data.Kind == BlockCategories.Cto) count.Cto++;
-                    else if (box.Data.Kind == BlockCategories.Ceo) count.Ceo++;
-                }
-                count.Poles = Poles.Collect(tr, modelSpace).Count;
-
-                foreach (ObjectId id in modelSpace)
-                {
-                    DBObject obj = tr.GetObject(id, OpenMode.ForRead);
-                    if (obj is Polyline poly && Strand.IsStrand(poly))
+                    switch (tr.GetObject(id, OpenMode.ForRead))
                     {
-                        count.StrandMeters += poly.Length;
-                    }
-                    else if (ReserveText(tr, obj) is string text && ProductionCount.IsReserve(text, out double meters))
-                    {
-                        count.Reserves++;
-                        count.ReserveMeters += meters;
+                        case Polyline poly when XDataTags.GetCableName(poly) is string cable:
+                            count.CableMeters[cable] = (count.CableMeters.TryGetValue(cable, out double meters) ? meters : 0) + poly.Length;
+                            break;
+                        case Polyline poly when Strand.IsStrand(poly):
+                            count.StrandMeters += poly.Length;
+                            break;
+                        case BlockReference br:
+                            string? kind = XDataTags.ReadBox(br)?.Kind;
+                            if (kind == BlockCategories.Cto) count.Cto++;
+                            else if (kind == BlockCategories.Ceo) count.Ceo++;
+                            bool pole = Poles.Read(tr, id, br) != null;
+                            if (pole) count.Poles++;
+                            // Reserva em bloco: o nome dele ou um atributo (poste e caixa não são reserva)
+                            if (kind == null && !pole) AddReserve(count, CadHelpers.GetBlockName(tr, br) + " " + string.Join(" ",
+                                br.AttributeCollection.Cast<ObjectId>().Select(a => tr.GetObject(a, OpenMode.ForRead))
+                                    .OfType<AttributeReference>().Select(a => a.TextString)));
+                            break;
+                        case MText mtext:
+                            AddReserve(count, mtext.Text);
+                            break;
+                        case DBText text:
+                            AddReserve(count, text.TextString);
+                            break;
                     }
                 }
                 tr.Commit();
@@ -174,22 +183,11 @@ namespace FiberPlugin.Core
             return count;
         }
 
-        /// <summary>
-        /// Texto em que pode estar escrita uma reserva técnica: o texto (MText ou Text) ou, num bloco, o nome dele junto
-        /// com os atributos. Null nos outros desenhos.
-        /// </summary>
-        private static string? ReserveText(Transaction tr, DBObject obj)
+        private static void AddReserve(ProductionCount count, string text)
         {
-            switch (obj)
-            {
-                case MText mtext: return mtext.Text;
-                case DBText text: return text.TextString;
-                case BlockReference br:
-                    string attributes = string.Join(" ", br.AttributeCollection.Cast<ObjectId>()
-                        .Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<AttributeReference>().Select(a => a.TextString));
-                    return CadHelpers.GetBlockName(tr, br) + " " + attributes;
-                default: return null;
-            }
+            if (!ProductionCount.IsReserve(text, out double meters)) return;
+            count.Reserves++;
+            count.ReserveMeters += meters;
         }
     }
 }

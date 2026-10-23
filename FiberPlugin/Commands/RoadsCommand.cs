@@ -32,12 +32,12 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
             if (!CadHelpers.InModelSpace(ed, db)) return;
-            RoadsMapCommand.TurnOffWithoutSignIn(doc); // Mapa ligado sem login trava o AutoCAD enquanto desenha
+            BackgroundMap.TurnOffWithoutSignIn(doc); // Mapa ligado sem login trava o AutoCAD enquanto desenha
 
             // Geolocalização gravada por versões anteriores do plugin, com a transformação errada (o mapa de fundo ia para
             // outro lugar e o AutoCAD podia travar baixando ele): já sai consertada antes de tudo
             if (UtmZone.Get(db) is UtmSettings zoneNow && UtmZone.HasGeoLocation(db))
-                UtmZone.CheckGeoLocation(db, zoneNow, out _);
+                UtmZone.RepairOldGeoLocation(db, zoneNow);
 
             // Ruas que já estão no desenho (para a janela oferecer escrever só os nomes)
             UserSettings prefs = UserSettings.Current;
@@ -52,7 +52,7 @@ namespace FiberPlugin.Commands
             UtmSettings? projectZone = UtmZone.Get(db);
             RoadImportSettings settings;
             RoadArea area;
-            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone, drawn, layer, RoadsMapCommand.SignedIn()))
+            using (var form = new UI.RoadsForm(RoadImportSettings.Load(db), projectZone, drawn, layer))
             {
                 form.PickInDrawing = rectangle => Pick(ed, form, rectangle);
                 if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Area == null) return;
@@ -268,9 +268,6 @@ namespace FiberPlugin.Commands
 
             doc.SendStringToExecute(FormattableString.Invariant($"_.ZOOM _W *{minX:F3},{minY:F3} *{maxX:F3},{maxY:F3} "), true, false, false);
 
-            // Satélite do AutoCAD, depois do zoom (precisa da geolocalização gravada acima, e certa: errada, o mapa vai para
-            // outro lugar e o AutoCAD pode travar baixando ele)
-            if (settings.Background == "Satelite") ShowMap(doc, settings, utm, reference, minX, minY, maxX, maxY);
         }
 
         /// <summary>Baixa a imagem do mapa da área (Esc cancela) e coloca atrás das ruas.</summary>
@@ -306,7 +303,7 @@ namespace FiberPlugin.Commands
             {
                 try
                 {
-                    string file = RoadsMapCommand.InsertTiles(doc, map, utm, minX, minY, maxX, maxY);
+                    string file = BackgroundMap.InsertTiles(doc, map, utm, minX, minY, maxX, maxY);
                     double pixel = (maxX - minX) / map.Image.Width;
                     ed.WriteMessage($"\n[SUCESSO]: Imagem do {source.Name} atrás das ruas, na layer {RoadImportSettings.MapLayer} " +
                                     $"(cerca de {pixel:0.0} m por pixel). A imagem fica em {file}: mantenha essa pasta junto do desenho.");
@@ -344,38 +341,6 @@ namespace FiberPlugin.Commands
             }
             finished = true;
             return task;
-        }
-
-        private static void ShowMap(Document doc, RoadImportSettings settings, UtmSettings utm, Point3d center,
-            double minX, double minY, double maxX, double maxY)
-        {
-            Editor ed = doc.Editor;
-            if (RoadsMapCommand.SignedIn() == false)
-            {
-                ed.WriteMessage("\n[AVISO]: O mapa de fundo não foi ligado: o AutoCAD não está conectado à conta Autodesk. " +
-                                RoadsMapCommand.SignInHelp);
-                return;
-            }
-            if (!UtmZone.HasGeoLocation(doc.Database))
-            {
-                ed.WriteMessage("\n[AVISO]: Sem a geolocalização do desenho o AutoCAD não mostra o mapa de fundo.");
-                return;
-            }
-            switch (UtmZone.CheckGeoLocation(doc.Database, utm, center, out string detail))
-            {
-                case UtmZone.GeoCheck.Wrong:
-                    ed.WriteMessage($"\n[AVISO]: A geolocalização do desenho põe o centro da área em {detail}: o mapa iria para " +
-                                    "outro lugar, então não foi ligado. Confira o sistema de coordenadas em GEOGRAPHICLOCATION.");
-                    return;
-                case UtmZone.GeoCheck.Unknown:
-                    ed.WriteMessage("\n[AVISO]: Não deu para conferir a geolocalização do desenho; o mapa pode não aparecer no lugar certo.");
-                    break;
-                default:
-                    var (lat, lon) = UtmZone.ToGeographic(center.X, center.Y, utm.Zone, utm.South);
-                    ed.WriteMessage(FormattableString.Invariant($"\n[INFO]: Geolocalização conferida: centro da área em lat {lat:F6}, long {lon:F6}."));
-                    break;
-            }
-            RoadsMapCommand.Show(doc, settings.Background, settings.BackgroundImage, minX, minY, maxX, maxY);
         }
 
         /// <summary>

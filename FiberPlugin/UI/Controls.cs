@@ -366,12 +366,6 @@ namespace FiberPlugin.UI
             SelectedIndex = 0;
         }
 
-        /// <summary>Ativa ou desativa uma opção só (a desativada não pode ser escolhida).</summary>
-        public void SetOptionEnabled(int index, bool enabled)
-        {
-            if (index >= 0 && index < _buttons.Count) _buttons[index].Enabled = enabled;
-        }
-
         /// <summary>Opção marcada; -1 = nenhuma (usado quando as opções são atalhos para preencher um campo).</summary>
         public int SelectedIndex
         {

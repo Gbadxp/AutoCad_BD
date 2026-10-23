@@ -125,15 +125,11 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Mapa de fundo: Nenhum; OSM = imagem do mapa do OpenStreetMap e Esri = foto de satélite da Esri (uso não
-        /// comercial), baixadas pelo plugin e colocadas atrás das ruas, sem conta; Satelite = satélite do próprio AutoCAD
-        /// (GEOMAP), que precisa do AutoCAD conectado à conta Autodesk.
+        /// comercial), baixadas pelo plugin e colocadas atrás das ruas, sem conta.
         /// </summary>
         public string Background { get; set; } = "Nenhum";
 
-        /// <summary>Satélite: grava a imagem no desenho (GEOMAPIMAGE), que sai na impressão; senão, só na tela.</summary>
-        public bool BackgroundImage { get; set; }
-
-        public static readonly string[] Backgrounds = { "Nenhum", "OSM", "Esri", "Satelite" };
+        public static readonly string[] Backgrounds = { "Nenhum", "OSM", "Esri" };
 
         /// <summary>Layer da imagem do mapa gravada no desenho.</summary>
         public const string MapLayer = "FIBRA_MAPA";
@@ -144,7 +140,7 @@ namespace FiberPlugin.Core
         {
             Rectangle ? "Retangulo" : "Centro", Geographic ? "LatLong" : "UTM", North, South, East, West,
             CenterA, CenterB, Radius, Zone, SouthHemisphere ? "S" : "N", Style, IncludePaths ? "1" : "0",
-            IncludeNames ? "1" : "0", Background, BackgroundImage ? "1" : "0"
+            IncludeNames ? "1" : "0", Background
         };
 
         public static RoadImportSettings FromValues(string[] v)
@@ -160,10 +156,15 @@ namespace FiberPlugin.Core
             s.Style = v[11] is "Eixo" or "Ambos" ? v[11] : "Contorno";
             s.IncludePaths = v[12] == "1";
             s.IncludeNames = v.Length > 13 && v[13] == "1"; // Gravado a partir da 1.9.21
-            // A partir da 1.9.54; o "Mapa" (de ruas do AutoCAD) e o "Hibrido" das 1.9.54 a 1.9.58 viram o OSM e o satélite
+            // A partir da 1.9.54; os mapas do AutoCAD das 1.9.54 a 1.9.68 viram os baixados pelo plugin: "Mapa" (ruas) o do
+            // OpenStreetMap e "Hibrido" e "Satelite" o satélite da Esri
             string background = v.Length > 14 ? v[14] : "";
-            s.Background = background switch { "Mapa" => "OSM", "Hibrido" => "Satelite", _ => Backgrounds.Contains(background) ? background : "Nenhum" };
-            s.BackgroundImage = v.Length > 15 && v[15] == "1";
+            s.Background = background switch
+            {
+                "Mapa" => "OSM",
+                "Hibrido" or "Satelite" => "Esri",
+                _ => Backgrounds.Contains(background) ? background : "Nenhum"
+            };
             return s;
         }
 

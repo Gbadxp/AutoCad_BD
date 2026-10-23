@@ -16,7 +16,7 @@ namespace FiberPlugin.UI
         private const int RowHeight = 36;  // Linha "rótulo | opções": botão de 28 + margens e folga
         private const int LabelWidth = 140; // Coluna dos rótulos das opções (cabe "Ruas no desenho" numa linha)
         private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "só os nomes" sozinho
-        private const int EsriSatellite = 2, AutoCadSatellite = 3; // Opções do mapa de fundo (RoadImportSettings.Backgrounds)
+        private const int OpenStreetMap = 1, EsriSatellite = 2; // Opções do mapa de fundo (RoadImportSettings.Backgrounds)
 
         private readonly UtmSettings? _projectZone;
         private readonly IReadOnlyList<DrawnRoad> _drawn;
@@ -25,9 +25,7 @@ namespace FiberPlugin.UI
         private readonly ThemedButton _useDrawn;
         private readonly Label _existingHint;
         private readonly ChoiceBar _background;
-        private readonly ChoiceBar _backgroundImage;
         private readonly Label _mapHint;
-        private readonly bool _mapBlocked;  // AutoCAD sem login na conta Autodesk: satélite desativado
         private bool _existingTouched;      // O usuário já escolheu entre desenhar e só os nomes
         private bool _drawnInArea;          // A área digitada tem ruas do desenho
         private bool _mostlyDrawn;          // E elas cobrem a maior parte dela
@@ -64,22 +62,19 @@ namespace FiberPlugin.UI
         /// <param name="projectZone">Zona UTM gravada no desenho; com ela a zona não é editável aqui.</param>
         /// <param name="drawn">Linhas que já estão na layer das ruas (para oferecer escrever só os nomes).</param>
         /// <param name="roadLayer">Nome da layer das ruas, para as mensagens.</param>
-        /// <param name="signedIn">AutoCAD conectado à conta Autodesk (false: o mapa de fundo fica desativado, com o motivo).</param>
-        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS",
-            bool? signedIn = null)
+        public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS")
         {
             _projectZone = projectZone;
             _drawn = drawn ?? Array.Empty<DrawnRoad>();
             _roadLayer = roadLayer;
             _loading = true;
 
-            // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela; sem login, a dica do mapa
+            // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela
             bool hasDrawn = _drawn.Count > 0;
-            bool mapBlocked = signedIn == false;
 
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
-            ClientSize = new Size(700, (hasDrawn ? 866 : 794) + 38);
+            ClientSize = new Size(700, (hasDrawn ? 830 : 758) + 38);
 
             var header = new HeaderPanel
             {
@@ -143,18 +138,14 @@ namespace FiberPlugin.UI
             var existingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
             existingRow.Controls.AddRange(new Control[] { _existing, _useDrawn });
             _existingHint = Hint();
-            // Mapa do próprio AutoCAD (GEOMAP), na geolocalização que o Importar Ruas grava. Só na tela não sai na
-            // impressão; a imagem gravada sai, atrás das ruas, na layer FIBRA_MAPA
-            // Mapa do OpenStreetMap (imagem baixada pelo plugin, sem conta) ou satélite do próprio AutoCAD (conta Autodesk)
-            _mapBlocked = mapBlocked;
-            _background = new ChoiceBar("Sem mapa", "OpenStreetMap", "Satélite Esri", "Satélite AutoCAD");
-            _background.SetOptionEnabled(AutoCadSatellite, !mapBlocked);
-            _backgroundImage = new ChoiceBar("Só na tela", "Gravar no desenho (sai na impressão)");
+            // Mapa de fundo: imagem do mapa do OpenStreetMap ou do satélite da Esri, baixada pelo plugin (sem conta) e posta
+            // atrás das ruas, na layer FIBRA_MAPA
+            _background = new ChoiceBar("Sem mapa", "OpenStreetMap", "Satélite Esri");
             _mapHint = Hint();
 
             var existing = OptionGrid(("Ruas no desenho", existingRow));
             var drawing = OptionGrid(("Ruas como", _style), ("Vias", _paths), ("Nomes", _names));
-            var map = OptionGrid(("Mapa", _background), ("Satélite AutoCAD", _backgroundImage));
+            var map = OptionGrid(("Mapa", _background));
 
             // Linhas de altura fixa; o retângulo da área (altura 0 aqui) fica com o resto e cresce junto com a janela
             var rows = new List<(Control Control, float Height)>
@@ -169,7 +160,7 @@ namespace FiberPlugin.UI
             }
             rows.Add((drawing, 3 * RowHeight));
             rows.Add((new SectionLabel("Mapa de fundo"), 30));
-            rows.Add((map, 2 * RowHeight));
+            rows.Add((map, RowHeight));
             rows.Add((_mapHint, 38));
 
             var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(18, 4, 18, 8), BackColor = Theme.Background };
@@ -206,10 +197,7 @@ namespace FiberPlugin.UI
             _style.SelectedIndex = Math.Max(0, Array.IndexOf(Styles, saved.Style));
             _paths.SelectedIndex = saved.IncludePaths ? 1 : 0;
             _names.SelectedIndex = saved.IncludeNames ? 1 : 0;
-            // Satélite do AutoCAD escolhido antes, mas sem o login agora: vai o satélite da Esri, que não precisa de conta
-            int background = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
-            _background.SelectedIndex = background == AutoCadSatellite && mapBlocked ? EsriSatellite : background;
-            _backgroundImage.SelectedIndex = saved.BackgroundImage ? 1 : 0;
+            _background.SelectedIndex = Math.Max(0, Array.IndexOf(RoadImportSettings.Backgrounds, saved.Background));
             ApplyBackground();
             if (projectZone != null)
             {
@@ -290,24 +278,20 @@ namespace FiberPlugin.UI
             // Em "só os nomes" a opção de nomes fica marcada à força: vale (e fica gravada) a escolha de antes
             IncludeNames = NamesOnlyChosen ? _namesBeforeOnly == 1 : _names.SelectedIndex == 1,
             NamesOnly = NamesOnlyChosen,
-            Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)],
-            BackgroundImage = _backgroundImage.SelectedIndex == 1
+            Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)]
         };
 
-        /// <summary>A opção do satélite vale só para ele; a dica explica o mapa escolhido.</summary>
+        /// <summary>A dica explica o mapa escolhido.</summary>
         private void ApplyBackground()
         {
-            int choice = _background.SelectedIndex;
-            _backgroundImage.Enabled = choice == AutoCadSatellite;
             _mapHint.ForeColor = Theme.Muted;
-            _mapHint.Text = choice switch
+            _mapHint.Text = _background.SelectedIndex switch
             {
-                1 => "Imagem do mapa do OpenStreetMap (ruas, quadras e nomes; não é foto de satélite) colocada atrás das ruas, " +
+                OpenStreetMap => "Imagem do mapa do OpenStreetMap (ruas, quadras e nomes; não é foto de satélite) colocada atrás das ruas, " +
                      "no mesmo lugar delas. Não precisa de conta.",
                 EsriSatellite => "Foto de satélite da Esri colocada atrás das ruas, no mesmo lugar delas. Sem conta, só para " +
                                  "estudo (uso não comercial, termos da Esri); o crédito vai no canto da área.",
-                AutoCadSatellite => "Satélite do próprio AutoCAD: precisa dele conectado à conta Autodesk (Sign In, no canto de cima).",
-                _ => _mapBlocked ? "O satélite do AutoCAD está desativado: precisa dele conectado à conta Autodesk." : ""
+                _ => ""
             };
         }
 

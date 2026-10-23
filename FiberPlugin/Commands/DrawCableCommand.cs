@@ -59,9 +59,17 @@ namespace FiberPlugin.Commands
             Editor ed = doc.Editor;
             if (!CadHelpers.InModelSpace(ed, db)) return;
 
-            // Cabos já selecionados antes do comando são trocados direto
+            // Cabos já selecionados antes do comando são trocados direto (o resto da seleção não conta)
             PromptSelectionResult implied = ed.SelectImplied();
-            var preselected = implied.Status == PromptStatus.OK ? implied.Value.GetObjectIds().ToList() : new List<ObjectId>();
+            var preselected = new List<ObjectId>();
+            if (implied.Status == PromptStatus.OK)
+            {
+                using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+                {
+                    preselected = implied.Value.GetObjectIds()
+                        .Where(id => tr.GetObject(id, OpenMode.ForRead) is Polyline p && XDataTags.GetCableName(p) != null).ToList();
+                }
+            }
 
             CableModel? cable = CadHelpers.SelectCable(ed, "Trocar");
             if (cable == null) return;
@@ -100,6 +108,11 @@ namespace FiberPlugin.Commands
                         poly.Layer.Equals(CableDrawing.LayerFor(cable), StringComparison.OrdinalIgnoreCase))
                     {
                         ed.WriteMessage($"\n[INFO]: Esse cabo já é {cable.ShortName}.");
+                        return;
+                    }
+                    if (CadHelpers.IsOnLockedLayer(tr, id))
+                    {
+                        ed.WriteMessage($"\n[AVISO]: A layer {poly.Layer} está travada: destrave para trocar o cabo {oldName}.");
                         return;
                     }
 

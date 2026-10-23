@@ -279,7 +279,7 @@ namespace FiberPlugin.Core
                 });
             }
 
-            // 7. Setas de esforço: só em fim de rede e deflexão acima de 10°, com resultante não nula (Anexo B 2.2.18, item 16.3 h)
+            // 7. Setas de esforço: só em fim de rede, derivação e deflexão acima de 10°, com resultante não nula (Anexo B 2.2.18, item 16.3 h)
             // Ponta ou ângulo de cabo sem poste: a seta (e o esforço comparado com o nominal) é do poste, que falta inserir
             AddArrowIssues(issues,
                 project.Efforts.Where(e => e.NeedsArrow && e.Pole == null)

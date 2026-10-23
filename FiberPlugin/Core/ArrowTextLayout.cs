@@ -16,21 +16,7 @@ namespace FiberPlugin.Core
         public double MaxX { get; }
         public double MaxY { get; }
 
-        public double CenterX => (MinX + MaxX) / 2;
-        public double CenterY => (MinY + MaxY) / 2;
-
         public TextBounds Moved(double dx, double dy) => new TextBounds(MinX + dx, MinY + dy, MaxX + dx, MaxY + dy);
-
-        public bool Overlaps(TextBounds other) =>
-            MinX < other.MaxX && MaxX > other.MinX && MinY < other.MaxY && MaxY > other.MinY;
-
-        /// <summary>Distância do ponto ao retângulo (zero dentro dele).</summary>
-        public double DistanceTo(double x, double y)
-        {
-            double dx = Math.Max(0, Math.Max(MinX - x, x - MaxX));
-            double dy = Math.Max(0, Math.Max(MinY - y, y - MaxY));
-            return Math.Sqrt(dx * dx + dy * dy);
-        }
     }
 
     /// <summary>
@@ -43,10 +29,6 @@ namespace FiberPlugin.Core
     {
         /// <summary>Passos do deslizamento do conjunto, em comprimentos da seta.</summary>
         private static readonly double[] Steps = { 0, 0.25, 0.5, 0.75, 1.0 };
-
-        /// <summary>Mesmo deslizamento com obstáculos retos (alinhados aos eixos).</summary>
-        public static double? Slide(IList<TextBounds> texts, IList<TextBounds> obstacles, double length) =>
-            Slide(texts, obstacles.Select(Corners).ToList(), length);
 
         /// <param name="texts">Textos da seta, já na direção dela (eixo X ao longo da seta).</param>
         /// <param name="obstacles">

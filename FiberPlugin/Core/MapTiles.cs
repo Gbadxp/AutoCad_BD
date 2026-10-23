@@ -63,7 +63,7 @@ namespace FiberPlugin.Core
     /// </summary>
     public sealed class MapImage : IDisposable
     {
-        public MapImage(TileSource source, Bitmap image, double west, double south, double east, double north, int zoom)
+        public MapImage(TileSource source, Bitmap image, double west, double south, double east, double north)
         {
             Source = source;
             Image = image;
@@ -71,7 +71,6 @@ namespace FiberPlugin.Core
             South = south;
             East = east;
             North = north;
-            Zoom = zoom;
         }
 
         public TileSource Source { get; }
@@ -80,7 +79,6 @@ namespace FiberPlugin.Core
         public double South { get; }
         public double East { get; }
         public double North { get; }
-        public int Zoom { get; }
 
         /// <summary>Grava a imagem (JPEG ou PNG, conforme o servidor).</summary>
         public void Save(string path)
@@ -185,7 +183,7 @@ namespace FiberPlugin.Core
 
             double px(int pixels) => x0 + pixels / (double)TileSize;
             double py(int pixels) => y0 + pixels / (double)TileSize;
-            return new MapImage(source, image, Lon(px(left), zoom), Lat(py(bottom), zoom), Lon(px(right), zoom), Lat(py(top), zoom), zoom);
+            return new MapImage(source, image, Lon(px(left), zoom), Lat(py(bottom), zoom), Lon(px(right), zoom), Lat(py(top), zoom));
         }
 
         private static Bitmap? Tile(TileSource source, int zoom, int x, int y, CancellationToken cancel)
@@ -215,10 +213,12 @@ namespace FiberPlugin.Core
                 }
                 catch (WebException ex) when (ex.Response is HttpWebResponse { StatusCode: HttpStatusCode.NotFound })
                 {
-                    return null; // Fora da cobertura do servidor: fica em branco
+                    ex.Response.Dispose(); // Devolve a conexão: são só 2 por servidor, e presas os blocos seguintes esperam
+                    return null;           // Fora da cobertura do servidor: fica em branco
                 }
                 catch (System.Exception ex) when (ex is WebException || ex is IOException || ex is ArgumentException)
                 {
+                    (ex as WebException)?.Response?.Dispose();
                     cancel.ThrowIfCancellationRequested();
                     error = ex.Message;
                     if (attempt == 1 && cancel.WaitHandle.WaitOne(1500)) cancel.ThrowIfCancellationRequested();

@@ -161,29 +161,16 @@ namespace FiberPlugin.Core
             return null;
         }
 
-        /// <summary>Resultado da conferência da geolocalização: certa, errada ou sem como conferir.</summary>
-        public enum GeoCheck { Ok, Wrong, Unknown }
-
         private const double GeoTolerance = 0.001; // Graus (cerca de 100 m)
 
         /// <summary>
-        /// Confere se a geolocalização do AutoCAD põe o ponto (em UTM do projeto) na latitude/longitude certa: é por ela
-        /// que o mapa de fundo (GEOMAP) é posicionado; errada, o mapa vai para outro lugar (e o AutoCAD pode travar
-        /// baixando ele). A geolocalização que o próprio plugin gravou até a 1.9.56 (grade projetada, sem recalcular a
-        /// transformação) é refeita do jeito do GEOGRAPHICLOCATION. <paramref name="detail"/>: onde o AutoCAD põe o ponto.
+        /// Conserta a geolocalização que o próprio plugin gravou até a 1.9.56 (grade projetada, sem recalcular a
+        /// transformação): ela punha o desenho em outra latitude/longitude, e o mapa do AutoCAD (GEOMAP), se alguém o
+        /// ligar, iria para outro lugar (e o AutoCAD podia travar baixando). Confere o ponto de referência dela com a UTM
+        /// do projeto e, errada ou sem como conferir, refaz do jeito do GEOGRAPHICLOCATION (só a gravada pelo plugin).
         /// </summary>
-        public static GeoCheck CheckGeoLocation(Database db, UtmSettings utm, Point3d point, out string detail)
+        public static void RepairOldGeoLocation(Database db, UtmSettings utm)
         {
-            var (lat, lon) = ToGeographic(point.X, point.Y, utm.Zone, utm.South);
-            GeoCheck result = CompareGeoLocation(db, point, lat, lon, out detail);
-            if (result != GeoCheck.Ok && RepairGeoLocation(db)) result = CompareGeoLocation(db, point, lat, lon, out detail);
-            return result;
-        }
-
-        /// <summary>Mesma conferência, no ponto de referência da própria geolocalização (sem precisar de um ponto do projeto).</summary>
-        public static GeoCheck CheckGeoLocation(Database db, UtmSettings utm, out string detail)
-        {
-            detail = "";
             Point3d point;
             try
             {
@@ -194,31 +181,29 @@ namespace FiberPlugin.Core
             }
             catch (System.Exception)
             {
-                return GeoCheck.Unknown;
+                return; // Sem geolocalização
             }
-            return CheckGeoLocation(db, utm, point, out detail);
+            var (lat, lon) = ToGeographic(point.X, point.Y, utm.Zone, utm.South);
+            if (SameLocation(db, point, lat, lon) != true) RepairGeoLocation(db);
         }
 
-        private static GeoCheck CompareGeoLocation(Database db, Point3d point, double lat, double lon, out string detail)
+        /// <summary>A geolocalização põe o ponto nessa latitude/longitude? Null se não dá para conferir.</summary>
+        private static bool? SameLocation(Database db, Point3d point, double lat, double lon)
         {
-            detail = "";
             try
             {
                 using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
                 {
                     var geo = (GeoLocationData)tr.GetObject(db.GeoDataObject, OpenMode.ForRead);
                     Point3d p = geo.TransformToLonLatAlt(point); // X = longitude, Y = latitude
-                    detail = string.Format(CultureInfo.InvariantCulture, "lat {0:F6}, long {1:F6} (o certo é lat {2:F6}, long {3:F6})",
-                        p.Y, p.X, lat, lon);
                     // Aceita também a ordem trocada (lat, long): o que importa é o lugar, não a ordem do retorno
-                    bool same = Math.Abs(p.Y - lat) < GeoTolerance && Math.Abs(p.X - lon) < GeoTolerance ||
-                                Math.Abs(p.X - lat) < GeoTolerance && Math.Abs(p.Y - lon) < GeoTolerance;
-                    return same ? GeoCheck.Ok : GeoCheck.Wrong;
+                    return Math.Abs(p.Y - lat) < GeoTolerance && Math.Abs(p.X - lon) < GeoTolerance ||
+                           Math.Abs(p.X - lat) < GeoTolerance && Math.Abs(p.Y - lon) < GeoTolerance;
                 }
             }
             catch (System.Exception)
             {
-                return GeoCheck.Unknown; // Sem geolocalização ou sem a biblioteca de sistemas de coordenadas
+                return null; // Sem a biblioteca de sistemas de coordenadas
             }
         }
 
