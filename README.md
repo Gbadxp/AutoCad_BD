@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.73.msi`](Instalador/FiberPlugin-1.9.73.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.74.msi`](Instalador/FiberPlugin-1.9.74.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -159,6 +159,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes do botão Configurações) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. Desenho novo, ainda sem zona UTM, recebe a do projeto (a que aparece em Configurações > Projeto, do último projeto; ou a da geolocalização do DWG; sem nenhuma, pergunta), e os postes que já estavam no desenho ganham a linha da zona (ex.: 20 L) no texto. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
+| Trocar Poste | `FIBRA_TROCAR_POSTE` | Troca o modelo de um poste já inserido sem inserir de novo (ex.: lançou DT 9/200 e era DT 11/300, ou DT por CC): escolha o modelo na lista e clique nos postes, um por vez (Enter termina; postes já selecionados antes do comando são trocados direto). O poste fica no mesmo lugar e continua o mesmo objeto, então setas de esforço, CTO/CEO e o texto continuam ligados a ele; mudam o desenho do bloco (DT ↔ CC), os atributos e o texto ("9/200" → "11/300"). Número, esforço existente e ID da Energisa ficam. Se a altura mudar, avisa para rodar o Esforço no Percurso de novo (a seta mostra o esforço a 20 cm do topo). |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |

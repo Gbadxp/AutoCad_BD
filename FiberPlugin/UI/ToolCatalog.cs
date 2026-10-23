@@ -63,6 +63,8 @@ namespace FiberPlugin.UI
             ("Inserir", new[]
             {
                 new Tool("FIBRA_INSERIR_POSTE", "Inserir Postes", "DT/CC já com número, 11/300 e UTM", "Postes", largeOnRibbon: false),
+                new Tool("FIBRA_TROCAR_POSTE", "Trocar Poste", "Troca o modelo do poste clicado (ex.: 9/200 por 11/300, ou DT por CC) sem inserir de novo",
+                    "Trocar Poste", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CTO", "Inserir CTO", "CTO-01, CTO-02... ligadas ao poste mais próximo", "CTO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CEO", "Inserir CEO", "CEO-01, CEO-02... ligadas ao poste mais próximo", "CEO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),

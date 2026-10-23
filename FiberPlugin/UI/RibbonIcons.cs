@@ -69,6 +69,7 @@ namespace FiberPlugin.UI
             ["FIBRA_RESERVA_TECNICA"] = PaintReserve,
             ["FIBRA_CORDOALHA"] = PaintStrand,
             ["FIBRA_INSERIR_POSTE"] = PaintPole,
+            ["FIBRA_TROCAR_POSTE"] = PaintSwapPole,
             ["FIBRA_INSERIR_CTO"] = PaintCto,
             ["FIBRA_INSERIR_CEO"] = PaintCeo,
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,
@@ -229,6 +230,17 @@ namespace FiberPlugin.UI
             dc.DrawEllipse(ink.Blue, null, new W.Point(6.5, 7), 2, 2);          // Isoladores
             dc.DrawEllipse(ink.Blue, null, new W.Point(21.5, 7), 2, 2);
             Plus(dc, ink, 25.5, 24.5);
+        }
+
+        private static void PaintSwapPole(M.DrawingContext dc, Ink ink)
+        {
+            // Poste (como o do Inserir Postes, menor) e as setas de troca ao lado
+            dc.DrawRectangle(ink.Line, null, new W.Rect(8, 8, 3.5, 21));       // Poste
+            dc.DrawRectangle(ink.Line, null, new W.Rect(2.5, 11, 14.5, 2.6));  // Cruzeta
+            dc.DrawEllipse(ink.Blue, null, new W.Point(3.8, 9.2), 1.7, 1.7);  // Isoladores
+            dc.DrawEllipse(ink.Blue, null, new W.Point(15.7, 9.2), 1.7, 1.7);
+            Arrow(dc, ink.Blue, 18, 18, 30, 18, 1.8);
+            Arrow(dc, ink.Green, 30, 25, 18, 25, 1.8);
         }
 
         private static void PaintBlocks(M.DrawingContext dc, Ink ink)
