@@ -61,6 +61,13 @@ namespace FiberPlugin.UI
 
             foreach (var (section, tools) in ToolCatalog.Sections)
             {
+                // Grupo que vira um botão só, com a lista das ferramentas
+                if (ToolCatalog.RibbonMenus.Contains(section))
+                {
+                    tab.Panels.Add(Panel(section, new[] { Menu(section, tools) }));
+                    continue;
+                }
+
                 var items = new List<RibbonItem>();
 
                 // Botões grandes primeiro
@@ -91,6 +98,38 @@ namespace FiberPlugin.UI
             var source = new RibbonPanelSource { Title = title };
             foreach (RibbonItem item in items) source.Items.Add(item);
             return new RibbonPanel { Source = source };
+        }
+
+        /// <summary>
+        /// Botão grande que só abre a lista das ferramentas do grupo, cada uma com ícone, nome e descrição (como os
+        /// botões de lista do AutoCAD).
+        /// </summary>
+        private static RibbonSplitButton Menu(string section, IEnumerable<Tool> tools)
+        {
+            var menu = new RibbonSplitButton
+            {
+                Id = "FIBER_MENU_" + section,
+                Text = section,
+                ShowText = true,
+                ShowImage = true,
+                Size = RibbonItemSize.Large,
+                Orientation = Wpf.Controls.Orientation.Vertical,
+                LargeImage = RibbonIcons.Get(ToolCatalog.MenuIcon(section), 32),
+                Image = RibbonIcons.Get(ToolCatalog.MenuIcon(section), 16),
+                ToolTip = string.Join("\n", tools.Select(t => t.Title)),
+                IsSplit = false,                        // O botão inteiro abre a lista
+                IsSynchronizedWithCurrentItem = false,  // E continua com o nome do grupo, não o do último usado
+                ListStyle = RibbonSplitButtonListStyle.Descriptive
+            };
+            foreach (Tool tool in tools)
+            {
+                RibbonButton item = Button(tool, large: true);
+                item.Text = tool.Title; // Na lista o nome vai numa linha só
+                item.Description = tool.Description;
+                item.Orientation = Wpf.Controls.Orientation.Horizontal;
+                menu.Items.Add(item);
+            }
+            return menu;
         }
 
         private static RibbonButton Button(Tool tool, bool large)
@@ -138,8 +177,10 @@ namespace FiberPlugin.UI
             foreach (RibbonItem item in items)
             {
                 if (item is RibbonButton button) yield return button;
-                else if (item is RibbonRowPanel row)
-                    foreach (RibbonButton inner in Buttons(row.Items)) yield return inner;
+                // Botão de lista (grupo que virou um botão só) e coluna de botões pequenos: os de dentro
+                IEnumerable<RibbonItem>? inner = item is RibbonListButton list ? list.Items : item is RibbonRowPanel row ? row.Items : null;
+                if (inner == null) continue;
+                foreach (RibbonButton innerButton in Buttons(inner)) yield return innerButton;
             }
         }
     }

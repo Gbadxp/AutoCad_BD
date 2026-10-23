@@ -84,6 +84,7 @@ namespace FiberPlugin.UI
             ["FIBRA_PARAMETROS"] = PaintParameters,
             ["FIBRA_ESFORCO_EXISTENTE"] = PaintExistingEffort,
             ["FIBRA_RELATORIO"] = PaintReport,
+            ["FIBRA_GRUPO_DOCUMENTOS"] = PaintDocuments,
             ["FIBRA_VERIFICAR"] = PaintCheck,
             ["FIBRA_MEMORIAL"] = PaintMemorial,
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
@@ -389,6 +390,22 @@ namespace FiberPlugin.UI
             dc.DrawLine(grid, new W.Point(10, 21.5), new W.Point(23, 21.5));
             dc.DrawLine(grid, new W.Point(14.5, 17), new W.Point(14.5, 26));
             dc.DrawLine(grid, new W.Point(18.8, 17), new W.Point(18.8, 26));
+        }
+
+        private static void PaintDocuments(M.DrawingContext dc, Ink ink)
+        {
+            // Pilha de documentos: a folha de trás, a da frente com a faixa azul e as linhas, e a planilha verde no canto
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.2), G("M9,2 H21 L26,7 V24 H9 Z"));
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.3), G("M4,7 H16 L21,12 V30 H4 Z"));
+            dc.DrawGeometry(null, Ink.Pen(ink.Line, 1.1), G("M16,7 V12 H21"));
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(7, 14, 11, 3));
+            M.Pen text = Ink.Pen(ink.Line, 1.2);
+            dc.DrawLine(text, new W.Point(7, 20.5), new W.Point(18, 20.5));
+            dc.DrawLine(text, new W.Point(7, 24), new W.Point(14, 24));
+            dc.DrawRectangle(ink.Green, Ink.Pen(ink.Paper, 1.0), new W.Rect(20, 20, 10, 10));
+            M.Pen grid = Ink.Pen(ink.White, 1.0);
+            dc.DrawLine(grid, new W.Point(20, 25), new W.Point(30, 25));
+            dc.DrawLine(grid, new W.Point(25, 20), new W.Point(25, 30));
         }
 
         private static void PaintCheck(M.DrawingContext dc, Ink ink)

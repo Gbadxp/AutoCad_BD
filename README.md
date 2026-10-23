@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.74.msi`](Instalador/FiberPlugin-1.9.74.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.75.msi`](Instalador/FiberPlugin-1.9.75.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -179,6 +179,11 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
 
 ### Documentos e Pranchas
+
+Na aba **Fibra**, os do painel Documentos (Verificar Projeto, Gerar Relatório, os dois memoriais, Coordenadas dos
+Postes, Norma NDU 009 e Produção do Dia) ficam num botão só, **Documentos**, que abre a lista com o ícone e a
+descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
+
 | Botão | Comando | Função |
 |---|---|---|
 | Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Os problemas do mesmo poste ficam num texto só, um embaixo do outro, com o número da lista da linha de comando; textos de postes vizinhos não se sobrepõem. Veja abaixo. |

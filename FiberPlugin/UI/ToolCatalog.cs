@@ -50,6 +50,15 @@ namespace FiberPlugin.UI
                 .Concat(Sections.SelectMany(s => s.Tools).Select(t => (t.Command, t.Title)))
                 .Concat(CommandLineOnly);
 
+        /// <summary>
+        /// Grupos que na aba Fibra viram um botão só, que abre a lista das ferramentas do grupo (com ícone e descrição).
+        /// No menu principal (FIBRA) eles continuam como os outros.
+        /// </summary>
+        public static readonly HashSet<string> RibbonMenus = new HashSet<string> { "Documentos" };
+
+        /// <summary>Comando cujo ícone vai no botão de um grupo que virou lista (RibbonMenus).</summary>
+        public static string MenuIcon(string section) => "FIBRA_GRUPO_" + section.ToUpperInvariant();
+
         public static readonly (string Section, Tool[] Tools)[] Sections =
         {
             ("Cabos", new[]
