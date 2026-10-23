@@ -81,6 +81,12 @@ namespace FiberPlugin.Core
         /// <summary>Blocos de equipamentos elétricos da Energisa (trafo, chaves, para-raios...), com o nome do bloco.</summary>
         public List<(string Name, Point3d Position)> Equipment { get; private set; } = new List<(string, Point3d)>();
 
+        /// <summary>
+        /// Amarrações (blocos com "AMARRA" no nome, como os do FIBRA_INSERIR_AMARRACAO), com o poste delas: o mais perto, a
+        /// até 10 m (null se nenhum).
+        /// </summary>
+        public List<(string Name, Point3d Position, PoleInfo? Pole)> Anchorings { get; private set; } = new List<(string, Point3d, PoleInfo?)>();
+
         /// <summary>Setas de versões antigas, sem os dados do cálculo.</summary>
         public int LegacyMarkers { get; private set; }
 
@@ -137,11 +143,19 @@ namespace FiberPlugin.Core
                 {
                     if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
 
-                    if (ent is BlockReference br && CadHelpers.GetBlockName(tr, br) is string blockName &&
-                        BlockCategories.Of(blockName) == BlockCategories.Electrical)
+                    if (ent is BlockReference br && CadHelpers.GetBlockName(tr, br) is string blockName)
                     {
-                        data.Equipment.Add((blockName, br.Position));
-                        continue;
+                        string category = BlockCategories.Of(blockName);
+                        if (category == BlockCategories.Electrical)
+                        {
+                            data.Equipment.Add((blockName, br.Position));
+                            continue;
+                        }
+                        if (category == BlockCategories.Anchoring)
+                        {
+                            data.Anchorings.Add((blockName, br.Position, Poles.Nearest(data.PoleList, br.Position, FiberSettings.PoleLinkRadius)));
+                            continue;
+                        }
                     }
 
                     // A seta e os textos de um mesmo ponto guardam os mesmos dados. Seta copiada vale pelo lugar e poste de

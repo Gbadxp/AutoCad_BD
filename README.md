@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.69.msi`](Instalador/FiberPlugin-1.9.69.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.70.msi`](Instalador/FiberPlugin-1.9.70.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -180,7 +180,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Verificar Projeto | `FIBRA_VERIFICAR` | Confere o desenho com a NDU 009 e marca cada não conformidade com um círculo vermelho numa layer que não imprime (`FIBRA_VERIFICACAO`). Os problemas do mesmo poste ficam num texto só, um embaixo do outro, com o número da lista da linha de comando; textos de postes vizinhos não se sobrepõem. Veja abaixo. |
-| Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo**, **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, seta, a 20 cm do topo, existente e total), **CTO e CEO**, **Esforços** (todos os postes ocupados; coluna Seta: Sim, Falta, Desatualizada ou Dispensada), **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
+| Gerar Relatório | `FIBRA_RELATORIO` | Excel (.xlsx) com as abas **Resumo** (com as amarrações: total, por bloco quando há mais de um, postes com amarração e postes com cabo ainda sem), **Postes** (tipo, altura, nominal, coordenadas, esforço no cabo, seta, amarrações do poste, a 20 cm do topo, existente e total), **CTO e CEO**, **Esforços** (todos os postes ocupados; coluna Seta: Sim, Falta, Desatualizada ou Dispensada), **Cabos**, **Tabela A (NDU 009)** (obrigatória no projeto) e **Verificação NDU 009**. |
 | Memorial Descritivo | `FIBRA_MEMORIAL` | PDF do memorial para a concessionária (veja abaixo). |
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
