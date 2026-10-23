@@ -56,6 +56,29 @@ namespace FiberPlugin.Commands
             }
         }
 
+        /// <summary>
+        /// Escala do bloco no tamanho padrão das Configurações (Desenho > Tamanho dos blocos): o maior lado do desenho dele
+        /// com <paramref name="sizeMm"/> × <paramref name="factor"/> (fator da escala). Sem tamanho padrão
+        /// (<paramref name="sizeMm"/> 0) ou bloco vazio: <paramref name="unsized"/>, o tamanho do BLOCOS.dwg.
+        /// </summary>
+        public static double SymbolScale(Extents3d? definition, double sizeMm, double factor, double unsized)
+        {
+            if (sizeMm <= 0 || definition is not Extents3d e) return unsized;
+            double longest = Math.Max(e.MaxPoint.X - e.MinPoint.X, e.MaxPoint.Y - e.MinPoint.Y);
+            return longest > 1e-9 ? sizeMm * factor / longest : unsized;
+        }
+
+        /// <summary>Mesma escala, medindo o bloco do desenho (pela transação aberta, se houver).</summary>
+        public static double SymbolScale(Database db, ObjectId blockId, double sizeMm, double factor, double unsized)
+        {
+            if (sizeMm <= 0) return unsized;
+            if (db.TransactionManager.TopTransaction is Transaction open) return SymbolScale(DefinitionExtents(open, blockId), sizeMm, factor, unsized);
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                return SymbolScale(DefinitionExtents(tr, blockId), sizeMm, factor, unsized);
+            }
+        }
+
         /// <summary>Extensão do desenho do bloco (sem os atributos), nas coordenadas do próprio bloco. Null se vazio.</summary>
         public static Extents3d? DefinitionExtents(Transaction tr, ObjectId blockId)
         {

@@ -32,6 +32,25 @@ namespace FiberPlugin.Core
         /// <summary>Maior lado do símbolo de CTO/CEO em mm no papel (escala 1:1000).</summary>
         public double BoxSymbolSize { get; set; } = 7.0;
 
+        // Tamanho padrão dos outros blocos: maior lado do desenho do bloco em mm no papel (escala 1:1000).
+        // 0 = sem tamanho padrão: o bloco entra no tamanho em que foi desenhado no BLOCOS.dwg, como sempre foi
+        public double PoleSymbolSize { get; set; }
+        public double ElectricalSymbolSize { get; set; }
+        public double AnchoringSymbolSize { get; set; }
+
+        /// <summary>Tamanho padrão dos blocos do grupo (BlockCategories), em mm no papel; 0 = o do BLOCOS.dwg.</summary>
+        public double SymbolSize(string category) =>
+            category == BlockCategories.Poles ? PoleSymbolSize
+            : category == BlockCategories.Cto || category == BlockCategories.Ceo ? BoxSymbolSize
+            : category == BlockCategories.Electrical ? ElectricalSymbolSize
+            : category == BlockCategories.Anchoring ? AnchoringSymbolSize
+            : 0;
+
+        /// <summary>Os tamanhos padrão dos blocos são os mesmos que os de <paramref name="other"/>.</summary>
+        public bool SameBlockSizes(UserSettings other) =>
+            PoleSymbolSize == other.PoleSymbolSize && BoxSymbolSize == other.BoxSymbolSize &&
+            ElectricalSymbolSize == other.ElectricalSymbolSize && AnchoringSymbolSize == other.AnchoringSymbolSize;
+
         /// <summary>Comprimento da seta de esforço desenhada sem o bloco "SETA DE ESFORÇO", em mm no papel (1:1000).</summary>
         public double EffortArrowLength { get; set; } = 18.0;
 
@@ -92,6 +111,11 @@ namespace FiberPlugin.Core
             if (NumberDigits < 1 || NumberDigits > 4) return "Use de 1 a 4 dígitos no número.";
             if (!InRange(TextHeight, MinTextHeight, MaxTextHeight)) return $"Altura dos textos: de {MinTextHeight:0.#} a {MaxTextHeight:0} mm.";
             if (!InRange(BoxSymbolSize, MinBoxSymbol, MaxBoxSymbol)) return $"Símbolo da CTO/CEO: de {MinBoxSymbol:0} a {MaxBoxSymbol:0} mm.";
+            foreach (var (label, size) in new[] { ("Poste", PoleSymbolSize), ("Itens elétricos", ElectricalSymbolSize), ("Amarração", AnchoringSymbolSize) })
+            {
+                if (size != 0 && !InRange(size, MinBoxSymbol, MaxBoxSymbol))
+                    return $"{label}: de {MinBoxSymbol:0} a {MaxBoxSymbol:0} mm (vazio = o tamanho do BLOCOS.dwg).";
+            }
             if (!InRange(EffortArrowLength, MinArrowLength, MaxArrowLength)) return $"Seta de esforço: de {MinArrowLength:0} a {MaxArrowLength:0} mm.";
             if (!InRange(AutoRouteOffset, MinRouteOffset, MaxRouteOffset)) return $"Afastamento do roteamento: de {MinRouteOffset:0.0} a {MaxRouteOffset:0} m.";
             if (LayerStyle.LayerNameError(RoadLayer) is string layerError) return $"Layer das ruas: {layerError}.";
@@ -132,6 +156,9 @@ namespace FiberPlugin.Core
             settings.NumberDigits = (int)Number("Digitos do numero", settings.NumberDigits, 1, 4);
             settings.TextHeight = Number("Altura dos textos (mm)", settings.TextHeight, MinTextHeight, MaxTextHeight);
             settings.BoxSymbolSize = Number("Simbolo da CTO/CEO (mm)", settings.BoxSymbolSize, MinBoxSymbol, MaxBoxSymbol);
+            settings.PoleSymbolSize = Number("Poste (mm)", 0, MinBoxSymbol, MaxBoxSymbol);
+            settings.ElectricalSymbolSize = Number("Itens eletricos (mm)", 0, MinBoxSymbol, MaxBoxSymbol);
+            settings.AnchoringSymbolSize = Number("Amarracao (mm)", 0, MinBoxSymbol, MaxBoxSymbol);
             settings.EffortArrowLength = Number("Seta de esforco (mm)", settings.EffortArrowLength, MinArrowLength, MaxArrowLength);
             settings.AutoRouteOffset = Number("Afastamento do roteamento (m)", settings.AutoRouteOffset, MinRouteOffset, MaxRouteOffset);
             settings.CableColor = Color("Cor dos cabos", settings.CableColor);
@@ -159,6 +186,10 @@ namespace FiberPlugin.Core
             sb.AppendLine($"Digitos do numero: {NumberDigits}");
             sb.AppendLine($"Altura dos textos (mm): {N(TextHeight)}");
             sb.AppendLine($"Simbolo da CTO/CEO (mm): {N(BoxSymbolSize)}");
+            sb.AppendLine("# Tamanho padrão dos blocos (0 = o tamanho em que foram desenhados no BLOCOS.dwg)");
+            sb.AppendLine($"Poste (mm): {N(PoleSymbolSize)}");
+            sb.AppendLine($"Itens eletricos (mm): {N(ElectricalSymbolSize)}");
+            sb.AppendLine($"Amarracao (mm): {N(AnchoringSymbolSize)}");
             sb.AppendLine($"Seta de esforco (mm): {N(EffortArrowLength)}");
             sb.AppendLine($"Afastamento do roteamento (m): {N(AutoRouteOffset)}");
             sb.AppendLine($"Cor dos cabos: {CableColor}");

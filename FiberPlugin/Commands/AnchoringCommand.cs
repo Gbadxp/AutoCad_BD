@@ -98,8 +98,11 @@ namespace FiberPlugin.Commands
             // A parte redonda (em volta do ponto base) fica do lado do poste: o quanto ela avança para trás (-X)
             // define a distância até a borda do poste. O comprimento todo serve para achar as amarrações antigas.
             Extents3d? symbol = BlockInsertHelpers.DefinitionExtents(tr, blockId);
-            double reach = Math.Max(0, -(symbol?.MinPoint.X ?? 0)) * scale;
-            double length = symbol is Extents3d e ? (e.MaxPoint.X - e.MinPoint.X) * scale : 0;
+            // Tamanho do bloco: o padrão das Configurações (maior lado) ou o do BLOCOS.dwg, na escala do desenho; a folga até
+            // o poste segue só a escala
+            double blockScale = BlockInsertHelpers.SymbolScale(symbol, UserSettings.Current.AnchoringSymbolSize, scale, scale);
+            double reach = Math.Max(0, -(symbol?.MinPoint.X ?? 0)) * blockScale;
+            double length = symbol is Extents3d e ? (e.MaxPoint.X - e.MinPoint.X) * blockScale : 0;
 
             List<PoleInfo> poles = Poles.Collect(tr, space);
             var cables = new List<IList<(double X, double Y)>>();
@@ -144,7 +147,7 @@ namespace FiberPlugin.Commands
 
                 foreach (AnchoringPlacement p in placements)
                 {
-                    CadHelpers.InsertBlock(tr, space, blockId, new Point3d(p.X, p.Y, pole.Position.Z), p.Rotation, null, scale: scale);
+                    CadHelpers.InsertBlock(tr, space, blockId, new Point3d(p.X, p.Y, pole.Position.Z), p.Rotation, null, scale: blockScale);
                     result.Inserted++;
                 }
                 result.Poles++;

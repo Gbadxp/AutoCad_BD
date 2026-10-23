@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.75.msi`](Instalador/FiberPlugin-1.9.75.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.76.msi`](Instalador/FiberPlugin-1.9.76.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -439,6 +439,13 @@ Os textos dos vãos, os textos de identificação, a seta de esforço e o símbo
 definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** da aba Projeto de Configurações você informa a
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
+
+**Tamanho dos blocos** (Configurações, aba Desenho): o tamanho padrão em que cada bloco entra, em mm no papel na
+escala 1:1000 (maior lado do desenho do bloco): **Poste**, **CTO/CEO** (7 mm), **Itens elétricos** e **Amarração**.
+Campo vazio = o tamanho em que o bloco foi desenhado no `BLOCOS.dwg`, como sempre foi. Em outra escala o tamanho
+acompanha (o poste segue a escala do ícone dos postes). Ao salvar um tamanho novo, o plugin pergunta se ajusta os
+blocos já desenhados no desenho aberto; o Padronizar Tamanhos e a troca de escala também usam estes tamanhos. Itens
+elétricos e amarrações sem tamanho padrão ficam como estão nesses ajustes.
 
 Ao trocar a escala (ou rodar o `FIBRA_ESCALA` com a mesma), o comando oferece deixar o que já está desenhado **no
 tamanho da escala**: altura dos textos (com o afastamento do cabo junto), setas de esforço (em torno do poste),

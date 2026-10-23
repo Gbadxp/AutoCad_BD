@@ -134,6 +134,7 @@ namespace FiberPlugin.Commands
             if (poleNames || boxNames) UpdateNames(ed, db, poleNames, boxNames);
 
             if (Math.Abs(after.TextHeight - before.TextHeight) > 1e-9) ScaleCommand.ResizeTexts(ed, db);
+            if (!after.SameBlockSizes(before)) ScaleCommand.ResizeBlocks(ed, db);
 
             if (updateBlocks) doc.SendStringToExecute("FIBRA_ATUALIZAR_BLOCOS ", true, false, false);
         }

@@ -102,7 +102,7 @@ namespace FiberPlugin.Commands
                 if (model.Type == PoleData.DoubleT)
                 {
                     double? angle = BlockInsertHelpers.DragRotation(ed, blockId, point,
-                        "\nGire o poste com o mouse e clique (ou digite o ângulo) <0>: ", DrawingScale.Factor(db, ScaleItem.PoleIcon));
+                        "\nGire o poste com o mouse e clique (ou digite o ângulo) <0>: ", PoleScale(db, blockId));
                     if (angle == null) break;
                     rotation = angle.Value;
                 }
@@ -125,13 +125,12 @@ namespace FiberPlugin.Commands
         internal static void PlacePole(Transaction tr, Database db, BlockTableRecord space, ObjectId blockId, Point3d point,
             double rotation, PoleData data, UtmSettings? utm)
         {
-            // Tamanho: escala do ícone dos postes (sem escala própria, o tamanho do BLOCOS.dwg)
             BlockReference br = CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null, tag =>
             {
                 if (CadHelpers.IsTag(tag, CadHelpers.NumberTags)) return PoleData.NumberText(data.Number);
                 if (CadHelpers.IsTag(tag, CadHelpers.NameTags)) return data.HeightEffort;
                 return CadHelpers.CoordinateAttribute(tag, point, utm);
-            }, DrawingScale.Factor(db, ScaleItem.PoleIcon));
+            }, PoleScale(db, blockId));
 
             XDataTags.TagPole(tr, db, br, data);
             PoleLabels.Place(tr, db, space, br, data, PoleLabels.NewBlock);
@@ -254,7 +253,11 @@ namespace FiberPlugin.Commands
             br.UpgradeOpen();
             if (!string.Equals(old.Type, model.Type, StringComparison.OrdinalIgnoreCase))
             {
+                // O bloco novo fica no tamanho padrão dele, na mesma proporção em que o de antes estava do dele (poste que
+                // foi aumentado à mão continua maior)
+                double ratio = Math.Abs(br.ScaleFactors.X) / PoleScale(db, br.BlockTableRecord);
                 br.BlockTableRecord = blockId;
+                br.ScaleFactors = new Scale3d(PoleScale(db, blockId) * ratio);
                 SyncAttributes(tr, br);
             }
             CadHelpers.SetAttributes(tr, br, tag =>
@@ -298,6 +301,16 @@ namespace FiberPlugin.Commands
                 kept.Add(att.ObjectId);
             }
             foreach (AttributeReference att in current.Where(a => !kept.Contains(a.ObjectId))) att.Erase();
+        }
+
+        /// <summary>
+        /// Escala do bloco do poste: o tamanho padrão das Configurações (Desenho > Tamanho dos blocos) ou, sem ele, o do
+        /// BLOCOS.dwg, na escala do ícone dos postes.
+        /// </summary>
+        internal static double PoleScale(Database db, ObjectId blockId)
+        {
+            double factor = DrawingScale.Factor(db, ScaleItem.PoleIcon);
+            return BlockInsertHelpers.SymbolScale(db, blockId, UserSettings.Current.PoleSymbolSize, factor, factor);
         }
 
         internal static PoleData? ChooseModel(List<PoleData> models)

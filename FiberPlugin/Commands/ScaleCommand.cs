@@ -48,7 +48,7 @@ namespace FiberPlugin.Commands
             PromptSelectionResult implied = ed.SelectImplied();
             HashSet<ObjectId>? only = implied.Status == PromptStatus.OK ? new HashSet<ObjectId>(implied.Value.GetObjectIds()) : null;
             int scale = DrawingScale.Get(db);
-            Dictionary<ScaleItem, double> factors = Factors(scale, DrawingScale.GetElements(db));
+            var factors = new Targets(scale, DrawingScale.GetElements(db));
 
             int count, adjusted = 0, locked = 0;
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -78,7 +78,7 @@ namespace FiberPlugin.Commands
         /// </summary>
         internal static void Apply(Editor ed, Database db, int scale, ElementScales elements)
         {
-            Dictionary<ScaleItem, double> factors = Factors(scale, elements);
+            var factors = new Targets(scale, elements);
             int before = DrawingScale.Get(db);
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -116,7 +116,7 @@ namespace FiberPlugin.Commands
         /// </summary>
         internal static void ResizeTexts(Editor ed, Database db)
         {
-            Dictionary<ScaleItem, double> factors = Factors(DrawingScale.Get(db), DrawingScale.GetElements(db));
+            var factors = new Targets(DrawingScale.Get(db), DrawingScale.GetElements(db));
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 Annotations all = FindAnnotations(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead));
@@ -140,9 +140,53 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
-        /// <summary>Fator de cada tipo de elemento na escala (1 em 1:1000).</summary>
-        private static Dictionary<ScaleItem, double> Factors(int scale, ElementScales elements) =>
-            ElementScales.Items.ToDictionary(i => i, i => elements.Effective(i, scale) / (double)DrawingScale.Reference);
+        /// <summary>Fatores de uma escala (1 em 1:1000): o de cada tipo de elemento e o do desenho.</summary>
+        private sealed class Targets
+        {
+            private readonly Dictionary<ScaleItem, double> _items;
+
+            public Targets(int scale, ElementScales elements)
+            {
+                _items = ElementScales.Items.ToDictionary(i => i, i => elements.Effective(i, scale) / (double)DrawingScale.Reference);
+                Drawing = scale / (double)DrawingScale.Reference;
+            }
+
+            public double this[ScaleItem item] => _items[item];
+
+            /// <summary>Fator do desenho: itens elétricos e amarrações seguem ele.</summary>
+            public double Drawing { get; }
+        }
+
+        /// <summary>
+        /// Tamanho padrão dos blocos mudado na janela Configurações: pergunta se deixa os postes, CTO/CEO, itens elétricos
+        /// e amarrações já desenhados no tamanho novo (cada um no seu lugar, com o texto acompanhando).
+        /// </summary>
+        internal static void ResizeBlocks(Editor ed, Database db)
+        {
+            var factors = new Targets(DrawingScale.Get(db), DrawingScale.GetElements(db));
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
+                Annotations all = FindAnnotations(tr, modelSpace);
+                var blocks = new Annotations();
+                blocks.PoleBlocks.AddRange(all.PoleBlocks);
+                blocks.BoxBlocks.AddRange(all.BoxBlocks);
+                blocks.ElectricalBlocks.AddRange(all.ElectricalBlocks);
+                blocks.AnchoringBlocks.AddRange(all.AnchoringBlocks);
+                int count = blocks.CountChanging(tr, factors);
+                if (count == 0 || !CadHelpers.AskYes(ed, $"\nDeixar os {count} blocos já desenhados neste desenho no tamanho novo? [Sim/Nao] <Sim>: "))
+                {
+                    tr.Commit();
+                    return;
+                }
+
+                var (adjusted, locked) = Normalize(tr, blocks, factors, PoleLabels.IndexLabels(tr, modelSpace));
+                tr.Commit();
+                ed.WriteMessage($"\n[INFO]: {adjusted} bloco(s) ajustado(s).");
+                if (locked > 0) ed.WriteMessage($"\n[AVISO]: {locked} bloco(s) em layer travada ficaram com o tamanho antigo.");
+            }
+            ed.Regen();
+        }
 
         private sealed class Annotations
         {
@@ -156,9 +200,11 @@ namespace FiberPlugin.Commands
             public List<ObjectId> BoxLabels { get; } = new List<ObjectId>();
             public List<ObjectId> PoleBlocks { get; } = new List<ObjectId>();
             public List<ObjectId> BoxBlocks { get; } = new List<ObjectId>();
+            public List<ObjectId> ElectricalBlocks { get; } = new List<ObjectId>();
+            public List<ObjectId> AnchoringBlocks { get; } = new List<ObjectId>();
 
             /// <summary>Elementos fora do tamanho da escala (os que o ajuste muda).</summary>
-            public int CountChanging(Transaction tr, Dictionary<ScaleItem, double> factors)
+            public int CountChanging(Transaction tr, Targets factors)
             {
                 bool Off(double ratio) => Math.Abs(ratio - 1) > 1e-4;
                 return EffortGroups(tr, this, factors).Sum(g => Off(g.Ratio) ? g.Ids.Count : 0) +
@@ -167,13 +213,15 @@ namespace FiberPlugin.Commands
                        BoxLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.BoxText]))) +
                        StrandLines.Count(id => Off(StrandWidthRatio(tr, id, factors[ScaleItem.CableText]))) +
                        PoleBlocks.Count(id => Off(PoleBlockRatio(tr, id, factors[ScaleItem.PoleIcon]))) +
-                       BoxBlocks.Count(id => Off(BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon])));
+                       BoxBlocks.Count(id => Off(BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon]))) +
+                       ElectricalBlocks.Count(id => Off(ElectricalBlockRatio(tr, id, factors.Drawing))) +
+                       AnchoringBlocks.Count(id => Off(AnchoringBlockRatio(tr, id, factors.Drawing)));
             }
         }
 
         /// <summary>
         /// Anotações e blocos criados pelo plugin: setas de esforço, textos dos vãos, da cordoalha e dos postes/CTO/CEO,
-        /// reservas técnicas, cordoalhas, postes e CTO/CEO. <paramref name="only"/>: só esses objetos (null = todos); de uma
+        /// reservas técnicas, cordoalhas, postes, CTO/CEO, itens elétricos e amarrações. <paramref name="only"/>: só esses objetos (null = todos); de uma
         /// seta de esforço com algum pedaço selecionado vai a seta inteira, e o texto da reserva leva a seta dele.
         /// </summary>
         private static Annotations FindAnnotations(Transaction tr, BlockTableRecord space, ISet<ObjectId>? only = null)
@@ -182,6 +230,7 @@ namespace FiberPlugin.Commands
             List<PoleInfo> poles = Poles.Collect(tr, space);
             var polesByHandle = Poles.ByHandle(poles);
             var markers = new List<(ObjectId Id, Point3d Pole, bool Selected)>();
+            bool electrical = UserSettings.Current.ElectricalSymbolSize > 0, anchoring = UserSettings.Current.AnchoringSymbolSize > 0;
             foreach (ObjectId id in space)
             {
                 bool selected = only == null || only.Contains(id);
@@ -224,6 +273,14 @@ namespace FiberPlugin.Commands
                 {
                     if (XDataTags.ReadPole(br) != null) found.PoleBlocks.Add(id);
                     else if (XDataTags.ReadBox(br) != null) found.BoxBlocks.Add(id);
+                    else if (electrical || anchoring)
+                    {
+                        // Itens elétricos e amarrações só com tamanho padrão definido: sem ele ficam como estão (o
+                        // tamanho de cada um pode ter sido escolhido na inserção)
+                        string category = BlockCategories.Of(CadHelpers.GetBlockName(tr, br));
+                        if (electrical && category == BlockCategories.Electrical) found.ElectricalBlocks.Add(id);
+                        else if (anchoring && category == BlockCategories.Anchoring) found.AnchoringBlocks.Add(id);
+                    }
                 }
             }
 
@@ -239,7 +296,7 @@ namespace FiberPlugin.Commands
         /// Leva cada elemento ao tamanho da escala. O que está em layer travada (o bloco, um atributo ou o texto dele) fica
         /// como estava. Retorna os ajustados e os que ficaram por estar em layer travada.
         /// </summary>
-        private static (int Adjusted, int Locked) Normalize(Transaction tr, Annotations annotations, Dictionary<ScaleItem, double> factors,
+        private static (int Adjusted, int Locked) Normalize(Transaction tr, Annotations annotations, Targets factors,
             Dictionary<string, List<ObjectId>> labels)
         {
             int adjusted = 0, locked = 0;
@@ -272,7 +329,9 @@ namespace FiberPlugin.Commands
             foreach (var (blocks, ratioOf) in new (List<ObjectId>, Func<ObjectId, double>)[]
                      {
                          (annotations.PoleBlocks, id => PoleBlockRatio(tr, id, factors[ScaleItem.PoleIcon])),
-                         (annotations.BoxBlocks, id => BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon]))
+                         (annotations.BoxBlocks, id => BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon])),
+                         (annotations.ElectricalBlocks, id => ElectricalBlockRatio(tr, id, factors.Drawing)),
+                         (annotations.AnchoringBlocks, id => AnchoringBlockRatio(tr, id, factors.Drawing))
                      })
             {
                 foreach (ObjectId id in blocks)
@@ -297,7 +356,7 @@ namespace FiberPlugin.Commands
         /// da escala: pelo bloco da seta, ou pelo texto, pelo círculo do aviso "SEM POSTE" ou pelo comprimento da seta.
         /// </summary>
         private static List<(List<ObjectId> Ids, Point3d Pole, double Ratio)> EffortGroups(Transaction tr, Annotations annotations,
-            Dictionary<ScaleItem, double> factors)
+            Targets factors)
         {
             double f = factors[ScaleItem.Effort];
             var groups = new List<(List<ObjectId>, Point3d, double)>();
@@ -320,8 +379,28 @@ namespace FiberPlugin.Commands
         private static double TextRatio(Transaction tr, ObjectId id, double factor) =>
             !id.IsErased && tr.GetObject(id, OpenMode.ForRead) is MText t ? Ratio(FiberSettings.TextHeight * factor, t.TextHeight) ?? 1 : 1;
 
+        /// <summary>
+        /// Bloco no tamanho padrão do grupo (Configurações > Desenho > Tamanho dos blocos) na escala, ou, sem tamanho
+        /// padrão, na escala de inserção do grupo (<paramref name="unsized"/>, o tamanho do BLOCOS.dwg).
+        /// </summary>
+        private static double BlockRatio(Transaction tr, ObjectId id, double sizeMm, double factor, double unsized)
+        {
+            var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
+            double target = BlockInsertHelpers.SymbolScale(BlockInsertHelpers.DefinitionExtents(tr, br.BlockTableRecord), sizeMm, factor, unsized);
+            return Ratio(target, Math.Abs(br.ScaleFactors.X)) ?? 1;
+        }
+
+        /// <summary>Poste: o tamanho padrão ou, sem ele, o do BLOCOS.dwg na escala do ícone dos postes (como na inserção).</summary>
         private static double PoleBlockRatio(Transaction tr, ObjectId id, double factor) =>
-            Ratio(factor, Math.Abs(((BlockReference)tr.GetObject(id, OpenMode.ForRead)).ScaleFactors.X)) ?? 1;
+            BlockRatio(tr, id, UserSettings.Current.PoleSymbolSize, factor, factor);
+
+        /// <summary>Item elétrico: o tamanho padrão na escala do desenho ou, sem ele, o do BLOCOS.dwg (não acompanha a escala).</summary>
+        private static double ElectricalBlockRatio(Transaction tr, ObjectId id, double drawing) =>
+            BlockRatio(tr, id, UserSettings.Current.ElectricalSymbolSize, drawing, 1.0);
+
+        /// <summary>Amarração: o tamanho padrão ou, sem ele, o do BLOCOS.dwg, na escala do desenho.</summary>
+        private static double AnchoringBlockRatio(Transaction tr, ObjectId id, double drawing) =>
+            BlockRatio(tr, id, UserSettings.Current.AnchoringSymbolSize, drawing, drawing);
 
         /// <summary>CTO/CEO: o maior lado do símbolo igual ao das Configurações × fator, como na inserção.</summary>
         private static double BoxBlockRatio(Transaction tr, ObjectId id, double factor)

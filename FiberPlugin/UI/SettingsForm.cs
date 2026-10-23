@@ -188,6 +188,7 @@ namespace FiberPlugin.UI
         private readonly ChoiceBar _digits;
         private readonly Label _example;
         private readonly LabeledInput _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer;
+        private readonly LabeledInput _poleSize, _electricalSize, _anchoringSize; // Vazio = o tamanho do BLOCOS.dwg
         private readonly ColorField _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor;
         private readonly LabeledCombo _roadLinetype, _roadWeight;
         private readonly StatusLabel _status;
@@ -373,8 +374,11 @@ namespace FiberPlugin.UI
 
             // ---------- Desenho: tamanhos, cores e ruas ----------
             _textHeight = new LabeledInput("Altura dos textos (mm)", "ex.: 2.0");
-            _boxSize = new LabeledInput("Símbolo da CTO/CEO (mm)", "ex.: 7.0");
             _arrowLength = new LabeledInput("Seta de esforço (mm)", "ex.: 18");
+            _poleSize = new LabeledInput("Poste (mm)", "do BLOCOS.dwg");
+            _boxSize = new LabeledInput("CTO/CEO (mm)", "ex.: 7.0");
+            _electricalSize = new LabeledInput("Itens elétricos (mm)", "do BLOCOS.dwg");
+            _anchoringSize = new LabeledInput("Amarração (mm)", "do BLOCOS.dwg");
             _routeOffset = new LabeledInput("Afastamento do cabo (m)", "ex.: 1.8");
             _cableColor = new ColorField("Cabos sem cor própria");
             _poleLabelColor = new ColorField("Textos dos postes");
@@ -387,9 +391,13 @@ namespace FiberPlugin.UI
             Control drawingPage = FormPage(new (Control, float)[]
             {
                 (new SectionLabel("Tamanhos no papel (escala 1:1000) e roteamento automático"), 26),
-                (Row(_textHeight, _boxSize, _arrowLength, _routeOffset), 56),
+                (Row(_textHeight, _arrowLength, _routeOffset), 56),
                 (Hint("Em outra escala (aba Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
-                      "pergunta se ajusta os textos já desenhados; símbolos, setas e o afastamento valem para os próximos."), 40),
+                      "pergunta se ajusta os textos já desenhados; a seta e o afastamento valem para os próximos."), 40),
+                (new SectionLabel("Tamanho dos blocos (maior lado no papel, escala 1:1000)"), 30),
+                (Row(_poleSize, _boxSize, _electricalSize, _anchoringSize), 56),
+                (Hint("Tamanho em que os blocos entram ao inserir. Vazio = o tamanho em que o bloco foi desenhado no BLOCOS.dwg. Ao " +
+                      "salvar, o plugin pergunta se ajusta os blocos já desenhados; o Padronizar e a troca de escala também usam estes."), 40),
                 (new SectionLabel("Cores das layers"), 30),
                 (Row(_cableColor, _poleLabelColor, _boxLabelColor, _effortColor), 56),
                 (new SectionLabel("Ruas (Importar Ruas)"), 30),
@@ -470,7 +478,11 @@ namespace FiberPlugin.UI
             FillNames(settings);
             FillDrawing(settings);
 
-            var inputs2 = new List<LabeledInput> { _polePrefix, _ctoPrefix, _ceoPrefix, _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer };
+            var inputs2 = new List<LabeledInput>
+            {
+                _polePrefix, _ctoPrefix, _ceoPrefix, _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer,
+                _poleSize, _electricalSize, _anchoringSize
+            };
             inputs2.AddRange(_company.Values);
             foreach (LabeledInput input in inputs2) input.Box.Input.TextChanged += (s, e) => UpdateStatus();
             foreach (ColorField field in new[] { _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor })
@@ -556,6 +568,9 @@ namespace FiberPlugin.UI
             _textHeight.Value = Num(s.TextHeight);
             _boxSize.Value = Num(s.BoxSymbolSize);
             _arrowLength.Value = Num(s.EffortArrowLength);
+            _poleSize.Value = s.PoleSymbolSize > 0 ? Num(s.PoleSymbolSize) : "";
+            _electricalSize.Value = s.ElectricalSymbolSize > 0 ? Num(s.ElectricalSymbolSize) : "";
+            _anchoringSize.Value = s.AnchoringSymbolSize > 0 ? Num(s.AnchoringSymbolSize) : "";
             _routeOffset.Value = Num(s.AutoRouteOffset);
             _cableColor.Value = s.CableColor;
             _poleLabelColor.Value = s.PoleLabelColor;
@@ -853,6 +868,19 @@ namespace FiberPlugin.UI
             })
             {
                 if (!DataFiles.TryParseNumber(input.Value, out double value)) return $"Desenho: informe {input.Title.ToLowerInvariant()} (ex.: {input.Box.Placeholder.Replace("ex.: ", "")}).";
+                apply(value);
+            }
+            // Tamanho dos blocos: vazio = o do BLOCOS.dwg
+            foreach (var (input, apply) in new (LabeledInput, Action<double>)[]
+            {
+                (_poleSize, v => s.PoleSymbolSize = v),
+                (_electricalSize, v => s.ElectricalSymbolSize = v),
+                (_anchoringSize, v => s.AnchoringSymbolSize = v)
+            })
+            {
+                if (input.Value.Trim().Length == 0) { apply(0); continue; }
+                if (!DataFiles.TryParseNumber(input.Value, out double value))
+                    return $"Desenho: {input.Title.ToLowerInvariant()} em mm (ex.: 5), ou vazio para o tamanho do BLOCOS.dwg.";
                 apply(value);
             }
 

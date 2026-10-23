@@ -42,7 +42,9 @@ namespace FiberPlugin.Commands
             if (blockId.IsNull) return;
 
             UtmSettings? utm = UtmZone.Get(db); // Para atributos COORDENADA_X/Y e ZONA, se o bloco tiver
-            double scale = drawingScale ? DrawingScale.Factor(db) : 1.0;
+            // Tamanho: o padrão das Configurações para o grupo (maior lado do bloco) ou o do BLOCOS.dwg
+            double unsized = drawingScale ? DrawingScale.Factor(db) : 1.0, size = UserSettings.Current.SymbolSize(category);
+            double ScaleOf(ObjectId id) => BlockInsertHelpers.SymbolScale(db, id, size, DrawingScale.Factor(db), unsized);
             int inserted = 0;
 
             while (true)
@@ -74,7 +76,7 @@ namespace FiberPlugin.Commands
                 if (askRotation)
                 {
                     double? angle = BlockInsertHelpers.DragRotation(ed, blockId, point,
-                        "\nGire a amarração com o mouse e clique (ou digite o ângulo) <0>: ", scale);
+                        "\nGire a amarração com o mouse e clique (ou digite o ângulo) <0>: ", ScaleOf(blockId));
                     if (angle == null) break;
                     rotation = angle.Value;
                 }
@@ -82,7 +84,7 @@ namespace FiberPlugin.Commands
                 {
                     BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
                     CadHelpers.InsertBlock(tr, space, blockId, point, rotation, null,
-                        tag => fillCoordinates ? CadHelpers.CoordinateAttribute(tag, point, utm) : null, scale);
+                        tag => fillCoordinates ? CadHelpers.CoordinateAttribute(tag, point, utm) : null, ScaleOf(blockId));
                     tr.Commit();
                 }
 
