@@ -65,6 +65,7 @@ namespace FiberPlugin.UI
             ["FIBRA"] = PaintMenu,
             ["FIBRA_LANCAR_CABO"] = PaintCable,
             ["FIBRA_ROTEAMENTO_AUTO"] = PaintRoute,
+            ["FIBRA_TROCAR_CABO"] = PaintSwapCable,
             ["FIBRA_RESERVA_TECNICA"] = PaintReserve,
             ["FIBRA_CORDOALHA"] = PaintStrand,
             ["FIBRA_INSERIR_POSTE"] = PaintPole,
@@ -431,6 +432,16 @@ namespace FiberPlugin.UI
             dc.DrawLine(lines, new W.Point(8.5, 17), new W.Point(20.5, 17));
             dc.DrawLine(lines, new W.Point(8.5, 20.5), new W.Point(17, 20.5));
             dc.DrawGeometry(ink.Red, null, G("M18,3 H22 V12 L20,10 L18,12 Z"));
+        }
+
+        private static void PaintSwapCable(M.DrawingContext dc, Ink ink)
+        {
+            // Cabo entre dois postes e as setas de troca (vai um tipo, volta o outro)
+            dc.DrawLine(Ink.Pen(ink.Fiber, 3.0), new W.Point(6, 25), new W.Point(26, 25));
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(5, 25), 3, 3);
+            dc.DrawEllipse(ink.Paper, Ink.Pen(ink.Line, 1.4), new W.Point(27, 25), 3, 3);
+            Arrow(dc, ink.Blue, 7, 8, 25, 8, 2.0);
+            Arrow(dc, ink.Green, 25, 15.5, 7, 15.5, 2.0);
         }
 
         private static void PaintReserve(M.DrawingContext dc, Ink ink)

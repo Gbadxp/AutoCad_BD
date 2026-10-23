@@ -80,6 +80,69 @@ namespace FiberPlugin.Core
             return poly;
         }
 
+        /// <summary>
+        /// Troca o tipo de um cabo já lançado, sem mexer no percurso: a polilinha vai para a layer do cabo novo com o nome
+        /// dele no XData, e os textos do cabo (nome e metragens dos vãos, na layer do cabo antigo) vão junto, com o nome
+        /// trocado. São os textos perto deste cabo e mais perto dele que de qualquer outro (veja CableSwap.Belongs).
+        /// </summary>
+        /// <param name="poly">Cabo a trocar (aberto para leitura ou escrita).</param>
+        /// <param name="others">Percursos dos outros cabos do desenho.</param>
+        /// <returns>Quantos textos foram junto.</returns>
+        public static int ChangeType(Transaction tr, Database db, BlockTableRecord space, Polyline poly, CableModel cable,
+            IList<IReadOnlyList<(double X, double Y)>> others)
+        {
+            string oldName = XDataTags.GetCableName(poly) ?? "";
+            string oldLayer = poly.Layer;
+            string newLayer = LayerFor(cable);
+            CadHelpers.EnsureLayer(tr, db, newLayer, StyleFor(cable));
+            IReadOnlyList<(double X, double Y)> path = Path(poly);
+
+            int moved = 0;
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent || !ent.Layer.Equals(oldLayer, StringComparison.OrdinalIgnoreCase)) continue;
+                string? content = ent is MText m ? m.Text : ent is DBText t ? t.TextString : null;
+                if (content == null) continue;
+                CableTextKind kind = CableSwap.Classify(content, oldName);
+                if (kind == CableTextKind.None) continue;
+
+                double height = ent is MText mt ? mt.TextHeight : ((DBText)ent).Height;
+                if (TextCenter(ent) is not Point3d center ||
+                    !CableSwap.Belongs((center.X, center.Y), path, others, 4 * height)) continue;
+
+                ent.UpgradeOpen();
+                ent.Layer = newLayer;
+                if (kind == CableTextKind.Name)
+                {
+                    if (ent is MText name) name.Contents = cable.ShortName;
+                    else ((DBText)ent).TextString = cable.ShortName;
+                }
+                moved++;
+            }
+
+            if (!poly.IsWriteEnabled) poly.UpgradeOpen();
+            poly.Layer = newLayer;
+            XDataTags.TagCable(tr, db, poly, cable.ShortName);
+            return moved;
+        }
+
+        /// <summary>Vértices da polilinha, para as contas de distância.</summary>
+        public static IReadOnlyList<(double X, double Y)> Path(Polyline poly) =>
+            Enumerable.Range(0, poly.NumberOfVertices).Select(i => { Point2d p = poly.GetPoint2dAt(i); return (p.X, p.Y); }).ToList();
+
+        private static Point3d? TextCenter(Entity text)
+        {
+            try
+            {
+                Extents3d e = text.GeometricExtents;
+                return new Point3d((e.MinPoint.X + e.MaxPoint.X) / 2, (e.MinPoint.Y + e.MaxPoint.Y) / 2, 0);
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null; // Texto vazio
+            }
+        }
+
         /// <summary>Nome do cabo acima da linha (um vão sim, um vão não) e metragem abaixo.</summary>
         private static void LabelSpans(Transaction tr, BlockTableRecord space, IList<Point3d> vertices,
             IList<double> spanLengths, string cableName, string layer)

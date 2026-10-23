@@ -56,6 +56,7 @@ namespace FiberPlugin.UI
             {
                 new Tool("FIBRA_LANCAR_CABO", "Lançar Rota Manual", "Desenhe o cabo clicando nos postes", "Lançar\nCabo"),
                 new Tool("FIBRA_ROTEAMENTO_AUTO", "Roteamento Automático", "Rota mais curta entre os blocos", "Roteamento\nAutomático"),
+                new Tool("FIBRA_TROCAR_CABO", "Trocar Cabo", "Troca o tipo do cabo clicado (ex.: 06F.O por 12F.O) sem desenhar de novo", "Trocar Cabo", largeOnRibbon: false),
                 new Tool("FIBRA_RESERVA_TECNICA", "Reserva Técnica", "Seta com \"RESERVA TÉCNICA 30m\" apontando para o poste ou o vão", "Reserva Técnica", largeOnRibbon: false),
                 new Tool("FIBRA_CORDOALHA", "Lançar Cordoalha", "Linha laranja tracejada clicando nos postes, com a metragem de cada trecho", "Cordoalha", largeOnRibbon: false)
             }),
