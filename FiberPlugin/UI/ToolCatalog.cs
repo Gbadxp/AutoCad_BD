@@ -80,6 +80,13 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false)
             }),
+            ("Esforços", new[]
+            {
+                new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
+                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Esforço em todos os postes do cabo; seta onde a NDU 009 pede", "Esforço no\nPercurso"),
+                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros", largeOnRibbon: false),
+                new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente", largeOnRibbon: false)
+            }),
             // Numeração e tamanho dos blocos já inseridos: comandos à parte, não de inserir
             ("Editar", new[]
             {
@@ -91,12 +98,15 @@ namespace FiberPlugin.UI
                     "Deixa postes, CTO/CEO, textos e setas no tamanho da escala do desenho (ex.: o que foi colado de outro desenho)",
                     "Padronizar", largeOnRibbon: false)
             }),
-            ("Esforços", new[]
+            ("Google Earth", new[]
             {
-                new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
-                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Esforço em todos os postes do cabo; seta onde a NDU 009 pede", "Esforço no\nPercurso"),
-                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros", largeOnRibbon: false),
-                new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente", largeOnRibbon: false)
+                new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML", ribbonMenu: "KML"),
+                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML", ribbonMenu: "KML"),
+                new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
+            }),
+            ("Pranchas", new[]
+            {
+                new Tool("FIBRA_GERAR_FOLHAS", "Gerar Folhas", "Divide a área em folhas A0 a A4 com viewports", "Gerar\nFolhas")
             }),
             ("Documentos", new[]
             {
@@ -107,16 +117,6 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", ribbonMenu: "Documentos")
-            }),
-            ("Pranchas", new[]
-            {
-                new Tool("FIBRA_GERAR_FOLHAS", "Gerar Folhas", "Divide a área em folhas A0 a A4 com viewports", "Gerar\nFolhas")
-            }),
-            ("Google Earth", new[]
-            {
-                new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML", ribbonMenu: "KML"),
-                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML", ribbonMenu: "KML"),
-                new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
             }),
             // Projeto: os dados deste projeto e da empresa (percurso, contrato, ART, zona UTM, escala, pasta de dados e
             // Atualizar Blocos); Configurações: o plugin e o desenho, que valem para todos os desenhos

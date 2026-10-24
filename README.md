@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.80.msi`](Instalador/FiberPlugin-1.9.80.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.81.msi`](Instalador/FiberPlugin-1.9.81.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -165,6 +165,14 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 
+### Esforços
+| Botão | Comando | Função |
+|---|---|---|
+| Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
+| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Na **derivação** (um cabo termina no poste e outro passa) também vai seta. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha o aviso **SEM POSTE** (não imprime) no lugar da seta. |
+| Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
+| Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
+
 ### Editar
 
 Numeração e tamanho dos blocos já inseridos (na aba Fibra, o painel ao lado de Inserir).
@@ -177,13 +185,16 @@ Numeração e tamanho dos blocos já inseridos (na aba Fibra, o painel ao lado d
 | Tamanho | `FIBRA_TAMANHO_BLOCO` | Muda o tamanho de blocos já inseridos: selecione um ou vários e digite o novo tamanho (maior lado, em m) ou use **Fator** (2 = dobro, 0,5 = metade). Cada bloco continua no ponto em que foi inserido (CTO/CEO: no centro do símbolo) e o texto de identificação acompanha. Também funciona selecionando antes. |
 | Padronizar | `FIBRA_PADRONIZAR_TAMANHOS` | Deixa postes, CTO/CEO, textos, setas de esforço, reservas e cordoalhas no tamanho da escala do desenho (o mesmo da inserção): o que foi colado de um desenho em outra escala fica igual ao resto. Com objetos selecionados antes, só eles. |
 
-### Esforços
+### Google Earth
+
+Na aba **Fibra**, Importar KML e Exportar KML ficam num botão só, **KML**, que abre a lista com os dois; o Importar
+Ruas fica ao lado.
+
 | Botão | Comando | Função |
 |---|---|---|
-| Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
-| Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Na **derivação** (um cabo termina no poste e outro passa) também vai seta. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha o aviso **SEM POSTE** (não imprime) no lugar da seta. |
-| Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
-| Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
+| Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
+| Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
+| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto, com nomes e mapa de fundo opcionais; se as ruas já estiverem no desenho, escreve só os nomes (veja abaixo). |
 
 ### Documentos e Pranchas
 
@@ -201,17 +212,6 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
-
-### Google Earth
-
-Na aba **Fibra**, Importar KML e Exportar KML ficam num botão só, **KML**, que abre a lista com os dois; o Importar
-Ruas fica ao lado.
-
-| Botão | Comando | Função |
-|---|---|---|
-| Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
-| Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
-| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto, com nomes e mapa de fundo opcionais; se as ruas já estiverem no desenho, escreve só os nomes (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
