@@ -95,6 +95,7 @@ namespace FiberPlugin.UI
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
+            ["FIBRA_GRUPO_KML"] = PaintKml,
             ["FIBRA_IMPORTAR_RUAS"] = PaintRoads
         };
 
@@ -597,6 +598,14 @@ namespace FiberPlugin.UI
         {
             PaintEarth(dc, ink);
             Arrow(dc, ink.Green, 21.5, 12.5, 30, 4, 2.4);
+        }
+
+        private static void PaintKml(M.DrawingContext dc, Ink ink)
+        {
+            // Globo com as duas setas, a de trazer e a de levar
+            PaintEarth(dc, ink);
+            Arrow(dc, ink.Green, 30, 2, 22.5, 9.5, 2.0);
+            Arrow(dc, ink.Blue, 24.5, 15.5, 31.5, 8.5, 2.0);
         }
 
         private static void PaintRoads(M.DrawingContext dc, Ink ink)

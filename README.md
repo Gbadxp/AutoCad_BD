@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.78.msi`](Instalador/FiberPlugin-1.9.78.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.79.msi`](Instalador/FiberPlugin-1.9.79.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -203,6 +203,10 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
+
+Na aba **Fibra**, Importar KML e Exportar KML ficam num botão só, **KML**, que abre a lista com os dois; o Importar
+Ruas fica ao lado.
+
 | Botão | Comando | Função |
 |---|---|---|
 | Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |

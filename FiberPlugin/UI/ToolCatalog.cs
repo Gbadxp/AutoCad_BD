@@ -2,13 +2,14 @@ namespace FiberPlugin.UI
 {
     internal sealed class Tool
     {
-        public Tool(string command, string title, string description, string ribbonLabel, bool largeOnRibbon = true)
+        public Tool(string command, string title, string description, string ribbonLabel, bool largeOnRibbon = true, string? ribbonMenu = null)
         {
             Command = command;
             Title = title;
             Description = description;
             RibbonLabel = ribbonLabel;
             LargeOnRibbon = largeOnRibbon;
+            RibbonMenu = ribbonMenu;
         }
 
         public string Command { get; }
@@ -18,6 +19,12 @@ namespace FiberPlugin.UI
         /// <summary>Texto do botão na faixa de opções ("\n" quebra a linha nos botões grandes).</summary>
         public string RibbonLabel { get; }
         public bool LargeOnRibbon { get; }
+
+        /// <summary>
+        /// Botão de lista da aba Fibra em que a ferramenta fica (null = botão próprio): as do mesmo nome viram um botão
+        /// só, que abre a lista delas com ícone e descrição. No menu principal (FIBRA) elas continuam como as outras.
+        /// </summary>
+        public string? RibbonMenu { get; }
     }
 
     /// <summary>
@@ -50,14 +57,8 @@ namespace FiberPlugin.UI
                 .Concat(Sections.SelectMany(s => s.Tools).Select(t => (t.Command, t.Title)))
                 .Concat(CommandLineOnly);
 
-        /// <summary>
-        /// Grupos que na aba Fibra viram um botão só, que abre a lista das ferramentas do grupo (com ícone e descrição).
-        /// No menu principal (FIBRA) eles continuam como os outros.
-        /// </summary>
-        public static readonly HashSet<string> RibbonMenus = new HashSet<string> { "Documentos" };
-
-        /// <summary>Comando cujo ícone vai no botão de um grupo que virou lista (RibbonMenus).</summary>
-        public static string MenuIcon(string section) => "FIBRA_GRUPO_" + section.ToUpperInvariant();
+        /// <summary>Chave do ícone do botão de lista (Tool.RibbonMenu).</summary>
+        public static string MenuIcon(string menu) => "FIBRA_GRUPO_" + menu.ToUpperInvariant();
 
         public static readonly (string Section, Tool[] Tools)[] Sections =
         {
@@ -99,13 +100,13 @@ namespace FiberPlugin.UI
             }),
             ("Documentos", new[]
             {
-                new Tool("FIBRA_VERIFICAR", "Verificar Projeto", "Confere o desenho com a NDU 009 e marca o que falta", "Verificar\nProjeto"),
-                new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório"),
-                new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo"),
-                new Tool("FIBRA_MEMORIAL_ESFORCO", "Memorial de Esforço", "PDF só com o cálculo de esforço mecânico dos postes", "Memorial de Esforço", largeOnRibbon: false),
-                new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", largeOnRibbon: false),
-                new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", largeOnRibbon: false),
-                new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", largeOnRibbon: false)
+                new Tool("FIBRA_VERIFICAR", "Verificar Projeto", "Confere o desenho com a NDU 009 e marca o que falta", "Verificar\nProjeto", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_RELATORIO", "Gerar Relatório", "Excel com postes, esforços e cabos do desenho", "Gerar\nRelatório", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_MEMORIAL", "Memorial Descritivo", "PDF do memorial para a concessionária, com os dados do projeto", "Memorial\nDescritivo", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_MEMORIAL_ESFORCO", "Memorial de Esforço", "PDF só com o cálculo de esforço mecânico dos postes", "Memorial de Esforço", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", ribbonMenu: "Documentos")
             }),
             ("Pranchas", new[]
             {
@@ -113,8 +114,8 @@ namespace FiberPlugin.UI
             }),
             ("Google Earth", new[]
             {
-                new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML"),
-                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML"),
+                new Tool("FIBRA_IMPORTAR_KML", "Importar KML", "Pontos, linhas e polígonos de um KML/KMZ para o desenho", "Importar\nKML", ribbonMenu: "KML"),
+                new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML", ribbonMenu: "KML"),
                 new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
             }),
             // Dados do projeto (percurso, contrato, ART, zona UTM, escala, pasta de dados e Atualizar Blocos) ficam na

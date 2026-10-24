@@ -61,23 +61,19 @@ namespace FiberPlugin.UI
 
             foreach (var (section, tools) in ToolCatalog.Sections)
             {
-                // Grupo que vira um botão só, com a lista das ferramentas
-                if (ToolCatalog.RibbonMenus.Contains(section))
-                {
-                    tab.Panels.Add(Panel(section, new[] { Menu(section, tools) }));
-                    continue;
-                }
-
                 var items = new List<RibbonItem>();
 
-                // Botões grandes primeiro
-                foreach (Tool tool in tools.Where(t => t.LargeOnRibbon))
+                // Botões grandes primeiro; as ferramentas do mesmo botão de lista (Tool.RibbonMenu) viram um botão grande
+                // só, no lugar da primeira delas
+                var menus = new HashSet<string>();
+                foreach (Tool tool in tools.Where(t => t.LargeOnRibbon || t.RibbonMenu != null))
                 {
-                    items.Add(Button(tool, large: true));
+                    if (tool.RibbonMenu is not string menu) items.Add(Button(tool, large: true));
+                    else if (menus.Add(menu)) items.Add(Menu(menu, tools.Where(t => t.RibbonMenu == menu)));
                 }
 
                 // Botões pequenos em colunas de 3 linhas, como o painel Modificar do AutoCAD
-                List<Tool> smalls = tools.Where(t => !t.LargeOnRibbon).ToList();
+                List<Tool> smalls = tools.Where(t => !t.LargeOnRibbon && t.RibbonMenu == null).ToList();
                 for (int start = 0; start < smalls.Count; start += RowsPerColumn)
                 {
                     var column = new RibbonRowPanel();
@@ -101,21 +97,21 @@ namespace FiberPlugin.UI
         }
 
         /// <summary>
-        /// Botão grande que só abre a lista das ferramentas do grupo, cada uma com ícone, nome e descrição (como os
-        /// botões de lista do AutoCAD).
+        /// Botão grande que só abre a lista das ferramentas dele, cada uma com ícone, nome e descrição (como os botões de
+        /// lista do AutoCAD).
         /// </summary>
-        private static RibbonSplitButton Menu(string section, IEnumerable<Tool> tools)
+        private static RibbonSplitButton Menu(string name, IEnumerable<Tool> tools)
         {
             var menu = new RibbonSplitButton
             {
-                Id = "FIBER_MENU_" + section,
-                Text = section,
+                Id = "FIBER_MENU_" + name,
+                Text = name,
                 ShowText = true,
                 ShowImage = true,
                 Size = RibbonItemSize.Large,
                 Orientation = Wpf.Controls.Orientation.Vertical,
-                LargeImage = RibbonIcons.Get(ToolCatalog.MenuIcon(section), 32),
-                Image = RibbonIcons.Get(ToolCatalog.MenuIcon(section), 16),
+                LargeImage = RibbonIcons.Get(ToolCatalog.MenuIcon(name), 32),
+                Image = RibbonIcons.Get(ToolCatalog.MenuIcon(name), 16),
                 ToolTip = string.Join("\n", tools.Select(t => t.Title)),
                 IsSplit = false,                        // O botão inteiro abre a lista
                 IsSynchronizedWithCurrentItem = false,  // E continua com o nome do grupo, não o do último usado
