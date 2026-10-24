@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.82.msi`](Instalador/FiberPlugin-1.9.82.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.83.msi`](Instalador/FiberPlugin-1.9.83.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -149,7 +149,8 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 ### Cabos
 | Botão | Comando | Função |
 |---|---|---|
-| Lançar Cabo | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. |
+| Lançar Cabo | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. Na aba Fibra é um botão dividido: o clique lança cabo, e a setinha abre a lista com Lançar Cabo e Lançar Backbone. |
+| Lançar Backbone | `FIBRA_LANCAR_BACKBONE` | Cabo tronco: lançado como o Lançar Cabo (escolha o cabo na lista e clique nos postes), na layer `FIBRA_BACKBONE_<cabo>` (cor e tipo de linha do cabo, em Configuração de Desenho > Cabos) e com a linha bem mais grossa (0,6 mm no papel em 1:1000, que aparece na tela e na impressão). No esforço, relatório, memorial, produção, amarração e Trocar Cabo ele conta como os outros cabos (o Trocar Cabo mantém o backbone). |
 | Roteamento Automático | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. Antes da seleção, pergunta de que lado o cabo passa (`Cima`, `Baixo`, `Esquerda` ou `Direita`; a última escolha fica como padrão enquanto o AutoCAD estiver aberto) e mantém o cabo desse lado na rota inteira, sem trocar de lado nas curvas. No poste DT o cabo vai na face do poste que fica desse lado (segue a rotação do bloco); se o DT estiver girado com as faces na direção do cabo, ele é tratado como poste redondo e o comando avisa. |
 | Trocar Cabo | `FIBRA_TROCAR_CABO` | Troca o tipo de um cabo já lançado sem desenhar de novo (ex.: lançou 06F.O e era 12F.O): escolha o cabo novo na lista e clique nos cabos a trocar, um por vez (Enter termina; cabos já selecionados antes do comando são trocados direto). O percurso fica; a linha vai para a layer do cabo novo e os textos dele (nome e metragens dos vãos) vão junto, com o nome trocado. São os textos da layer do cabo antigo mais perto deste cabo que de qualquer outro, então dois cabos do mesmo tipo lado a lado não trocam os textos um do outro. Avisa se a tração do cabo novo é outra (rode o Esforço no Percurso de novo) e se algum vão passa do vão do cabo novo. |
 | Reserva Técnica | `FIBRA_RESERVA_TECNICA` | Pede a metragem (padrão 30 m; a última usada fica como padrão), o ponto da reserva (poste ou cabo) e o lado do texto, mostrando a seta enquanto o mouse anda. Desenha a seta vermelha apontando para o ponto, com **RESERVA TÉCNICA 30m** ao longo dela, na layer `FIBRA_RESERVA_TECNICA`. Clicando num poste, a seta aponta para o centro dele com a ponta encostada no desenho do poste. Repete para a próxima reserva até o Enter. |
@@ -263,7 +264,7 @@ um aviso na linha de comando.
 | Atalho | Comando | Atalho | Comando |
 |---|---|---|---|
 | FF | Menu (FIBRA) | FMD | Memorial Descritivo |
-| FLC | Lançar Rota Manual | FME | Memorial de Esforço |
+| FLC | Lançar Cabo | FME | Memorial de Esforço |
 | FRA | Roteamento Automático | FCO | Coordenadas dos Postes |
 | FPO | Inserir Postes | FGF | Gerar Folhas |
 | FCT | Inserir CTO | FIK | Importar KML |
@@ -273,7 +274,7 @@ um aviso na linha de comando.
 | FTC | Trocar Cabo | FPJ | Configuração de Projeto |
 | FRT | Reserva Técnica | FPD | Produção do Dia |
 | FCD | Cordoalha | FPT | Padronizar Tamanhos |
-| FTP | Trocar Poste | | |
+| FTP | Trocar Poste | FLB | Lançar Backbone |
 | FRN | Renumerar | FCA | Esforço de 1 Cabo |
 | FTB | Tamanho do Bloco | FID | ID Energisa |
 | FET | Esforço Total no Poste | FZU | Zona UTM |

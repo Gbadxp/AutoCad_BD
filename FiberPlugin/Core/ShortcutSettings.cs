@@ -21,6 +21,7 @@ namespace FiberPlugin.Core
         {
             ["FIBRA"] = "FF",
             ["FIBRA_LANCAR_CABO"] = "FLC",
+            ["FIBRA_LANCAR_BACKBONE"] = "FLB",
             ["FIBRA_ROTEAMENTO_AUTO"] = "FRA",
             ["FIBRA_TROCAR_CABO"] = "FTC",
             ["FIBRA_RESERVA_TECNICA"] = "FRT",

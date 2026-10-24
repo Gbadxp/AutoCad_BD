@@ -65,6 +65,7 @@ namespace FiberPlugin.UI
             ["FIBRA"] = PaintMenu,
             ["FIBRA_LANCAR_CABO"] = PaintCable,
             ["FIBRA_ROTEAMENTO_AUTO"] = PaintRoute,
+            ["FIBRA_LANCAR_BACKBONE"] = PaintBackbone,
             ["FIBRA_TROCAR_CABO"] = PaintSwapCable,
             ["FIBRA_RESERVA_TECNICA"] = PaintReserve,
             ["FIBRA_CORDOALHA"] = PaintStrand,
@@ -210,6 +211,16 @@ namespace FiberPlugin.UI
         private static void PaintCable(M.DrawingContext dc, Ink ink)
         {
             dc.DrawGeometry(null, Ink.Pen(ink.Green, 2.6), G("M4,26 L12,11 L20,20 L28,6"));
+            Grip(dc, ink, 4, 26);
+            Grip(dc, ink, 12, 11);
+            Grip(dc, ink, 20, 20);
+            Grip(dc, ink, 28, 6);
+        }
+
+        private static void PaintBackbone(M.DrawingContext dc, Ink ink)
+        {
+            // O mesmo percurso do Lançar Cabo, com a linha grossa do cabo tronco
+            dc.DrawGeometry(null, Ink.Pen(ink.Green, 5.0), G("M4,26 L12,11 L20,20 L28,6"));
             Grip(dc, ink, 4, 26);
             Grip(dc, ink, 12, 11);
             Grip(dc, ink, 20, 20);

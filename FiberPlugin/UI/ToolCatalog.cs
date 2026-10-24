@@ -57,6 +57,14 @@ namespace FiberPlugin.UI
                 .Concat(Sections.SelectMany(s => s.Tools).Select(t => (t.Command, t.Title)))
                 .Concat(CommandLineOnly);
 
+        private const string LaunchMenu = "Lançar";
+
+        /// <summary>
+        /// Botões de lista divididos: o clique no botão roda a primeira ferramenta (com o nome e o ícone dela) e só a setinha
+        /// abre a lista, como os botões divididos do AutoCAD. Nos outros, o botão inteiro abre a lista.
+        /// </summary>
+        public static readonly HashSet<string> SplitMenus = new HashSet<string> { LaunchMenu };
+
         /// <summary>Chave do ícone do botão de lista (Tool.RibbonMenu).</summary>
         public static string MenuIcon(string menu) => "FIBRA_GRUPO_" + menu.ToUpperInvariant();
 
@@ -64,7 +72,10 @@ namespace FiberPlugin.UI
         {
             ("Cabos", new[]
             {
-                new Tool("FIBRA_LANCAR_CABO", "Lançar Rota Manual", "Desenhe o cabo clicando nos postes", "Lançar\nCabo"),
+                new Tool("FIBRA_LANCAR_CABO", "Lançar Cabo", "Desenhe o cabo clicando nos postes", "Lançar\nCabo", ribbonMenu: LaunchMenu),
+                new Tool("FIBRA_LANCAR_BACKBONE", "Lançar Backbone",
+                    "Cabo tronco: como o Lançar Cabo, com a linha mais grossa, na layer FIBRA_BACKBONE_<cabo>", "Lançar\nBackbone",
+                    ribbonMenu: LaunchMenu),
                 new Tool("FIBRA_ROTEAMENTO_AUTO", "Roteamento Automático", "Rota mais curta entre os blocos", "Roteamento\nAutomático"),
                 new Tool("FIBRA_TROCAR_CABO", "Trocar Cabo", "Troca o tipo do cabo clicado (ex.: 06F.O por 12F.O) sem desenhar de novo", "Trocar Cabo", largeOnRibbon: false),
                 new Tool("FIBRA_RESERVA_TECNICA", "Reserva Técnica", "Seta com \"RESERVA TÉCNICA 30m\" apontando para o poste ou o vão", "Reserva Técnica", largeOnRibbon: false),

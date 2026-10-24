@@ -12,24 +12,34 @@ namespace FiberPlugin.Commands
     public class DrawCableCommand
     {
         [CommandMethod("FIBRA_LANCAR_CABO")]
-        public void DrawCable()
+        public void DrawCable() => Launch(backbone: false);
+
+        /// <summary>
+        /// Backbone (cabo tronco): lançado como o cabo, clicando nos postes, na layer FIBRA_BACKBONE_&lt;cabo&gt; e com a linha
+        /// mais grossa. No esforço, relatório, memorial, produção e amarração ele conta como os outros cabos.
+        /// </summary>
+        [CommandMethod("FIBRA_LANCAR_BACKBONE")]
+        public void DrawBackbone() => Launch(backbone: true);
+
+        private static void Launch(bool backbone)
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
             Editor ed = doc.Editor;
             if (!CadHelpers.InModelSpace(ed, db)) return;
+            string what = backbone ? "backbone" : "cabo";
 
-            CableModel? cable = CadHelpers.SelectCable(ed, "Lançar");
+            CableModel? cable = CadHelpers.SelectCable(ed, backbone ? "Lançar Backbone" : "Lançar");
             if (cable == null) return;
 
             List<Point3d>? points = CadHelpers.GetPointSequence(ed,
-                "\nSelecione o ponto inicial do cabo: ",
+                $"\nSelecione o ponto inicial do {what}: ",
                 "\nSelecione o próximo ponto (ou pressione Enter para finalizar): ");
             if (points == null) return;
 
             if (points.Count < 2)
             {
-                ed.WriteMessage("\n[AVISO]: É necessário pelo menos dois pontos para lançar um cabo.");
+                ed.WriteMessage($"\n[AVISO]: É necessário pelo menos dois pontos para lançar um {what}.");
                 return;
             }
 
@@ -37,9 +47,11 @@ namespace FiberPlugin.Commands
             {
                 BlockTableRecord space = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
-                Polyline poly = CableDrawing.Draw(tr, db, space, points, CableDrawing.SpanLengths(points), cable);
+                Polyline poly = CableDrawing.Draw(tr, db, space, points, CableDrawing.SpanLengths(points), cable, backbone);
 
-                ed.WriteMessage($"\n[AVISO]: Cabo '{cable.FullName}' lançado com sucesso!");
+                ed.WriteMessage(backbone
+                    ? $"\n[AVISO]: Backbone '{cable.FullName}' lançado com sucesso (layer {poly.Layer})!"
+                    : $"\n[AVISO]: Cabo '{cable.FullName}' lançado com sucesso!");
                 ed.WriteMessage($"\n[COMPRIMENTO TOTAL]: {poly.Length:F2} metros.");
 
                 tr.Commit();
@@ -105,7 +117,7 @@ namespace FiberPlugin.Commands
                         return;
                     }
                     if (oldName.Equals(cable.ShortName, StringComparison.OrdinalIgnoreCase) &&
-                        poly.Layer.Equals(CableDrawing.LayerFor(cable), StringComparison.OrdinalIgnoreCase))
+                        poly.Layer.Equals(CableDrawing.LayerFor(cable, XDataTags.IsBackbone(poly)), StringComparison.OrdinalIgnoreCase))
                     {
                         ed.WriteMessage($"\n[INFO]: Esse cabo já é {cable.ShortName}.");
                         return;

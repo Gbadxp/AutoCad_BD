@@ -10,6 +10,7 @@ namespace FiberPlugin.Core
 
         // Layers
         public const string CableLayerPrefix = "FIBRA_CABO_";
+        public const string BackboneLayerPrefix = "FIBRA_BACKBONE_"; // Cabo tronco (Lançar Backbone): layer própria
         public const string EffortLayer = "FIBRA_ESFORCOS";
 
         // Bloco usado para indicar o esforço no poste (buscado no desenho e depois na pasta Blocos)

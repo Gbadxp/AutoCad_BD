@@ -109,8 +109,18 @@ namespace FiberPlugin.Core
         public static bool IsStrand(Entity ent) => Read(ent, StrandKind, 0) != null;
 
         /// <summary>Marca a polilinha como cabo do tipo informado (nome curto do catálogo).</summary>
-        public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName) =>
-            Write(tr, db, ent, CableKind, Text(cableShortName));
+        public static void TagCable(Transaction tr, Database db, Entity ent, string cableShortName, bool backbone = false)
+        {
+            if (backbone) Write(tr, db, ent, CableKind, Text(cableShortName), Text(BackboneMark));
+            else Write(tr, db, ent, CableKind, Text(cableShortName));
+        }
+
+        private const string BackboneMark = "BACKBONE";
+
+        /// <summary>O cabo foi lançado como backbone (cabo tronco, Lançar Backbone).</summary>
+        public static bool IsBackbone(Entity ent) =>
+            Read(ent, CableKind, 2)?[1].Value as string == BackboneMark ||
+            ent.Layer.StartsWith(FiberSettings.BackboneLayerPrefix, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Marca a seta/texto de esforço com os dados do cálculo (lidos pelo relatório). O ponto vai duas vezes: o do
@@ -176,9 +186,9 @@ namespace FiberPlugin.Core
         {
             if (Read(ent, CableKind, 1)?[0].Value is string name) return name;
 
-            if (ent.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
+            foreach (string prefix in new[] { FiberSettings.CableLayerPrefix, FiberSettings.BackboneLayerPrefix })
             {
-                return ent.Layer.Substring(FiberSettings.CableLayerPrefix.Length).Replace("_", " ");
+                if (ent.Layer.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return ent.Layer.Substring(prefix.Length).Replace("_", " ");
             }
             return null;
         }

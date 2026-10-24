@@ -102,6 +102,8 @@ namespace FiberPlugin.UI
         /// </summary>
         private static RibbonSplitButton Menu(string name, IEnumerable<Tool> tools)
         {
+            List<Tool> list = tools.ToList();
+            if (ToolCatalog.SplitMenus.Contains(name)) return SplitMenu(name, list);
             var menu = new RibbonSplitButton
             {
                 Id = "FIBER_MENU_" + name,
@@ -121,6 +123,41 @@ namespace FiberPlugin.UI
             {
                 RibbonButton item = Button(tool, large: true);
                 item.Text = tool.Title; // Na lista o nome vai numa linha só
+                item.Description = tool.Description;
+                item.Orientation = Wpf.Controls.Orientation.Horizontal;
+                menu.Items.Add(item);
+            }
+            return menu;
+        }
+
+        /// <summary>
+        /// Botão dividido: a parte de cima roda a primeira ferramenta (nome e ícone dela) e a setinha abre a lista de todas,
+        /// como os botões divididos do AutoCAD.
+        /// </summary>
+        private static RibbonSplitButton SplitMenu(string name, List<Tool> tools)
+        {
+            Tool first = tools[0];
+            var menu = new RibbonSplitButton
+            {
+                Id = "FIBER_MENU_" + name,
+                Text = first.RibbonLabel,
+                ShowText = true,
+                ShowImage = true,
+                Size = RibbonItemSize.Large,
+                Orientation = Wpf.Controls.Orientation.Vertical,
+                LargeImage = RibbonIcons.Get(first.Command, 32),
+                Image = RibbonIcons.Get(first.Command, 16),
+                ToolTip = ToolTipFor(first) + "\nNa setinha: " + string.Join(", ", tools.Skip(1).Select(t => t.Title)),
+                IsSplit = true,
+                IsSynchronizedWithCurrentItem = false, // O botão continua sendo o da primeira, não o do último usado
+                ListStyle = RibbonSplitButtonListStyle.Descriptive,
+                CommandParameter = first.Command,
+                CommandHandler = RibbonCommandHandler.Instance
+            };
+            foreach (Tool tool in tools)
+            {
+                RibbonButton item = Button(tool, large: true);
+                item.Text = tool.Title;
                 item.Description = tool.Description;
                 item.Orientation = Wpf.Controls.Orientation.Horizontal;
                 menu.Items.Add(item);

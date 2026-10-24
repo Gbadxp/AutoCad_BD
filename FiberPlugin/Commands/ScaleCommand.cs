@@ -194,6 +194,7 @@ namespace FiberPlugin.Commands
             public List<ObjectId> SpanLabels { get; } = new List<ObjectId>();
             public List<ObjectId> StrandLabels { get; } = new List<ObjectId>();
             public List<ObjectId> StrandLines { get; } = new List<ObjectId>();
+            public List<ObjectId> BackboneLines { get; } = new List<ObjectId>();
             public List<ObjectId> ReserveTexts { get; } = new List<ObjectId>();
             public List<ObjectId> ReserveArrows { get; } = new List<ObjectId>();
             public List<ObjectId> PoleLabels { get; } = new List<ObjectId>();
@@ -212,6 +213,7 @@ namespace FiberPlugin.Commands
                        PoleLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.PoleText]))) +
                        BoxLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.BoxText]))) +
                        StrandLines.Count(id => Off(StrandWidthRatio(tr, id, factors[ScaleItem.CableText]))) +
+                       BackboneLines.Count(id => Off(BackboneWidthRatio(tr, id, factors[ScaleItem.CableText]))) +
                        PoleBlocks.Count(id => Off(PoleBlockRatio(tr, id, factors[ScaleItem.PoleIcon]))) +
                        BoxBlocks.Count(id => Off(BoxBlockRatio(tr, id, factors[ScaleItem.BoxIcon]))) +
                        ElectricalBlocks.Count(id => Off(ElectricalBlockRatio(tr, id, factors.Drawing))) +
@@ -256,7 +258,8 @@ namespace FiberPlugin.Commands
                 }
                 else if (ent is MText txt)
                 {
-                    if (txt.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase))
+                    if (txt.Layer.StartsWith(FiberSettings.CableLayerPrefix, StringComparison.OrdinalIgnoreCase) ||
+                        txt.Layer.StartsWith(FiberSettings.BackboneLayerPrefix, StringComparison.OrdinalIgnoreCase))
                         found.SpanLabels.Add(id);
                     else if (txt.Layer.Equals(Strand.TextLayer, StringComparison.OrdinalIgnoreCase))
                         found.StrandLabels.Add(id);
@@ -268,6 +271,10 @@ namespace FiberPlugin.Commands
                 else if (ent is Polyline poly && Strand.IsStrand(poly))
                 {
                     found.StrandLines.Add(id);
+                }
+                else if (ent is Polyline cable && XDataTags.IsBackbone(cable) && XDataTags.GetCableName(cable) != null)
+                {
+                    found.BackboneLines.Add(id);
                 }
                 else if (ent is BlockReference br)
                 {
@@ -322,6 +329,14 @@ namespace FiberPlugin.Commands
                 if (!Off(StrandWidthRatio(tr, id, cable))) continue;
                 if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
                 Strand.ApplyLineStyle((Polyline)tr.GetObject(id, OpenMode.ForWrite), cable);
+                adjusted++;
+            }
+
+            foreach (ObjectId id in annotations.BackboneLines)
+            {
+                if (!Off(BackboneWidthRatio(tr, id, cable))) continue;
+                if (CadHelpers.IsOnLockedLayer(tr, id)) { locked++; continue; }
+                ((Polyline)tr.GetObject(id, OpenMode.ForWrite)).ConstantWidth = CableDrawing.BackboneWidth * cable;
                 adjusted++;
             }
 
@@ -424,6 +439,22 @@ namespace FiberPlugin.Commands
                 width = 0; // Larguras diferentes por trecho: vai para a do padrão
             }
             return Ratio(Strand.LineWidth(factor), width) ?? 2; // Sem largura (cordoalha da 1.9.66): muda
+        }
+
+        /// <summary>Backbone: a largura da linha na escala (ou larguras diferentes por trecho: vai para a padrão).</summary>
+        private static double BackboneWidthRatio(Transaction tr, ObjectId id, double factor)
+        {
+            var poly = (Polyline)tr.GetObject(id, OpenMode.ForRead);
+            double width;
+            try
+            {
+                width = poly.ConstantWidth;
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                width = 0;
+            }
+            return Ratio(CableDrawing.BackboneWidth * factor, width) ?? 2;
         }
 
         /// <summary>

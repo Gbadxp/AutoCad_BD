@@ -38,10 +38,15 @@ namespace FiberPlugin.Core
             return totals.Values.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        public static string LayerFor(CableModel cable)
-        {
-            return FiberSettings.CableLayerPrefix + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));
-        }
+        /// <summary>Layer do cabo: FIBRA_CABO_&lt;nome&gt; ou, no backbone, FIBRA_BACKBONE_&lt;nome&gt;.</summary>
+        public static string LayerFor(CableModel cable, bool backbone = false) =>
+            (backbone ? FiberSettings.BackboneLayerPrefix : FiberSettings.CableLayerPrefix) + CadHelpers.SanitizeName(cable.ShortName.Replace(" ", "_"));
+
+        /// <summary>
+        /// Largura da linha do backbone, em metros na escala 1:1000 (0,6 mm no papel): bem mais grossa que a do cabo de
+        /// distribuição, na tela e na impressão, sem depender da espessura de linha (LWDISPLAY).
+        /// </summary>
+        public const double BackboneWidth = 0.6;
 
         /// <summary>
         /// Aparência da layer do cabo (Configurações > Cabos): cor própria ou a cor padrão dos cabos, tipo de linha e
@@ -61,10 +66,11 @@ namespace FiberPlugin.Core
         /// <param name="vertices">Vértices da polilinha.</param>
         /// <param name="spanLengths">Metragem escrita em cada vão (no roteamento automático é a distância
         /// real entre postes, que difere um pouco da linha afastada 1,8 m).</param>
+        /// <param name="backbone">Cabo tronco (Lançar Backbone): layer própria e linha mais grossa; no resto é um cabo como os outros.</param>
         public static Polyline Draw(Transaction tr, Database db, BlockTableRecord space,
-            IList<Point3d> vertices, IList<double> spanLengths, CableModel cable)
+            IList<Point3d> vertices, IList<double> spanLengths, CableModel cable, bool backbone = false)
         {
-            string layer = LayerFor(cable);
+            string layer = LayerFor(cable, backbone);
             CadHelpers.EnsureLayer(tr, db, layer, StyleFor(cable));
 
             var poly = new Polyline { Layer = layer };
@@ -73,8 +79,9 @@ namespace FiberPlugin.Core
                 // Polyline 2D, ignorando o Z
                 poly.AddVertexAt(i, new Point2d(vertices[i].X, vertices[i].Y), 0, 0, 0);
             }
+            if (backbone) poly.ConstantWidth = BackboneWidth * DrawingScale.Factor(db, ScaleItem.CableText);
             CadHelpers.Append(tr, space, poly);
-            XDataTags.TagCable(tr, db, poly, cable.ShortName);
+            XDataTags.TagCable(tr, db, poly, cable.ShortName, backbone);
 
             LabelSpans(tr, space, vertices, spanLengths, cable.ShortName, layer);
             return poly;
@@ -93,7 +100,8 @@ namespace FiberPlugin.Core
         {
             string oldName = XDataTags.GetCableName(poly) ?? "";
             string oldLayer = poly.Layer;
-            string newLayer = LayerFor(cable);
+            bool backbone = XDataTags.IsBackbone(poly);
+            string newLayer = LayerFor(cable, backbone);
             CadHelpers.EnsureLayer(tr, db, newLayer, StyleFor(cable));
             IReadOnlyList<(double X, double Y)> path = Path(poly);
 
@@ -122,7 +130,7 @@ namespace FiberPlugin.Core
 
             if (!poly.IsWriteEnabled) poly.UpgradeOpen();
             poly.Layer = newLayer;
-            XDataTags.TagCable(tr, db, poly, cable.ShortName);
+            XDataTags.TagCable(tr, db, poly, cable.ShortName, backbone);
             return moved;
         }
 
