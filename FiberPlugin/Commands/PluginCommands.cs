@@ -46,7 +46,7 @@ namespace FiberPlugin.Commands
 
         /// <summary>
         /// Abre no Explorer a pasta do plugin (Documentos\Fiber Plugin na instalação normal), com a pasta Dados\Memorial.
-        /// Retorna a pasta, ou null se ela não existir ou o Explorer não abrir. Usado também pela aba Projeto da janela Configurações.
+        /// Retorna a pasta, ou null se ela não existir ou o Explorer não abrir. Usado também pela janela Projeto.
         /// </summary>
         internal static string? ShowDataFolder()
         {

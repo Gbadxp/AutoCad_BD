@@ -14,21 +14,23 @@ namespace FiberPlugin.Commands
     public class SettingsCommand
     {
         /// <summary>
-        /// Janela Configurações: dados do projeto deste desenho (percurso, contrato, ART, zona UTM, escala, pasta de dados e
-        /// Atualizar Blocos), cadastros do plugin (cabos com cor, tipo de linha e espessura, modelos de poste, tabela de
-        /// tração e dados da empresa) e preferências (nomes, tamanhos, cores e a layer das ruas). Depois de salvar, leva as
-        /// mudanças para o desenho aberto: dados do projeto, zona e escala (com a atualização dos postes e anotações),
-        /// aparência das layers que já existem (e o nome da layer das ruas) e, se o usuário confirmar, os nomes e a altura
-        /// dos textos já desenhados.
+        /// Janela Configurações: cadastros do plugin (cabos com cor, tipo de linha e espessura, modelos de poste e tabela de
+        /// tração) e preferências (nomes, tamanhos, cores, a layer das ruas e atalhos), que valem para todos os desenhos.
+        /// Depois de salvar, leva as mudanças para o desenho aberto: aparência das layers que já existem (e o nome da layer
+        /// das ruas) e, se o usuário confirmar, os nomes, a altura dos textos e o tamanho dos blocos já desenhados.
         /// </summary>
         [CommandMethod("FIBRA_CONFIGURACOES")]
-        public void EditSettings() => Open(UI.SettingsForm.TabProject);
+        public void EditSettings() => Open(UI.SettingsForm.TabCables, UI.SettingsForm.SettingsTabs);
 
-        /// <summary>O antigo botão Dados do Projeto: a mesma janela, na aba Projeto (continua valendo na linha de comando).</summary>
+        /// <summary>
+        /// Janela Projeto: dados do projeto deste desenho (percurso, contrato, ART, zona UTM, escala, pasta de dados e
+        /// Atualizar Blocos) e da empresa. Depois de salvar, leva para o desenho a zona e a escala (com a atualização dos
+        /// postes e das anotações).
+        /// </summary>
         [CommandMethod("FIBRA_DADOS_PROJETO")]
-        public void EditProjectData() => Open(UI.SettingsForm.TabProject);
+        public void EditProjectData() => Open(UI.SettingsForm.TabProject, UI.SettingsForm.ProjectTabs);
 
-        private static void Open(int initialTab)
+        private static void Open(int initialTab, int[] tabs)
         {
             Document doc = AcApp.DocumentManager.MdiActiveDocument;
             Database db = doc.Database;
@@ -65,7 +67,7 @@ namespace FiberPlugin.Commands
             using (var form = new UI.SettingsForm(cablesBefore, polesBefore, tractionBefore, companyBefore, before,
                        projectBefore, scaleBefore, zoneBefore != null,
                        Notes(cableError, cableWarnings), Notes(poleError, poleWarnings), Notes(tractionError, tractionWarnings), initialTab,
-                       shortcutsBefore, ShortcutRegistry.Conflict, elementsBefore)
+                       shortcutsBefore, ShortcutRegistry.Conflict, elementsBefore, tabs)
                    { OpenDataFolder = PluginCommands.ShowDataFolder })
             {
                 // Grava o cadastro que mudou ou que ainda não foi convertido da planilha antiga

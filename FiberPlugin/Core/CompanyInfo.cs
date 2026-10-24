@@ -77,7 +77,7 @@ namespace FiberPlugin.Core
         public static CompanyInfo? Load(out string? error)
         {
             CompanyInfo info = Read();
-            error = info.IsEmpty ? "Os dados da empresa ainda não foram preenchidos (Configurações > Empresa)." : null;
+            error = info.IsEmpty ? "Os dados da empresa ainda não foram preenchidos (botão Projeto, aba Empresa)." : null;
             return info.IsEmpty ? null : info;
         }
 

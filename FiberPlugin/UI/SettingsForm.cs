@@ -146,6 +146,18 @@ namespace FiberPlugin.UI
         private const int PoleType = 0, PoleHeight = 1, PoleEffort = 2;
         public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5, TabDrawing = 6, TabShortcuts = 7;
         private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho", "Atalhos" };
+
+        /// <summary>Abas da janela Projeto: os dados deste projeto e os da empresa.</summary>
+        public static readonly int[] ProjectTabs = { TabProject, TabCompany };
+
+        /// <summary>Abas da janela Configurações: o plugin e o que ele põe no desenho (valem para todos os desenhos).</summary>
+        public static readonly int[] SettingsTabs = { TabCables, TabPoles, TabTraction, TabNames, TabDrawing, TabShortcuts };
+
+        // Abas que esta janela mostra, na ordem da barra
+        private readonly int[] _visible;
+
+        /// <summary>Aba aberta (TabProject, TabCables...).</summary>
+        private int CurrentTab => _tabs.SelectedIndex >= 0 ? _visible[_tabs.SelectedIndex] : -1;
         private const int ShortcutTitle = 0, ShortcutCommand = 1, ShortcutAlias = 2, ShortcutState = 3;
         private static readonly string[] LinetypeLabels = LayerStyle.Linetypes.Select(l => l.Label).ToArray();
         private static readonly string[] WeightLabels =
@@ -234,23 +246,29 @@ namespace FiberPlugin.UI
         public SettingsForm(List<CableModel> cables, List<PoleData> poles, TractionTable traction, CompanyInfo company,
             UserSettings settings, ProjectInfo project, int scale, bool drawingHasZone,
             string? cableNotes = null, string? poleNotes = null, string? tractionNotes = null, int initialTab = TabProject,
-            IDictionary<string, string>? shortcuts = null, Func<string, string?>? checkConflict = null, ElementScales? elementScales = null)
+            IDictionary<string, string>? shortcuts = null, Func<string, string?>? checkConflict = null, ElementScales? elementScales = null,
+            int[]? tabs = null)
         {
             _conflict = checkConflict;
+            _visible = tabs ?? Enumerable.Range(0, TabTitles.Length).ToArray();
             Settings = settings.Clone();
             Traction = traction;
             Theme.ApplyForm(this);
-            Text = "Fiber Plugin - Configurações";
+            // Janela Projeto (dados deste projeto e da empresa) ou Configurações (o plugin e o desenho)
+            bool projectWindow = _visible.Contains(TabProject) && !_visible.Contains(TabCables);
+            Text = projectWindow ? "Fiber Plugin - Projeto" : "Fiber Plugin - Configurações";
             ClientSize = new Size(900, 720);
 
             var header = new HeaderPanel
             {
-                IconCommand = "FIBRA_CONFIGURACOES",
-                Title = "Configurações",
-                Subtitle = "Dados do projeto, dados do plugin e o que ele coloca sozinho no desenho"
+                IconCommand = projectWindow ? "FIBRA_DADOS_PROJETO" : "FIBRA_CONFIGURACOES",
+                Title = projectWindow ? "Projeto" : "Configurações",
+                Subtitle = projectWindow
+                    ? "Dados deste projeto (nome, contrato, ART, zona UTM e escala) e da empresa"
+                    : "Cabos, postes, tração, nomes, desenho e atalhos: valem para todos os desenhos"
             };
 
-            _tabs = new ChoiceBar(TabTitles);
+            _tabs = new ChoiceBar(_visible.Select(i => TabTitles[i]).ToArray());
             var tabBar = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(18, 10, 18, 4), BackColor = Theme.Background };
             tabBar.Controls.Add(_tabs);
 
@@ -392,7 +410,7 @@ namespace FiberPlugin.UI
             {
                 (new SectionLabel("Tamanhos no papel (escala 1:1000) e roteamento automático"), 26),
                 (Row(_textHeight, _arrowLength, _routeOffset), 56),
-                (Hint("Em outra escala (aba Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
+                (Hint("Em outra escala (botão Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
                       "pergunta se ajusta os textos já desenhados; a seta e o afastamento valem para os próximos."), 40),
                 (new SectionLabel("Tamanho dos blocos (maior lado no papel, escala 1:1000)"), 30),
                 (Row(_poleSize, _boxSize, _electricalSize, _anchoringSize), 56),
@@ -460,7 +478,10 @@ namespace FiberPlugin.UI
 
             _status = new StatusLabel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(18, 0, 18, 0) };
 
-            var footer = new FooterPanel { Hint = "Projeto: no desenho · o resto: Documentos\\Fiber Plugin" };
+            var footer = new FooterPanel
+            {
+                Hint = projectWindow ? "Projeto: neste desenho · empresa: Documentos\\Fiber Plugin" : "Gravado em Documentos\\Fiber Plugin"
+            };
             _ok = new ThemedButton("Salvar", true);
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             _defaults = new ThemedButton("Restaurar padrão", false);
@@ -499,16 +520,16 @@ namespace FiberPlugin.UI
                 grid.RowsAdded += (s, e) => UpdateStatus();
             }
             // A aba inicial é marcada antes de ligar o evento: as páginas só se escondem no Load (por causa do DPI)
-            _tabs.SelectedIndex = Math.Max(0, Math.Min(TabTitles.Length - 1, initialTab));
-            _tabs.SelectedChanged += (s, e) => { ShowPage(_tabs.SelectedIndex); UpdateStatus(); };
-            Shown += (s, e) => { if (_tabs.SelectedIndex == TabProject) _project.FocusFirst(); };
+            _tabs.SelectedIndex = Math.Max(0, Array.IndexOf(_visible, initialTab));
+            _tabs.SelectedChanged += (s, e) => { ShowPage(CurrentTab); UpdateStatus(); };
+            Shown += (s, e) => { if (CurrentTab == TabProject) _project.FocusFirst(); };
             _defaults.Click += (s, e) => RestoreDefaults();
             _ok.Click += (s, e) => Save();
 
             // As páginas ficam visíveis até a janela carregar: escondidas antes disso não acompanham a escala do DPI
             Load += (s, e) =>
             {
-                ShowPage(_tabs.SelectedIndex);
+                ShowPage(CurrentTab);
                 foreach (ThemedGrid grid in new[] { _cables, _poles, _traction, _shortcuts }) grid.ClearSelection();
             };
             UpdateStatus();
@@ -585,7 +606,7 @@ namespace FiberPlugin.UI
         /// <summary>"Restaurar padrão" da aba aberta: os valores que vêm com o plugin.</summary>
         private void RestoreDefaults()
         {
-            switch (_tabs.SelectedIndex)
+            switch (CurrentTab)
             {
                 case TabCables: FillCables(CableProvider.Defaults()); break;
                 case TabPoles: FillPoles(PoleModels.Defaults()); break;
@@ -663,14 +684,16 @@ namespace FiberPlugin.UI
                 Company = company;
                 Settings = settings;
                 _example.Text = $"{Settings.Name(Settings.PolePrefix, 7)}    {Settings.Name(Settings.CtoPrefix, 3)}    {Settings.Name(Settings.CeoPrefix, 1)}";
-                if (_tabs.SelectedIndex == TabProject)
+                if (CurrentTab == TabProject)
                     _status.Set($"Projeto deste desenho: {_project.Summary}" + (Project.Route.Length > 0 ? $" · {Project.Route}" : ""), StatusKind.Ok);
-                else if (_tabs.SelectedIndex == TabShortcuts)
+                else if (CurrentTab == TabCompany)
+                    _status.Set($"Empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · vale para todos os projetos " +
+                                "(memorial e Tabela A)", StatusKind.Ok);
+                else if (CurrentTab == TabShortcuts)
                     _status.Set($"{Shortcuts.Count(s => s.Value.Length > 0)} de {Shortcuts.Count} comandos com atalho, sem conflitos · " +
                                 "digite o atalho na linha de comando e tecle Enter", StatusKind.Ok);
                 else
                     _status.Set($"{Cables.Count} cabos · {PoleTypes.Count} modelos de poste · tração com {Traction.Rows.Count} faixas · " +
-                            $"empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · " +
                             $"{Settings.Name(Settings.PolePrefix, 1)}, {Settings.Name(Settings.CtoPrefix, 1)}, {Settings.Name(Settings.CeoPrefix, 1)} · " +
                             $"ruas na layer {Settings.RoadLayer}", StatusKind.Ok);
             }

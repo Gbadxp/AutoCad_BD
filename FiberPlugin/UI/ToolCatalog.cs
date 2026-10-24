@@ -118,12 +118,13 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_EXPORTAR_KML", "Exportar KML", "Postes, CTO/CEO e cabos do projeto para o Google Earth", "Exportar\nKML", ribbonMenu: "KML"),
                 new Tool("FIBRA_IMPORTAR_RUAS", "Importar Ruas", "Ruas do OpenStreetMap na posição UTM do projeto", "Importar\nRuas")
             }),
-            // Dados do projeto (percurso, contrato, ART, zona UTM, escala, pasta de dados e Atualizar Blocos) ficam na
-            // aba Projeto da janela Configurações
-            ("Projeto", new[]
+            // Projeto: os dados deste projeto e da empresa (percurso, contrato, ART, zona UTM, escala, pasta de dados e
+            // Atualizar Blocos); Configurações: o plugin e o desenho, que valem para todos os desenhos
+            ("Ajustes", new[]
             {
+                new Tool("FIBRA_DADOS_PROJETO", "Projeto", "Nome do projeto, contrato, ART, zona UTM, escala e dados da empresa", "Projeto"),
                 new Tool("FIBRA_CONFIGURACOES", "Configurações",
-                    "Dados do projeto, cabos e cores, postes, tração, empresa, nomes (P-01, CTO-01) e tamanhos", "Configurações")
+                    "Cabos e cores, postes, tração, nomes (P-01, CTO-01), tamanhos, cores do desenho e atalhos", "Configurações")
             })
         };
     }

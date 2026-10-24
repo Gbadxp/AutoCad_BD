@@ -74,7 +74,7 @@ namespace FiberPlugin.Commands
         /// <summary>
         /// Grava a escala do desenho e as escalas por elemento novas e pergunta se deixa o que já está desenhado no tamanho
         /// delas (bloco e texto dos postes, símbolo e texto das CTO/CEO, textos dos cabos, setas, reservas e cordoalhas).
-        /// Usado também pela aba Projeto da janela Configurações.
+        /// Usado também pela janela Projeto.
         /// </summary>
         internal static void Apply(Editor ed, Database db, int scale, ElementScales elements)
         {

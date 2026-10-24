@@ -12,7 +12,7 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Documentos em PDF para a concessionária, com os dados do projeto digitados na janela ou em Configurações > Projeto
+    /// Documentos em PDF para a concessionária, com os dados do projeto digitados na janela ou no botão Projeto
     /// (gravados no DWG e em Documentos\Fiber Plugin\projeto.txt, e compartilhados entre os três):
     /// - Memorial Descritivo (conteúdo do item 16.2 da NDU 009): capa, ofício, dados da empresa e do contrato, cabos,
     ///   postes e pontos de fixação, cálculo de esforços e figuras;

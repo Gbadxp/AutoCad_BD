@@ -92,6 +92,7 @@ namespace FiberPlugin.UI
             ["FIBRA_NORMA"] = PaintNorm,
             ["FIBRA_PRODUCAO"] = PaintProduction,
             ["FIBRA_CONFIGURACOES"] = PaintSettings,
+            ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
@@ -535,6 +536,23 @@ namespace FiberPlugin.UI
             dc.DrawLine(grid, new W.Point(12.5, 15.5), new W.Point(12.5, 25.5));
             dc.DrawGeometry(ink.Red, Ink.Pen(ink.Paper, 1.0), G("M25,15 C21,15 20,18.5 21,20.5 L25,28 L29,20.5 C30,18.5 29,15 25,15 Z"));
             dc.DrawEllipse(ink.White, null, new W.Point(25, 19), 1.6, 1.6);
+        }
+
+        private static void PaintProjectData(M.DrawingContext dc, Ink ink)
+        {
+            // Ficha do projeto (faixa azul do título e as linhas dos dados) e o prédio da empresa no canto
+            dc.DrawRoundedRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(3, 3, 20, 25), 1.5, 1.5);
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(6, 6.5, 14, 4));
+            M.Pen text = Ink.Pen(ink.Line, 1.2);
+            dc.DrawLine(text, new W.Point(6, 14.5), new W.Point(19, 14.5));
+            dc.DrawLine(text, new W.Point(6, 18.5), new W.Point(16, 18.5));
+            dc.DrawLine(text, new W.Point(6, 22.5), new W.Point(13, 22.5));
+            dc.DrawRectangle(ink.Green, Ink.Pen(ink.Paper, 1.0), new W.Rect(19, 15, 11, 15));
+            for (int row = 0; row < 3; row++)
+            {
+                dc.DrawRectangle(ink.White, null, new W.Rect(21.2, 17.5 + row * 4, 2.4, 2.2));
+                dc.DrawRectangle(ink.White, null, new W.Rect(25.4, 17.5 + row * 4, 2.4, 2.2));
+            }
         }
 
         /// <summary>Engrenagem com o centro azul e três amostras de cor (cabos) no canto.</summary>

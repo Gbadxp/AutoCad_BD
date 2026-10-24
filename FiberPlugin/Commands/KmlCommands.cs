@@ -123,7 +123,7 @@ namespace FiberPlugin.Commands
                 if (projectZone == null)
                 {
                     UtmZone.Set(tr, db, utm);
-                    ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configurações > Projeto).");
+                    ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida pelo KML: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca no botão Projeto).");
                 }
 
                 foreach (KmlFeature f in points)
