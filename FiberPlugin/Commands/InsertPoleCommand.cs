@@ -39,7 +39,7 @@ namespace FiberPlugin.Commands
             UtmSettings? utm = UtmZone.Ensure(ed, db, out bool zoneAssigned);
             if (utm == null)
             {
-                ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Defina no botão Projeto para incluir a zona (ex.: 20 L) nos textos.");
+                ed.WriteMessage("\n[DICA]: Zona UTM do desenho não definida. Defina em Configuração de Projeto para incluir a zona (ex.: 20 L) nos textos.");
             }
 
             HashSet<int> used;

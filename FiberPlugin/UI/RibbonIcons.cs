@@ -92,6 +92,7 @@ namespace FiberPlugin.UI
             ["FIBRA_NORMA"] = PaintNorm,
             ["FIBRA_PRODUCAO"] = PaintProduction,
             ["FIBRA_CONFIGURACOES"] = PaintSettings,
+            ["FIBRA_GRUPO_CONFIGURAÇÃO"] = PaintSettings,
             ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,

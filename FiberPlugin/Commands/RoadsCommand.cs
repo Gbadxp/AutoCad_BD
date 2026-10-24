@@ -68,7 +68,7 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
             if (projectZone == null)
-                ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca no botão Projeto).");
+                ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configuração de Projeto).");
 
             double minX = area.MinX, minY = area.MinY, maxX = area.MaxX, maxY = area.MaxY;
             // Só os nomes: as ruas já estão no desenho; o nome vai apoiado no eixo se houver eixo do plugin (linha aberta

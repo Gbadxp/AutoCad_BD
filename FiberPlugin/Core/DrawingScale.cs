@@ -2,7 +2,7 @@ using Autodesk.AutoCAD.DatabaseServices;
 
 namespace FiberPlugin.Core
 {
-    /// <summary>O que pode ter escala própria (botão Projeto > Por elemento).</summary>
+    /// <summary>O que pode ter escala própria (Configuração de Projeto > Por elemento).</summary>
     public enum ScaleItem
     {
         PoleIcon,   // Bloco do poste

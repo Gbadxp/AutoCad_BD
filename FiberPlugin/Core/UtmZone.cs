@@ -61,7 +61,7 @@ namespace FiberPlugin.Core
             }
             assigned = true;
             ed.WriteMessage($"\n[INFO]: Desenho sem zona UTM: gravada a do projeto, {zone.Zone} {(zone.South ? "Sul" : "Norte")}. " +
-                            "Se este projeto for de outra zona, troque no botão Projeto.");
+                            "Se este projeto for de outra zona, troque em Configuração de Projeto.");
             return zone;
         }
 

@@ -118,13 +118,16 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", ribbonMenu: "Documentos")
             }),
-            // Projeto: os dados deste projeto e da empresa (percurso, contrato, ART, zona UTM, escala, pasta de dados e
-            // Atualizar Blocos); Configurações: o plugin e o desenho, que valem para todos os desenhos
+            // Um botão só, "Configuração", com as duas: a de projeto (os dados deste projeto e da empresa: percurso, contrato,
+            // ART, zona UTM, escala, pasta de dados e Atualizar Blocos) e a de desenho (o plugin e o que ele põe no desenho,
+            // que vale para todos os desenhos)
             ("Ajustes", new[]
             {
-                new Tool("FIBRA_DADOS_PROJETO", "Projeto", "Nome do projeto, contrato, ART, zona UTM, escala e dados da empresa", "Projeto"),
-                new Tool("FIBRA_CONFIGURACOES", "Configurações",
-                    "Cabos e cores, postes, tração, nomes (P-01, CTO-01), tamanhos, cores do desenho e atalhos", "Configurações")
+                new Tool("FIBRA_DADOS_PROJETO", "Configuração de Projeto", "Nome do projeto, contrato, ART, zona UTM, escala e dados da empresa",
+                    "Projeto", ribbonMenu: "Configuração"),
+                new Tool("FIBRA_CONFIGURACOES", "Configuração de Desenho",
+                    "Cabos e cores, postes, tração, nomes (P-01, CTO-01), tamanhos, cores do desenho e atalhos", "Configurações",
+                    ribbonMenu: "Configuração")
             })
         };
     }

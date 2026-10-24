@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.81.msi`](Instalador/FiberPlugin-1.9.81.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.82.msi`](Instalador/FiberPlugin-1.9.82.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -28,8 +28,8 @@ Opcionalmente confere também as ferramentas para compilar (.NET SDK 8 e Git).
 
 ### Primeiro uso num PC novo
 1. Rode `Verificacao/Verificar.bat` (ou instale o `.msi` da pasta `Instalador`).
-2. No AutoCAD, abra **Projeto** (aba Fibra), clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
-3. Em cada desenho, defina a **Zona UTM** e a **Escala** (no botão **Projeto**) e os **Parâmetros** de cálculo.
+2. No AutoCAD, abra **Configuração > Configuração de Projeto** (aba Fibra), clique em **Atualizar Blocos** e escolha o `FiberPlugin/Blocos/BLOCOS.dwg` do projeto.
+3. Em cada desenho, defina a **Zona UTM** e a **Escala** (em **Configuração de Projeto**) e os **Parâmetros** de cálculo.
 
 ### Gerar um instalador novo
 1. Altere `<Version>` em `FiberPlugin/FiberPlugin.csproj`.
@@ -59,11 +59,11 @@ FiberPlugin.bundle/
 - **Sem aviso de segurança (SECURELOAD):** `Program Files\Autodesk\ApplicationPlugins` é pasta
   confiável do AutoCAD.
 - **Sem planilhas**: cabos, postes, tabela de tração e dados da empresa vêm com o plugin e são editados no botão
-  **Configurações**. O que você muda fica em `Documentos\Fiber Plugin` (sem precisar de administrador); atualizar ou
+  **Configuração** (Configuração de Desenho; a empresa, na de Projeto). O que você muda fica em `Documentos\Fiber Plugin` (sem precisar de administrador); atualizar ou
   desinstalar o plugin não apaga nada dessa pasta. As planilhas das versões até a 1.9.35 (`Dados\cabos.csv`,
   `postes.csv`, `tracao_ndu009.csv` e `empresa.txt`) são convertidas sozinhas na primeira abertura e guardadas em
   `Dados\Antigos`.
-- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (botão Projeto; ex.: o da pasta
+- **Os blocos vêm de um único `BLOCOS.dwg`**: o escolhido no **Atualizar Blocos** (Configuração de Projeto; ex.: o da pasta
   do projeto) ou, sem ele, a cópia que vem no pacote. Com o arquivo escolhido, um bloco novo aparece só
   de salvar o `BLOCOS.dwg`, sem reinstalar.
 
@@ -118,12 +118,12 @@ AutoCad_BD/
 ```
 
 **Dados**: cabos, postes, tabela de tração e empresa têm o padrão no código (`CableProvider.Defaults`,
-`PoleModels.Defaults`, `TractionTable.Default`) e são editados no botão **Configurações**, que grava em
+`PoleModels.Defaults`, `TractionTable.Default`) e são editados na **Configuração de Desenho**, que grava em
 `Documentos\Fiber Plugin` (`cabos.txt`, `postes.txt`, `tracao.txt`, `empresa.txt` e `configuracoes.txt`). Os
 comandos releem esses arquivos a cada uso.
 
 **Blocos**: o plugin usa **somente** os blocos do `BLOCOS.dwg`. Para acrescentar, alterar ou remover um
-bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (no botão Projeto). Ao inserir, a definição é copiada do
+bloco, edite esse arquivo, salve e clique em **Atualizar Blocos** (em Configuração de Projeto). Ao inserir, a definição é copiada do
 `BLOCOS.dwg` automaticamente, sem template; se o desenho já tiver um bloco com o mesmo nome, ele é
 substituído pela versão do `BLOCOS.dwg`. O grupo de cada bloco vem do nome e define o comando que o insere:
 POSTE/DT/CC → Postes, CTO → CTO, CEO → CEO, TRAFO/CHAVE/PARA-RAIO/ATERRAMENTO → Elétricos,
@@ -133,8 +133,8 @@ Um `BLOCOS.bak` que apareça na pasta é o backup automático do AutoCAD ao salv
 Regras dos blocos:
 - **Postes DT e CC**: o Inserir Postes usa um bloco para cada tipo, achado pelo nome nesta ordem:
   exatamente `DT`/`CC`; nome com DT ou CC como palavra (ex.: `POSTE DT`); `DUPLO T`/`CIRCULAR`.
-- **Número**: atributo `NUMERO` (ou `NÚMERO`/`ID`), preenchido com P-01, CTO-01... (prefixos do botão
-  Configurações) e usado pelo Renumerar.
+- **Número**: atributo `NUMERO` (ou `NÚMERO`/`ID`), preenchido com P-01, CTO-01... (prefixos da
+  Configuração de Desenho, aba Nomes) e usado pelo Renumerar.
 - **Tipo do poste**: atributo `NOME` (ou `TIPO`/`INFO`/`DESCRICAO`), preenchido com a altura/esforço (11/300).
 - **Coordenadas**: atributos `COORDENADA_X`, `COORDENADA_Y` e `ZONA` são preenchidos na inserção
   (postes e elétricos).
@@ -158,7 +158,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 ### Inserir
 | Botão | Comando | Função |
 |---|---|---|
-| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes do botão Configurações) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. Desenho novo, ainda sem zona UTM, recebe a do projeto (a que aparece no botão Projeto, do último projeto; ou a da geolocalização do DWG; sem nenhuma, pergunta), e os postes que já estavam no desenho ganham a linha da zona (ex.: 20 L) no texto. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
+| Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes da Configuração de Desenho) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. Desenho novo, ainda sem zona UTM, recebe a do projeto (a que aparece em Configuração de Projeto, do último projeto; ou a da geolocalização do DWG; sem nenhuma, pergunta), e os postes que já estavam no desenho ganham a linha da zona (ex.: 20 L) no texto. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
 | Trocar Poste | `FIBRA_TROCAR_POSTE` | Troca o modelo de um poste já inserido sem inserir de novo (ex.: lançou DT 9/200 e era DT 11/300, ou DT por CC): escolha o modelo na lista e clique nos postes, um por vez (Enter termina; postes já selecionados antes do comando são trocados direto). O poste fica no mesmo lugar e continua o mesmo objeto, então setas de esforço, CTO/CEO e o texto continuam ligados a ele; mudam o desenho do bloco (DT ↔ CC), os atributos e o texto ("9/200" → "11/300"). Número, esforço existente e ID da Energisa ficam. Se a altura mudar, avisa para rodar o Esforço no Percurso de novo (a seta mostra o esforço a 20 cm do topo). |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
@@ -220,13 +220,14 @@ Cada janela abre no último tamanho usado (guardado em `Documentos\Fiber Plugin\
 voltar ao tamanho original).
 
 ### Projeto e Configurações
-São dois botões, no painel **Ajustes** da aba Fibra:
+O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com as duas:
 
-- **Projeto** (`FIBRA_DADOS_PROJETO`): os dados deste projeto e os da empresa, nas abas **Projeto** e **Empresa**.
-- **Configurações** (`FIBRA_CONFIGURACOES`): o plugin e o que ele coloca no desenho, nas abas **Cabos**, **Postes**,
-  **Tração**, **Nomes**, **Desenho** e **Atalhos**. Vale para todos os desenhos.
+- **Configuração de Projeto** (`FIBRA_DADOS_PROJETO`): os dados deste projeto e os da empresa, nas abas **Projeto** e
+  **Empresa**.
+- **Configuração de Desenho** (`FIBRA_CONFIGURACOES`): o plugin e o que ele coloca no desenho, nas abas **Cabos**,
+  **Postes**, **Tração**, **Nomes**, **Desenho** e **Atalhos**. Vale para todos os desenhos.
 
-| Aba Projeto (botão Projeto) | Função |
+| Aba Projeto (Configuração de Projeto) | Função |
 |---|---|
 | Percurso, endereço, contrato, ART, início e prazo | Dados dos documentos (Memorial Descritivo, de Esforço e Coordenadas), que já abrem com eles preenchidos (veja abaixo). |
 | Zona UTM | Zona e hemisfério do projeto (gravados no DWG). As coordenadas saem no formato `20 L` / `405110.92 m E` / `9032585.41 m S`, com a letra da faixa de latitude calculada por ponto. Não sabe a zona do lugar? Cole a coordenada dele no campo ao lado (ex.: `-8.7612, -63.9004` do Google Maps) e a zona e o hemisfério se preenchem sozinhos. Ao salvar com zona nova, as coordenadas dos postes e dos blocos com `COORDENADA_X`/`COORDENADA_Y`/`ZONA` são reescritas sozinhas, sem perguntar. Num desenho sem zona, a janela sugere a do último projeto. |
@@ -236,8 +237,8 @@ São dois botões, no painel **Ajustes** da aba Fibra:
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
 
 A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
-desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG). A Empresa fica no botão Projeto; as demais,
-no botão Configurações:
+desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG). A Empresa fica na Configuração de Projeto; as
+demais, na Configuração de Desenho:
 
 | Aba | Função |
 |---|---|
@@ -268,8 +269,8 @@ um aviso na linha de comando.
 | FCT | Inserir CTO | FIK | Importar KML |
 | FCE | Inserir CEO | FEK | Exportar KML |
 | FEL | Itens Elétricos | FIR | Importar Ruas |
-| FAM | Amarração | FCF | Configurações |
-| FTC | Trocar Cabo | FPJ | Projeto |
+| FAM | Amarração | FCF | Configuração de Desenho |
+| FTC | Trocar Cabo | FPJ | Configuração de Projeto |
 | FRT | Reserva Técnica | FPD | Produção do Dia |
 | FCD | Cordoalha | FPT | Padronizar Tamanhos |
 | FTP | Trocar Poste | | |
@@ -290,7 +291,7 @@ um aviso na linha de comando.
 | `FIBRA` | Menu com todas as ferramentas, com busca. |
 | `FIBRA_CALCULAR_ESFORCO` | Esforço de um único cabo numa sequência de postes clicados. |
 | `FIBRA_EXPORTAR_BLOCOS` | Copia os blocos do desenho aberto para dentro do `BLOCOS.dwg` escolhido no Atualizar Blocos. |
-| `FIBRA_ZONA_UTM`, `FIBRA_ATUALIZAR_COORDENADAS`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da janela Projeto, pela linha de comando. |
+| `FIBRA_ZONA_UTM`, `FIBRA_ATUALIZAR_COORDENADAS`, `FIBRA_ESCALA`, `FIBRA_ABRIR_PASTA`, `FIBRA_ATUALIZAR_BLOCOS` | O mesmo que as partes da Configuração de Projeto, pela linha de comando. |
 | `FIBRA_RIBBON` | Recria a aba "Fibra" (se ela sumir após trocar de espaço de trabalho). |
 | `FIBRA_SOBRE` | Mostra a versão instalada, a escala e as pastas e o `BLOCOS.dwg` em uso. |
 | `FIBRA_ID_ENERGISA` | ID do poste fornecido pela Energisa (ID_Poste da Tabela A): clique em cada poste e digite o ID (`-` apaga o ID). Ele passa a aparecer no texto do poste e na Tabela A. Sem botão por enquanto. |
@@ -325,10 +326,10 @@ por cada um. Os dados são os mesmos do Memorial Descritivo: o que for digitado 
 **Dados do projeto salvos**: percurso, endereço da obra, contrato, ART, início e prazo ficam gravados no DWG e
 também em `Documentos\Fiber Plugin\projeto.txt` (os últimos salvos, editável no Bloco de Notas). Num desenho
 que ainda não tem algum desses dados, a janela já vem preenchida com o do arquivo. Para preencher antes, sem
-gerar documento, use a aba **Projeto** do botão Projeto. O local e a data vêm da cidade da empresa com a data do
+gerar documento, use a aba **Projeto** da Configuração de Projeto. O local e a data vêm da cidade da empresa com a data do
 dia. Esse arquivo fica fora do repositório, então os dados do projeto nunca vão para o GitHub.
 
-- **Dados da empresa**: aba **Empresa** do botão Projeto; campo vazio não aparece. Ficam em
+- **Dados da empresa**: aba **Empresa** da Configuração de Projeto; campo vazio não aparece. Ficam em
   `Documentos\Fiber Plugin\empresa.txt`, só no seu computador (RG, CPF e endereço do representante são dados
   pessoais e nunca vão para o repositório, que é público).
 - **Logo e figuras**: `Documentos\Fiber Plugin\Dados\Memorial` (`logo.png`, `fig-a-...` a `fig-e-...`; botão
@@ -376,8 +377,8 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
 - A janela confere enquanto você digita e mostra o tamanho da área, ou o que está errado (lado trocado, UTM no
   campo de lat/long, área fora da zona, mais de 50 km). Os valores ficam gravados no DWG para a próxima vez.
 - **Layer**: tudo (contorno, calçadas, eixos e nomes) vai para uma layer só, `RUAS` por padrão. Nome, cor (cinza
-  por padrão, para os cabos aparecerem por cima), tipo de linha e espessura ficam na aba **Desenho** do botão
-  **Configurações**.
+  por padrão, para os cabos aparecerem por cima), tipo de linha e espessura ficam na aba **Desenho** da
+  **Configuração de Desenho**.
 - **Desenho**:
   - **Contorno** (padrão): o leito de todas as ruas unido. Sai só o meio-fio: um contorno contínuo em volta de cada
     quadra, cruzamentos e rotatórias abertos, sem linhas sobrepostas. Vãos de menos de 60 cm entre pistas são
@@ -437,7 +438,7 @@ executivo, confira com a base oficial do município.
 `FIBRA_GERAR_FOLHAS` monta o jogo de pranchas a partir do Model:
 
 1. Marque a área com dois cliques (retângulo em volta do trecho do projeto).
-2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, no botão Projeto), a sobreposição entre folhas
+2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, em Configuração de Projeto), a sobreposição entre folhas
    vizinhas (padrão 5%) e o prefixo dos nomes (padrão `FL`).
 3. O plugin divide a área numa grade de folhas, escolhe a orientação (paisagem ou retrato) que usa
    menos folhas e descarta os pedaços sem nenhum elemento do desenho.
@@ -455,11 +456,11 @@ Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve
 ## Escala das anotações
 
 Os textos dos vãos, os textos de identificação, a seta de esforço e o símbolo da CTO/CEO têm tamanho
-definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** do botão Projeto você informa a
+definido para **1:1000** (texto de 2 mm e CTO/CEO de 7 mm no papel). Na **Escala** da Configuração de Projeto você informa a
 escala do projeto e tudo passa a ser criado proporcionalmente: em 1:2000 fica o dobro, em 1:500 a metade.
 A escala fica gravada no próprio DWG, e desenhos sem escala definida usam 1:1000.
 
-**Tamanho dos blocos** (Configurações, aba Desenho): o tamanho padrão em que cada bloco entra, em mm no papel na
+**Tamanho dos blocos** (Configuração de Desenho, aba Desenho): o tamanho padrão em que cada bloco entra, em mm no papel na
 escala 1:1000 (maior lado do desenho do bloco): **Poste**, **CTO/CEO** (7 mm), **Itens elétricos** e **Amarração**.
 Campo vazio = o tamanho em que o bloco foi desenhado no `BLOCOS.dwg`, como sempre foi. Em outra escala o tamanho
 acompanha (o poste segue a escala do ícone dos postes). Ao salvar um tamanho novo, o plugin pergunta se ajusta os
@@ -528,7 +529,7 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 **Esforço nos postes** (NDU 009, Anexo A)
 - Tração de cada vão pela **Tabela 08 da NDU 009** (cabo de fibra óptica autossustentado, flecha de 1%, sem
   vento), por faixa de número de fibras e vão, com interpolação entre os vãos da tabela
-  (aba **Tração** do botão Configurações). O número de fibras vem da coluna `Fibras` do cadastro de cabos ou do nome
+  (aba **Tração** da Configuração de Desenho). O número de fibras vem da coluna `Fibras` do cadastro de cabos ou do nome
   ("06F.O"). Em **Parâmetros** dá para usar o peso do cabo: `T = p·L² / (8·f) = 12,5 · p · L` (p em kgf/m).
 - O esforço no poste é a soma vetorial das trações dos vãos que chegam nele (método analítico, Anexo A itens 14 e
   15). Cada vértice dos cabos é ligado ao poste mais próximo (até 10 m) e o cálculo sai do centro do poste; de cada

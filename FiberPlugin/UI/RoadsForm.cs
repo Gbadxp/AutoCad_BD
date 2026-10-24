@@ -201,13 +201,13 @@ namespace FiberPlugin.UI
             ApplyBackground();
             if (projectZone != null)
             {
-                // A zona do projeto vale para o desenho todo: troca só no botão Projeto
+                // A zona do projeto vale para o desenho todo: troca só em Configuração de Projeto
                 _zone.Visible = false;
                 _hemisphere.Visible = false;
                 _zoneHint.Margin = new Padding(0, 9, 0, 0);
                 _zoneHint.Width = 480;
                 _zoneHint.ForeColor = Theme.Text;
-                _zoneHint.Text = $"{projectZone.Zone} {(projectZone.South ? "Sul" : "Norte")}  ·  zona do projeto (troca no botão Projeto)";
+                _zoneHint.Text = $"{projectZone.Zone} {(projectZone.South ? "Sul" : "Norte")}  ·  zona do projeto (troca em Configuração de Projeto)";
             }
             else
             {

@@ -147,7 +147,7 @@ namespace FiberPlugin.UI
         public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5, TabDrawing = 6, TabShortcuts = 7;
         private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho", "Atalhos" };
 
-        /// <summary>Abas da janela Projeto: os dados deste projeto e os da empresa.</summary>
+        /// <summary>Abas da janela Configuração de Projeto: os dados deste projeto e os da empresa.</summary>
         public static readonly int[] ProjectTabs = { TabProject, TabCompany };
 
         /// <summary>Abas da janela Configurações: o plugin e o que ele põe no desenho (valem para todos os desenhos).</summary>
@@ -254,15 +254,16 @@ namespace FiberPlugin.UI
             Settings = settings.Clone();
             Traction = traction;
             Theme.ApplyForm(this);
-            // Janela Projeto (dados deste projeto e da empresa) ou Configurações (o plugin e o desenho)
+            // Configuração de Projeto (dados deste projeto e da empresa) ou de Desenho (o plugin e o que ele põe no desenho)
             bool projectWindow = _visible.Contains(TabProject) && !_visible.Contains(TabCables);
-            Text = projectWindow ? "Fiber Plugin - Projeto" : "Fiber Plugin - Configurações";
+            string title = projectWindow ? "Configuração de Projeto" : "Configuração de Desenho";
+            Text = "Fiber Plugin - " + title;
             ClientSize = new Size(900, 720);
 
             var header = new HeaderPanel
             {
                 IconCommand = projectWindow ? "FIBRA_DADOS_PROJETO" : "FIBRA_CONFIGURACOES",
-                Title = projectWindow ? "Projeto" : "Configurações",
+                Title = title,
                 Subtitle = projectWindow
                     ? "Dados deste projeto (nome, contrato, ART, zona UTM e escala) e da empresa"
                     : "Cabos, postes, tração, nomes, desenho e atalhos: valem para todos os desenhos"
@@ -410,7 +411,7 @@ namespace FiberPlugin.UI
             {
                 (new SectionLabel("Tamanhos no papel (escala 1:1000) e roteamento automático"), 26),
                 (Row(_textHeight, _arrowLength, _routeOffset), 56),
-                (Hint("Em outra escala (botão Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
+                (Hint("Em outra escala (Configuração de Projeto) os tamanhos acompanham: em 1:2000 ficam o dobro no desenho. Ao salvar, o plugin " +
                       "pergunta se ajusta os textos já desenhados; a seta e o afastamento valem para os próximos."), 40),
                 (new SectionLabel("Tamanho dos blocos (maior lado no papel, escala 1:1000)"), 30),
                 (Row(_poleSize, _boxSize, _electricalSize, _anchoringSize), 56),

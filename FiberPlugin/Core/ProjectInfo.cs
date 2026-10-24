@@ -28,7 +28,7 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
-        /// janela Projeto, que também atualiza os postes). Null se nenhum dos dois tiver.
+        /// janela Configuração de Projeto, que também atualiza os postes). Null se nenhum dos dois tiver.
         /// </summary>
         public UtmSettings? Zone { get; set; }
 
