@@ -77,7 +77,11 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_CTO", "Inserir CTO", "CTO-01, CTO-02... ligadas ao poste mais próximo", "CTO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CEO", "Inserir CEO", "CEO-01, CEO-02... ligadas ao poste mais próximo", "CEO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
-                new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false),
+                new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false)
+            }),
+            // Numeração e tamanho dos blocos já inseridos: comandos à parte, não de inserir
+            ("Editar", new[]
+            {
                 new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false),
                 new Tool("FIBRA_NUMERAR_AUTO", "Numeração Automática", "Clique no primeiro poste: a numeração segue os cabos (e as CTO/CEO junto)", "Numerar Auto", largeOnRibbon: false),
                 new Tool("FIBRA_NUMERAR_MANUAL", "Numerar Clicando", "Digite o número inicial e clique nos postes na ordem: cada clique recebe o próximo", "Numerar Clicando", largeOnRibbon: false),

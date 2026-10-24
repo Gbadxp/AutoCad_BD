@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.77.msi`](Instalador/FiberPlugin-1.9.77.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.78.msi`](Instalador/FiberPlugin-1.9.78.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -164,6 +164,13 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
+
+### Editar
+
+Numeração e tamanho dos blocos já inseridos (na aba Fibra, o painel ao lado de Inserir).
+
+| Botão | Comando | Função |
+|---|---|---|
 | Renumerar | `FIBRA_RENUMERAR` | Corrige a numeração: clique nos blocos na ordem desejada. No primeiro de cada tipo você digita o número; os seguintes recebem o próximo automaticamente. Funciona em postes, CTO, CEO e qualquer bloco com atributo NÚMERO/ID; atualiza atributo, texto de identificação (sem mudar de lugar) e dados do relatório. **N** define o próximo número; avisa se o número já existir em outro bloco. |
 | Numerar Clicando | `FIBRA_NUMERAR_MANUAL` | Numeração na ordem dos cliques: digite o número inicial (ex.: `10`, `P10`) e clique nos postes (ou nos textos deles) na ordem que quiser; cada clique já recebe o próximo número (P-10, P-11, P-12...), com o texto atualizado na hora. **Desfazer** volta o último clique, **Numero** muda o próximo número e Enter termina. No fim avisa os números que ficaram repetidos com postes que não foram clicados. **U** desfaz tudo. |
 | Numerar Auto | `FIBRA_NUMERAR_AUTO` | Numeração automática: clique no primeiro poste (ou no texto dele) e digite o número dele (`1`, `P1` ou `P-01`); vale para todos os postes do desenho, ou só para os escolhidos com a opção **Selecionar** antes do clique. A numeração segue os cabos: continua pelo mesmo cabo até o fim (na esquina também) e depois entra nas derivações, como na numeração feita à mão; postes sem cabo entram no fim, pelo mais próximo. Pergunta se numera também as CTO e CEO desses postes, na ordem deles (CTO-01 no primeiro poste que tem CTO...). Com seleção, os números dos postes de fora são pulados. Atualiza atributo, texto e dados; **U** desfaz. |
@@ -454,7 +461,7 @@ manda, o mesmo da inserção, e não só multiplicado: o que veio de outro desen
 fica igual ao resto. O bloco do poste tem escala própria (1:1000 por padrão, veja abaixo). O que estiver em layer
 travada fica como estava, e o comando avisa quantos.
 
-**Padronizar Tamanhos** (`FIBRA_PADRONIZAR_TAMANHOS`, painel Inserir): deixa tudo no tamanho da escala atual sem trocar
+**Padronizar Tamanhos** (`FIBRA_PADRONIZAR_TAMANHOS`, painel Editar): deixa tudo no tamanho da escala atual sem trocar
 a escala, por exemplo depois de colar postes de um desenho em outra escala. Com objetos selecionados antes, só eles
 (a seta de esforço vai inteira). Tamanho mudado de propósito com o botão **Tamanho** também volta ao da escala: para
 postes ou CTO maiores em todo o desenho, use a escala por elemento.
