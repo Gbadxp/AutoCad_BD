@@ -196,6 +196,7 @@ namespace FiberPlugin.Commands
             public List<ObjectId> StrandLines { get; } = new List<ObjectId>();
             public List<ObjectId> BackboneLines { get; } = new List<ObjectId>();
             public List<ObjectId> ReserveTexts { get; } = new List<ObjectId>();
+            public List<ObjectId> AllReserveTexts { get; } = new List<ObjectId>(); // Também os não escolhidos: a seta vai com o texto mais perto
             public List<ObjectId> ReserveArrows { get; } = new List<ObjectId>();
             public List<ObjectId> PoleLabels { get; } = new List<ObjectId>();
             public List<ObjectId> BoxLabels { get; } = new List<ObjectId>();
@@ -209,7 +210,8 @@ namespace FiberPlugin.Commands
             {
                 bool Off(double ratio) => Math.Abs(ratio - 1) > 1e-4;
                 return EffortGroups(tr, this, factors).Sum(g => Off(g.Ratio) ? g.Ids.Count : 0) +
-                       SpanLabels.Concat(StrandLabels).Concat(ReserveTexts).Count(id => Off(TextRatio(tr, id, factors[ScaleItem.CableText]))) +
+                       SpanLabels.Concat(StrandLabels).Count(id => Off(TextRatio(tr, id, factors[ScaleItem.CableText]))) +
+                       ReserveGroups(tr, this, factors[ScaleItem.CableText]).Sum(g => g.Ids.Length) +
                        PoleLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.PoleText]))) +
                        BoxLabels.Count(id => Off(TextRatio(tr, id, factors[ScaleItem.BoxText]))) +
                        StrandLines.Count(id => Off(StrandWidthRatio(tr, id, factors[ScaleItem.CableText]))) +
@@ -249,8 +251,13 @@ namespace FiberPlugin.Commands
                 }
                 else if (XDataTags.IsReserve(ent))
                 {
-                    if (ent is MText && selected) found.ReserveTexts.Add(id);
-                    else if (ent is Polyline) found.ReserveArrows.Add(id); // Todas: cada texto acha a dele
+                    // Todos os textos e setas: cada seta fica com o texto de reserva mais perto dela
+                    if (ent is MText)
+                    {
+                        found.AllReserveTexts.Add(id);
+                        if (selected) found.ReserveTexts.Add(id);
+                    }
+                    else if (ent is Polyline) found.ReserveArrows.Add(id);
                 }
                 else if (!selected)
                 {
@@ -426,23 +433,14 @@ namespace FiberPlugin.Commands
             return Ratio(FiberSettings.BoxSymbolSize * factor, side) ?? 1;
         }
 
-        private static double StrandWidthRatio(Transaction tr, ObjectId id, double factor)
-        {
-            var poly = (Polyline)tr.GetObject(id, OpenMode.ForRead);
-            double width;
-            try
-            {
-                width = poly.ConstantWidth;
-            }
-            catch (Autodesk.AutoCAD.Runtime.Exception)
-            {
-                width = 0; // Larguras diferentes por trecho: vai para a do padrão
-            }
-            return Ratio(Strand.LineWidth(factor), width) ?? 2; // Sem largura (cordoalha da 1.9.66): muda
-        }
+        private static double StrandWidthRatio(Transaction tr, ObjectId id, double factor) =>
+            WidthRatio(tr, id, Strand.LineWidth(factor)); // Sem largura (cordoalha da 1.9.66): muda
 
-        /// <summary>Backbone: a largura da linha na escala (ou larguras diferentes por trecho: vai para a padrão).</summary>
-        private static double BackboneWidthRatio(Transaction tr, ObjectId id, double factor)
+        private static double BackboneWidthRatio(Transaction tr, ObjectId id, double factor) =>
+            WidthRatio(tr, id, CableDrawing.BackboneWidth * factor);
+
+        /// <summary>Largura da linha em relação à da escala. Sem largura ou com larguras diferentes por trecho: vai para a da escala.</summary>
+        private static double WidthRatio(Transaction tr, ObjectId id, double target)
         {
             var poly = (Polyline)tr.GetObject(id, OpenMode.ForRead);
             double width;
@@ -452,9 +450,9 @@ namespace FiberPlugin.Commands
             }
             catch (Autodesk.AutoCAD.Runtime.Exception)
             {
-                width = 0;
+                width = 0; // Larguras diferentes por trecho
             }
-            return Ratio(CableDrawing.BackboneWidth * factor, width) ?? 2;
+            return Ratio(target, width) ?? 2;
         }
 
         /// <summary>
@@ -484,28 +482,54 @@ namespace FiberPlugin.Commands
 
         /// <summary>
         /// Reservas técnicas: o texto na altura da escala e a seta dele na mesma proporção, em torno da ponta (que fica no
-        /// poste). A seta de cada texto é a reserva mais perto dele. Retorna os ajustados.
+        /// poste). Retorna os ajustados.
         /// </summary>
         private static int NormalizeReserves(Transaction tr, Annotations annotations, double factor, ref int locked)
         {
             int count = 0;
-            var arrows = annotations.ReserveArrows.Where(id => !id.IsErased).Select(id => (Id: id, Poly: (Polyline)tr.GetObject(id, OpenMode.ForRead)))
-                .Where(a => a.Poly.NumberOfVertices >= 2).ToList();
+            foreach (var (group, tip, ratio) in ReserveGroups(tr, annotations, factor))
+            {
+                if (group.Any(g => CadHelpers.IsOnLockedLayer(tr, g))) { locked += group.Length; continue; }
+                foreach (ObjectId g in group) ((Entity)tr.GetObject(g, OpenMode.ForWrite)).TransformBy(Matrix3d.Scaling(ratio, tip));
+                count += group.Length;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Reservas escolhidas fora do tamanho: o texto e a seta dele, com a ponta e a proporção. Cada seta é do texto de
+        /// reserva mais perto do meio da haste (onde o texto é desenhado), contando também os textos que já estão no
+        /// tamanho ou fora da seleção: assim um texto não leva a seta da reserva vizinha.
+        /// </summary>
+        private static List<(ObjectId[] Ids, Point3d Tip, double Ratio)> ReserveGroups(Transaction tr, Annotations annotations, double factor)
+        {
+            var groups = new List<(ObjectId[], Point3d, double)>();
+            if (annotations.ReserveTexts.Count == 0) return groups;
+
+            var texts = annotations.AllReserveTexts.Where(id => !id.IsErased)
+                .Select(id => (Id: id, Location: ((MText)tr.GetObject(id, OpenMode.ForRead)).Location)).ToList();
+            var arrowOf = new Dictionary<ObjectId, (Polyline Poly, double Distance)>();
+            foreach (ObjectId id in annotations.ReserveArrows)
+            {
+                if (id.IsErased || texts.Count == 0) continue;
+                var poly = (Polyline)tr.GetObject(id, OpenMode.ForRead);
+                if (poly.NumberOfVertices < 2) continue;
+                Point3d mid = Midpoint(poly);
+                var (owner, distance) = texts.Select(t => (t.Id, Distance: t.Location.DistanceTo(mid))).OrderBy(t => t.Distance).First();
+                // Duas setas perto do mesmo texto: fica a mais perto
+                if (!arrowOf.TryGetValue(owner, out var other) || distance < other.Distance) arrowOf[owner] = (poly, distance);
+            }
+
             foreach (ObjectId id in annotations.ReserveTexts)
             {
                 double ratio = TextRatio(tr, id, factor);
                 if (Math.Abs(ratio - 1) <= 1e-4) continue;
-                var text = (MText)tr.GetObject(id, OpenMode.ForRead);
-                var arrow = arrows.OrderBy(a => text.Location.DistanceTo(Midpoint(a.Poly))).Select(a => ((ObjectId Id, Polyline Poly)?)a).FirstOrDefault();
-                Point3d tip = arrow?.Poly.GetPoint3dAt(arrow.Value.Poly.NumberOfVertices - 1) ?? text.Location;
-
-                var group = arrow != null ? new[] { id, arrow.Value.Id } : new[] { id };
-                if (group.Any(g => CadHelpers.IsOnLockedLayer(tr, g))) { locked += group.Length; continue; }
-                foreach (ObjectId g in group) ((Entity)tr.GetObject(g, OpenMode.ForWrite)).TransformBy(Matrix3d.Scaling(ratio, tip));
-                if (arrow != null) arrows.Remove(arrow.Value);
-                count += group.Length;
+                if (arrowOf.TryGetValue(id, out var arrow))
+                    groups.Add((new[] { id, arrow.Poly.ObjectId }, arrow.Poly.GetPoint3dAt(arrow.Poly.NumberOfVertices - 1), ratio));
+                else
+                    groups.Add((new[] { id }, ((MText)tr.GetObject(id, OpenMode.ForRead)).Location, ratio));
             }
-            return count;
+            return groups;
         }
 
         private static Point3d Midpoint(Polyline poly)

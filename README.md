@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.83.msi`](Instalador/FiberPlugin-1.9.83.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.84.msi`](Instalador/FiberPlugin-1.9.84.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -150,7 +150,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Lançar Cabo | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. Na aba Fibra é um botão dividido: o clique lança cabo, e a setinha abre a lista com Lançar Cabo e Lançar Backbone. |
-| Lançar Backbone | `FIBRA_LANCAR_BACKBONE` | Cabo tronco: lançado como o Lançar Cabo (escolha o cabo na lista e clique nos postes), na layer `FIBRA_BACKBONE_<cabo>` (cor e tipo de linha do cabo, em Configuração de Desenho > Cabos) e com a linha bem mais grossa (0,6 mm no papel em 1:1000, que aparece na tela e na impressão). No esforço, relatório, memorial, produção, amarração e Trocar Cabo ele conta como os outros cabos (o Trocar Cabo mantém o backbone). |
+| Lançar Backbone | `FIBRA_LANCAR_BACKBONE` | Cabo tronco: lançado como o Lançar Cabo (escolha o cabo na lista e clique nos postes), na layer `FIBRA_BACKBONE_<cabo>` (azul por padrão: a cor fica em Configuração de Desenho > Desenho; o tipo de linha e a espessura são os do cabo) e com a linha bem mais grossa (0,6 mm no papel em 1:1000, que aparece na tela e na impressão). No esforço, relatório, memorial, produção, amarração e Trocar Cabo ele conta como os outros cabos (o Trocar Cabo mantém o backbone). |
 | Roteamento Automático | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. Antes da seleção, pergunta de que lado o cabo passa (`Cima`, `Baixo`, `Esquerda` ou `Direita`; a última escolha fica como padrão enquanto o AutoCAD estiver aberto) e mantém o cabo desse lado na rota inteira, sem trocar de lado nas curvas. No poste DT o cabo vai na face do poste que fica desse lado (segue a rotação do bloco); se o DT estiver girado com as faces na direção do cabo, ele é tratado como poste redondo e o comando avisa. |
 | Trocar Cabo | `FIBRA_TROCAR_CABO` | Troca o tipo de um cabo já lançado sem desenhar de novo (ex.: lançou 06F.O e era 12F.O): escolha o cabo novo na lista e clique nos cabos a trocar, um por vez (Enter termina; cabos já selecionados antes do comando são trocados direto). O percurso fica; a linha vai para a layer do cabo novo e os textos dele (nome e metragens dos vãos) vão junto, com o nome trocado. São os textos da layer do cabo antigo mais perto deste cabo que de qualquer outro, então dois cabos do mesmo tipo lado a lado não trocam os textos um do outro. Avisa se a tração do cabo novo é outra (rode o Esforço no Percurso de novo) e se algum vão passa do vão do cabo novo. |
 | Reserva Técnica | `FIBRA_RESERVA_TECNICA` | Pede a metragem (padrão 30 m; a última usada fica como padrão), o ponto da reserva (poste ou cabo) e o lado do texto, mostrando a seta enquanto o mouse anda. Desenha a seta vermelha apontando para o ponto, com **RESERVA TÉCNICA 30m** ao longo dela, na layer `FIBRA_RESERVA_TECNICA`. Clicando num poste, a seta aponta para o centro dele com a ponta encostada no desenho do poste. Repete para a próxima reserva até o Enter. |
@@ -248,7 +248,7 @@ demais, na Configuração de Desenho:
 | Tração | Tabela 08 da NDU 009: tração em kgf por faixa de fibras e vão (15 a 120 m). Usada quando os Parâmetros de Cálculo estão em "Tabela 08". |
 | Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
-| Desenho | Altura dos textos e seta de esforço (em mm no papel na escala 1:1000), **tamanho dos blocos** (poste, CTO/CEO, itens elétricos e amarração; veja Escala das anotações), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`; não pode ser a 0 nem a Defpoints, que são do AutoCAD), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
+| Desenho | Altura dos textos e seta de esforço (em mm no papel na escala 1:1000), **tamanho dos blocos** (poste, CTO/CEO, itens elétricos e amarração; veja Escala das anotações), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, backbone (azul), textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`; não pode ser a 0 nem a Defpoints, que são do AutoCAD), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
 | Atalhos | Atalho de cada comando (veja abaixo): mude, apague ou volte ao padrão. A coluna **Situação** avisa, enquanto você digita, quando o atalho já é um comando do AutoCAD ou de outro aplicativo, um comando LISP, um atalho do `acad.pgp` ou se repete com outro comando do plugin; com conflito, o Salvar não libera. Os atalhos novos valem na hora. |
 
 **Restaurar padrão** volta a aba aberta para o que vem com o plugin. Tudo fica em `Documentos\Fiber Plugin`
@@ -447,7 +447,7 @@ executivo, confira com a base oficial do município.
    - configuração de página **DWG To PDF**, papel do formato escolhido, plotagem 1:1;
    - moldura (margem de 25 mm à esquerda e 10 mm nas demais) e faixa com número da folha, escala e formato;
    - coluna à direita com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
-     (postes DT/CC, CTO, CEO, equipamentos, cabo projetado e seta de esforço), como pede o item 16.3 da NDU 009;
+     (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009;
    - viewport travado na escala exata, mostrando o pedaço correspondente.
 5. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
 

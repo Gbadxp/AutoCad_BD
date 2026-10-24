@@ -198,10 +198,12 @@ namespace FiberPlugin.Commands
             foreach (CableModel cable in cablesAfter)
             {
                 CableModel? old = CableProvider.Find(cablesBefore, cable.ShortName);
-                LayerStyle style = CableDrawing.StyleFor(cable, after);
-                if (old != null && CableDrawing.StyleFor(old, before).SameAs(style)) continue;
-                styles[CableDrawing.LayerFor(cable)] = style;
-                styles[CableDrawing.LayerFor(cable, backbone: true)] = style; // O backbone do mesmo cabo, se houver
+                // A layer do cabo e a do backbone dele (se houver), cada uma com a sua cor
+                foreach (bool backbone in new[] { false, true })
+                {
+                    LayerStyle style = CableDrawing.StyleFor(cable, after, backbone);
+                    if (old == null || !CableDrawing.StyleFor(old, before, backbone).SameAs(style)) styles[CableDrawing.LayerFor(cable, backbone)] = style;
+                }
             }
             bool roadRenamed = !before.RoadLayer.Equals(after.RoadLayer, StringComparison.OrdinalIgnoreCase);
             if (roadRenamed || !before.RoadStyle.SameAs(after.RoadStyle)) styles[after.RoadLayer] = after.RoadStyle;

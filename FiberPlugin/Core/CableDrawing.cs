@@ -52,8 +52,12 @@ namespace FiberPlugin.Core
         /// Aparência da layer do cabo (Configurações > Cabos): cor própria ou a cor padrão dos cabos, tipo de linha e
         /// espessura. <paramref name="settings"/> = preferências a usar (padrão: as atuais).
         /// </summary>
-        public static LayerStyle StyleFor(CableModel cable, UserSettings? settings = null) =>
-            new LayerStyle(cable.Color ?? (settings ?? UserSettings.Current).CableColor, cable.Linetype, cable.LineWeightMm);
+        public static LayerStyle StyleFor(CableModel cable, UserSettings? settings = null, bool backbone = false)
+        {
+            UserSettings s = settings ?? UserSettings.Current;
+            // Backbone: a cor dele (azul por padrão), para destacar da distribuição; o tipo de linha e a espessura são os do cabo
+            return new LayerStyle(backbone ? s.BackboneColor : cable.Color ?? s.CableColor, cable.Linetype, cable.LineWeightMm);
+        }
 
         /// <summary>Comprimento de cada vão de uma sequência de pontos.</summary>
         public static List<double> SpanLengths(IList<Point3d> points)
@@ -71,7 +75,7 @@ namespace FiberPlugin.Core
             IList<Point3d> vertices, IList<double> spanLengths, CableModel cable, bool backbone = false)
         {
             string layer = LayerFor(cable, backbone);
-            CadHelpers.EnsureLayer(tr, db, layer, StyleFor(cable));
+            CadHelpers.EnsureLayer(tr, db, layer, StyleFor(cable, backbone: backbone));
 
             var poly = new Polyline { Layer = layer };
             for (int i = 0; i < vertices.Count; i++)
@@ -102,7 +106,7 @@ namespace FiberPlugin.Core
             string oldLayer = poly.Layer;
             bool backbone = XDataTags.IsBackbone(poly);
             string newLayer = LayerFor(cable, backbone);
-            CadHelpers.EnsureLayer(tr, db, newLayer, StyleFor(cable));
+            CadHelpers.EnsureLayer(tr, db, newLayer, StyleFor(cable, backbone: backbone));
             IReadOnlyList<(double X, double Y)> path = Path(poly);
 
             int moved = 0;

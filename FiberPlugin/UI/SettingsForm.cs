@@ -201,7 +201,7 @@ namespace FiberPlugin.UI
         private readonly Label _example;
         private readonly LabeledInput _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer;
         private readonly LabeledInput _poleSize, _electricalSize, _anchoringSize; // Vazio = o tamanho do BLOCOS.dwg
-        private readonly ColorField _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor;
+        private readonly ColorField _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _backboneColor, _roadColor;
         private readonly LabeledCombo _roadLinetype, _roadWeight;
         private readonly StatusLabel _status;
         private readonly ThemedButton _ok, _defaults;
@@ -399,10 +399,11 @@ namespace FiberPlugin.UI
             _electricalSize = new LabeledInput("Itens elétricos (mm)", "do BLOCOS.dwg");
             _anchoringSize = new LabeledInput("Amarração (mm)", "do BLOCOS.dwg");
             _routeOffset = new LabeledInput("Afastamento do cabo (m)", "ex.: 1.8");
-            _cableColor = new ColorField("Cabos sem cor própria");
+            _cableColor = new ColorField("Cabos (padrão)"); // Cabos sem cor própria na planilha
             _poleLabelColor = new ColorField("Textos dos postes");
             _boxLabelColor = new ColorField("Textos das CTO/CEO");
             _effortColor = new ColorField("Setas de esforço");
+            _backboneColor = new ColorField("Backbone");
             _roadLayer = new LabeledInput("Layer das ruas", "ex.: RUAS");
             _roadColor = new ColorField("Cor das ruas");
             _roadLinetype = new LabeledCombo("Tipo de linha das ruas", LinetypeLabels);
@@ -418,7 +419,7 @@ namespace FiberPlugin.UI
                 (Hint("Tamanho em que os blocos entram ao inserir. Vazio = o tamanho em que o bloco foi desenhado no BLOCOS.dwg. Ao " +
                       "salvar, o plugin pergunta se ajusta os blocos já desenhados; o Padronizar e a troca de escala também usam estes."), 40),
                 (new SectionLabel("Cores das layers"), 30),
-                (Row(_cableColor, _poleLabelColor, _boxLabelColor, _effortColor), 56),
+                (Row(_cableColor, _backboneColor, _poleLabelColor, _boxLabelColor, _effortColor), 56),
                 (new SectionLabel("Ruas (Importar Ruas)"), 30),
                 (Row(_roadLayer, _roadColor, _roadLinetype, _roadWeight), 56),
                 (Hint("O Importar Ruas coloca tudo nessa layer: contorno das ruas e calçadas, eixos e nomes. Ao salvar, as layers deste " +
@@ -507,7 +508,7 @@ namespace FiberPlugin.UI
             };
             inputs2.AddRange(_company.Values);
             foreach (LabeledInput input in inputs2) input.Box.Input.TextChanged += (s, e) => UpdateStatus();
-            foreach (ColorField field in new[] { _cableColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor })
+            foreach (ColorField field in new[] { _cableColor, _backboneColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor })
             {
                 field.ValueChanged += (s, e) => { UpdateStatus(); _cables.Invalidate(); };
             }
@@ -598,6 +599,7 @@ namespace FiberPlugin.UI
             _poleLabelColor.Value = s.PoleLabelColor;
             _boxLabelColor.Value = s.BoxLabelColor;
             _effortColor.Value = s.EffortColor;
+            _backboneColor.Value = s.BackboneColor;
             _roadLayer.Value = s.RoadLayer;
             _roadColor.Value = s.RoadColor;
             _roadLinetype.Value = LayerStyle.LinetypeLabel(s.RoadLinetype);
@@ -912,6 +914,7 @@ namespace FiberPlugin.UI
             s.PoleLabelColor = _poleLabelColor.Value;
             s.BoxLabelColor = _boxLabelColor.Value;
             s.EffortColor = _effortColor.Value;
+            s.BackboneColor = _backboneColor.Value;
             s.RoadLayer = _roadLayer.Value;
             s.RoadColor = _roadColor.Value;
             s.RoadLinetype = LayerStyle.LinetypeFromLabel(_roadLinetype.Value);

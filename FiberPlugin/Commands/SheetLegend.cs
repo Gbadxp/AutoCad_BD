@@ -6,7 +6,7 @@ namespace FiberPlugin.Commands
 {
     /// <summary>
     /// Coluna de norte e legenda das folhas do Gerar Folhas (NDU 009, item 16.3): seta do norte e os símbolos que
-    /// existem no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, seta de esforço), em português.
+    /// existem no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone, seta de esforço), em português.
     /// </summary>
     internal sealed class SheetLegend
     {
@@ -17,6 +17,7 @@ namespace FiberPlugin.Commands
 
         private readonly List<(string Label, ObjectId BlockId)> _blocks = new List<(string, ObjectId)>();
         private bool _cable;
+        private bool _backbone;
         private bool _effort;
 
         /// <summary>Símbolos usados no Model, na ordem: postes, caixas, demais blocos.</summary>
@@ -29,7 +30,12 @@ namespace FiberPlugin.Commands
             {
                 if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
 
-                if (ent is Polyline && XDataTags.GetCableName(ent) != null) { legend._cable = true; continue; }
+                if (ent is Polyline && XDataTags.GetCableName(ent) != null)
+                {
+                    if (XDataTags.IsBackbone(ent)) legend._backbone = true;
+                    else legend._cable = true;
+                    continue;
+                }
                 if (XDataTags.TryGetEffortPole(ent, out _)) { legend._effort = true; continue; }
                 if (ent is not BlockReference br) continue;
 
@@ -100,10 +106,23 @@ namespace FiberPlugin.Commands
                 y -= RowHeight;
             }
 
+            // Cabo e backbone nas cores das Configurações (a cor própria de um cabo na planilha não entra aqui)
             if (_cable && y - RowHeight / 2 >= area.MinY)
             {
-                Add(new Line(new Point3d(symbolX - SymbolSize / 2, y, 0), new Point3d(symbolX + SymbolSize / 2, y, 0))).ColorIndex = 3;
+                Add(new Line(new Point3d(symbolX - SymbolSize / 2, y, 0), new Point3d(symbolX + SymbolSize / 2, y, 0))).ColorIndex =
+                    UserSettings.Current.CableColor;
                 Text("Cabo óptico projetado", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                y -= RowHeight;
+            }
+
+            if (_backbone && y - RowHeight / 2 >= area.MinY)
+            {
+                var line = new Polyline();
+                line.AddVertexAt(0, new Point2d(symbolX - SymbolSize / 2, y), 0, 0, 0);
+                line.AddVertexAt(1, new Point2d(symbolX + SymbolSize / 2, y), 0, 0, 0);
+                line.ConstantWidth = CableDrawing.BackboneWidth; // Depois dos vértices; em mm, como no desenho em 1:1000
+                Add(line).ColorIndex = UserSettings.Current.BackboneColor;
+                Text("Cabo óptico tronco (backbone)", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
                 y -= RowHeight;
             }
 

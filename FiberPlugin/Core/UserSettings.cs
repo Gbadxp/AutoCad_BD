@@ -62,6 +62,7 @@ namespace FiberPlugin.Core
         public short PoleLabelColor { get; set; } = 7;   // Textos dos postes: branco/preto
         public short BoxLabelColor { get; set; } = 7;    // Textos das CTO/CEO
         public short EffortColor { get; set; } = 4;      // Setas de esforço: ciano, como no modelo de projeto
+        public short BackboneColor { get; set; } = 5;    // Backbone (cabo tronco): azul, para destacar da distribuição
 
         // Layer única das ruas do Importar Ruas (contorno, calçadas, eixos e nomes)
         public string RoadLayer { get; set; } = "RUAS";
@@ -165,6 +166,7 @@ namespace FiberPlugin.Core
             settings.PoleLabelColor = Color("Cor dos textos dos postes", settings.PoleLabelColor);
             settings.BoxLabelColor = Color("Cor dos textos das CTO/CEO", settings.BoxLabelColor);
             settings.EffortColor = Color("Cor das setas de esforco", settings.EffortColor);
+            settings.BackboneColor = Color("Cor do backbone", settings.BackboneColor);
             if (Text("Layer das ruas") is string road && LayerStyle.LayerNameError(road) == null) settings.RoadLayer = road.Trim();
             settings.RoadColor = Color("Cor das ruas", settings.RoadColor);
             settings.RoadLinetype = LayerStyle.LinetypeFromLabel(Text("Tipo de linha das ruas"));
@@ -196,6 +198,7 @@ namespace FiberPlugin.Core
             sb.AppendLine($"Cor dos textos dos postes: {PoleLabelColor}");
             sb.AppendLine($"Cor dos textos das CTO/CEO: {BoxLabelColor}");
             sb.AppendLine($"Cor das setas de esforco: {EffortColor}");
+            sb.AppendLine($"Cor do backbone: {BackboneColor}");
             sb.AppendLine($"Layer das ruas: {RoadLayer}");
             sb.AppendLine($"Cor das ruas: {RoadColor}");
             sb.AppendLine($"Tipo de linha das ruas: {RoadLinetype ?? "Continuous"}");

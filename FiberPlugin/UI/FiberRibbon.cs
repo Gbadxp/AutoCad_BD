@@ -69,7 +69,7 @@ namespace FiberPlugin.UI
                 foreach (Tool tool in tools.Where(t => t.LargeOnRibbon || t.RibbonMenu != null))
                 {
                     if (tool.RibbonMenu is not string menu) items.Add(Button(tool, large: true));
-                    else if (menus.Add(menu)) items.Add(Menu(menu, tools.Where(t => t.RibbonMenu == menu)));
+                    else if (menus.Add(menu)) items.Add(Menu(menu, tools.Where(t => t.RibbonMenu == menu).ToList()));
                 }
 
                 // Botões pequenos em colunas de 3 linhas, como o painel Modificar do AutoCAD
@@ -97,28 +97,35 @@ namespace FiberPlugin.UI
         }
 
         /// <summary>
-        /// Botão grande que só abre a lista das ferramentas dele, cada uma com ícone, nome e descrição (como os botões de
-        /// lista do AutoCAD).
+        /// Botão grande com a lista das ferramentas dele, cada uma com ícone, nome e descrição (como os botões de lista do
+        /// AutoCAD). Normalmente o botão inteiro abre a lista; nos de ToolCatalog.SplitMenus é dividido: a parte de cima
+        /// roda a primeira ferramenta (nome e ícone dela) e a setinha abre a lista.
         /// </summary>
-        private static RibbonSplitButton Menu(string name, IEnumerable<Tool> tools)
+        private static RibbonSplitButton Menu(string name, List<Tool> tools)
         {
-            List<Tool> list = tools.ToList();
-            if (ToolCatalog.SplitMenus.Contains(name)) return SplitMenu(name, list);
+            bool split = ToolCatalog.SplitMenus.Contains(name);
+            Tool first = tools[0];
+            string icon = split ? first.Command : ToolCatalog.MenuIcon(name);
             var menu = new RibbonSplitButton
             {
                 Id = "FIBER_MENU_" + name,
-                Text = name,
+                Text = split ? first.RibbonLabel : name,
                 ShowText = true,
                 ShowImage = true,
                 Size = RibbonItemSize.Large,
                 Orientation = Wpf.Controls.Orientation.Vertical,
-                LargeImage = RibbonIcons.Get(ToolCatalog.MenuIcon(name), 32),
-                Image = RibbonIcons.Get(ToolCatalog.MenuIcon(name), 16),
-                ToolTip = string.Join("\n", tools.Select(t => t.Title)),
-                IsSplit = false,                        // O botão inteiro abre a lista
-                IsSynchronizedWithCurrentItem = false,  // E continua com o nome do grupo, não o do último usado
+                LargeImage = RibbonIcons.Get(icon, 32),
+                Image = RibbonIcons.Get(icon, 16),
+                ToolTip = split ? SplitToolTip(tools) : string.Join("\n", tools.Select(t => t.Title)),
+                IsSplit = split,
+                IsSynchronizedWithCurrentItem = false, // Continua com o nome do grupo (ou da primeira), não o do último usado
                 ListStyle = RibbonSplitButtonListStyle.Descriptive
             };
+            if (split)
+            {
+                menu.CommandParameter = first.Command;
+                menu.CommandHandler = RibbonCommandHandler.Instance;
+            }
             foreach (Tool tool in tools)
             {
                 RibbonButton item = Button(tool, large: true);
@@ -130,40 +137,9 @@ namespace FiberPlugin.UI
             return menu;
         }
 
-        /// <summary>
-        /// Botão dividido: a parte de cima roda a primeira ferramenta (nome e ícone dela) e a setinha abre a lista de todas,
-        /// como os botões divididos do AutoCAD.
-        /// </summary>
-        private static RibbonSplitButton SplitMenu(string name, List<Tool> tools)
-        {
-            Tool first = tools[0];
-            var menu = new RibbonSplitButton
-            {
-                Id = "FIBER_MENU_" + name,
-                Text = first.RibbonLabel,
-                ShowText = true,
-                ShowImage = true,
-                Size = RibbonItemSize.Large,
-                Orientation = Wpf.Controls.Orientation.Vertical,
-                LargeImage = RibbonIcons.Get(first.Command, 32),
-                Image = RibbonIcons.Get(first.Command, 16),
-                ToolTip = ToolTipFor(first) + "\nNa setinha: " + string.Join(", ", tools.Skip(1).Select(t => t.Title)),
-                IsSplit = true,
-                IsSynchronizedWithCurrentItem = false, // O botão continua sendo o da primeira, não o do último usado
-                ListStyle = RibbonSplitButtonListStyle.Descriptive,
-                CommandParameter = first.Command,
-                CommandHandler = RibbonCommandHandler.Instance
-            };
-            foreach (Tool tool in tools)
-            {
-                RibbonButton item = Button(tool, large: true);
-                item.Text = tool.Title;
-                item.Description = tool.Description;
-                item.Orientation = Wpf.Controls.Orientation.Horizontal;
-                menu.Items.Add(item);
-            }
-            return menu;
-        }
+        /// <summary>Dica do botão dividido: a da primeira ferramenta (com o atalho) e as outras da setinha.</summary>
+        private static string SplitToolTip(List<Tool> tools) =>
+            ToolTipFor(tools[0]) + "\nNa setinha: " + string.Join(", ", tools.Skip(1).Select(t => t.Title));
 
         private static RibbonButton Button(Tool tool, bool large)
         {
@@ -201,6 +177,13 @@ namespace FiberPlugin.UI
                 foreach (RibbonButton button in Buttons(panel.Source.Items))
                 {
                     if (button.Id != null && tools.TryGetValue(button.Id, out Tool? tool)) button.ToolTip = ToolTipFor(tool);
+                    // Botão dividido (Lançar): a dica dele tem o atalho da primeira ferramenta da lista
+                    else if (button is RibbonSplitButton { IsSplit: true } split)
+                    {
+                        List<Tool> listed = split.Items.OfType<RibbonButton>()
+                            .Select(b => b.Id != null && tools.TryGetValue(b.Id, out Tool? t) ? t : null).OfType<Tool>().ToList();
+                        if (listed.Count > 0) split.ToolTip = SplitToolTip(listed);
+                    }
                 }
             }
         }
