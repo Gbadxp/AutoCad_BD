@@ -20,7 +20,7 @@ namespace FiberPlugin.UI
         private readonly HeaderPanel _header;
         private readonly Label _dayLabel;
         private readonly ThemedButton _next;
-        private readonly StatTile _cable, _cto, _ceo, _poles, _reserves, _strand;
+        private readonly StatTile _cable, _cto, _ceo, _poles, _anchorings, _reserves, _strand;
         private readonly ThemedListBox _cables, _drawings;
         private readonly SectionLabel _drawingsTitle;
         private readonly FooterPanel _footer;
@@ -34,7 +34,7 @@ namespace FiberPlugin.UI
 
             Theme.ApplyForm(this);
             Text = "Fiber Plugin - Produção do Dia";
-            ClientSize = new Size(700, 560);
+            ClientSize = new Size(760, 560);
 
             _header = new HeaderPanel { IconCommand = "FIBRA_PRODUCAO", Title = "Produção do Dia" };
 
@@ -86,12 +86,14 @@ namespace FiberPlugin.UI
             _poles = new StatTile("Postes");
             _reserves = new StatTile("Reservas");
             _strand = new StatTile("Cordoalha");
-            var tiles = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1, BackColor = Theme.Background, Margin = new Padding(0, 4, 0, 4) };
+            _anchorings = new StatTile("Amarrações");
+            var tiles = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 7, RowCount = 1, BackColor = Theme.Background, Margin = new Padding(0, 4, 0, 4) };
             tiles.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            StatTile[] all = { _cable, _cto, _ceo, _poles, _reserves, _strand };
+            StatTile[] all = { _cable, _cto, _ceo, _poles, _anchorings, _reserves, _strand };
+            float[] widths = { 17, 11, 11, 12, 16, 15, 18 }; // % da largura: os de número com unidade e o "Amarrações" maiores
             for (int i = 0; i < all.Length; i++)
             {
-                tiles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, i == 0 || i == all.Length - 1 ? 21 : 14.5f));
+                tiles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, widths[i]));
                 all[i].Dock = DockStyle.Fill;
                 all[i].Margin = new Padding(i == 0 ? 0 : 4, 0, i == all.Length - 1 ? 0 : 4, 0);
                 tiles.Controls.Add(all[i], i, 0);
@@ -163,6 +165,7 @@ namespace FiberPlugin.UI
             _reserves.Set(total.Reserves.ToString(CultureInfo.InvariantCulture),
                 Math.Abs(total.ReserveMeters) >= 0.01 ? "(" + DayProduction.Meters(total.ReserveMeters) + ")" : "", total.Reserves < 0);
             _strand.Set(total.StrandMeters.ToString("#,##0.0", DataFiles.Br), "m", total.StrandMeters < -0.005);
+            _anchorings.Set(total.Anchorings.ToString(CultureInfo.InvariantCulture), "", total.Anchorings < 0);
 
             _cables.Items.Clear();
             foreach (var cable in total.CableMeters.OrderByDescending(c => c.Value))
@@ -218,28 +221,28 @@ namespace FiberPlugin.UI
             double R(double v) => Math.Round(v, 1);
             var workbook = new XlsxWriter();
 
-            XlsxWriter.Sheet byDay = workbook.AddSheet("Por dia").ColumnWidths(14, 16, 14, 8, 8, 9, 10, 14, 15, 10);
+            XlsxWriter.Sheet byDay = workbook.AddSheet("Por dia").ColumnWidths(14, 16, 14, 8, 8, 9, 13, 10, 14, 15, 10);
             byDay.Title("Produção de " + monthName).Blank()
-                 .Header("Data", "Dia", "Cabo (m)", "CTO", "CEO", "Postes", "Reservas", "Reservas (m)", "Cordoalha (m)", "Desenhos");
+                 .Header("Data", "Dia", "Cabo (m)", "CTO", "CEO", "Postes", "Amarrações", "Reservas", "Reservas (m)", "Cordoalha (m)", "Desenhos");
             foreach (DayProduction p in production)
             {
                 ProductionCount t = p.Total;
                 byDay.Row(p.Day.ToString("dd/MM/yyyy", DataFiles.Br), p.Day.ToString("dddd", DataFiles.Br), R(t.CableTotal),
-                          t.Cto, t.Ceo, t.Poles, t.Reserves, R(t.ReserveMeters), R(t.StrandMeters), p.Drawings.Count);
+                          t.Cto, t.Ceo, t.Poles, t.Anchorings, t.Reserves, R(t.ReserveMeters), R(t.StrandMeters), p.Drawings.Count);
             }
             ProductionCount monthTotal = production.Aggregate(new ProductionCount(), (sum, p) => sum.Plus(p.Total));
             byDay.Row("Total do mês", $"{production.Count} dia(s)", R(monthTotal.CableTotal), monthTotal.Cto, monthTotal.Ceo, monthTotal.Poles,
-                      monthTotal.Reserves, R(monthTotal.ReserveMeters), R(monthTotal.StrandMeters), "");
+                      monthTotal.Anchorings, monthTotal.Reserves, R(monthTotal.ReserveMeters), R(monthTotal.StrandMeters), "");
 
-            XlsxWriter.Sheet byDrawing = workbook.AddSheet("Por desenho").ColumnWidths(14, 36, 14, 8, 8, 9, 10, 15, 60);
+            XlsxWriter.Sheet byDrawing = workbook.AddSheet("Por desenho").ColumnWidths(14, 36, 14, 8, 8, 9, 13, 10, 15, 60);
             byDrawing.Title("Produção de " + monthName + " por desenho").Blank()
-                     .Header("Data", "Desenho", "Cabo (m)", "CTO", "CEO", "Postes", "Reservas", "Cordoalha (m)", "Pasta");
+                     .Header("Data", "Desenho", "Cabo (m)", "CTO", "CEO", "Postes", "Amarrações", "Reservas", "Cordoalha (m)", "Pasta");
             foreach (DayProduction p in production)
             {
                 foreach (DrawingProduction d in p.Drawings)
                 {
                     ProductionCount c = d.Done;
-                    byDrawing.Row(p.Day.ToString("dd/MM/yyyy", DataFiles.Br), d.Name, R(c.CableTotal), c.Cto, c.Ceo, c.Poles, c.Reserves,
+                    byDrawing.Row(p.Day.ToString("dd/MM/yyyy", DataFiles.Br), d.Name, R(c.CableTotal), c.Cto, c.Ceo, c.Poles, c.Anchorings, c.Reserves,
                                   R(c.StrandMeters), d.Unnamed ? "(não salvo)" : Path.GetDirectoryName(d.File) ?? "");
                 }
             }

@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.76.msi`](Instalador/FiberPlugin-1.9.76.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.77.msi`](Instalador/FiberPlugin-1.9.77.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -192,7 +192,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
-| Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes e reservas técnicas (veja abaixo). |
+| Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
 
 ### Google Earth
@@ -547,7 +547,8 @@ verificados: orientação dos postes DT, drops por vão e afastamentos da rede e
 ## Produção do Dia
 
 O botão **Produção do Dia** (`FIBRA_PRODUCAO`, painel Documentos) mostra quanto foi feito no dia, somando todos os
-desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**, **CEO**, **postes**, **reservas
+desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**, **CEO**, **postes**, **amarrações**
+(ancoragens: blocos com "AMARRA" no nome, como os do botão Amarração; contadas a partir da 1.9.77), **reservas
 técnicas** (as do comando Reserva Técnica e qualquer texto com "RESERVA", como "RESERVA TÉCNICA 25m": conta a reserva
 e soma a metragem escrita) e **metros de cordoalha** (a do comando Cordoalha ou linhas na layer `FIBRA_CORDOALHA`).
 

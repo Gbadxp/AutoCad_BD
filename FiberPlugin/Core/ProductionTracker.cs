@@ -140,7 +140,7 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// O que o desenho tem agora no Model: cabos, CTO, CEO, postes, reservas técnicas e cordoalha. Uma passada só (roda a
+        /// O que o desenho tem agora no Model: cabos, CTO, CEO, postes, amarrações, reservas técnicas e cordoalha. Uma passada só (roda a
         /// cada vez que o desenho é salvo), com as regras do relatório: cabo pelo nome (CableDrawing.Totals), CTO/CEO pelo
         /// XData (Boxes.Collect) e postes como no Poles.Collect.
         /// </summary>
@@ -165,8 +165,15 @@ namespace FiberPlugin.Core
                             else if (kind == BlockCategories.Ceo) count.Ceo++;
                             bool pole = Poles.Read(tr, id, br) != null;
                             if (pole) count.Poles++;
-                            // Reserva em bloco: o nome dele ou um atributo (poste e caixa não são reserva)
-                            if (kind == null && !pole) AddReserve(count, CadHelpers.GetBlockName(tr, br) + " " + string.Join(" ",
+                            if (kind != null || pole) break;
+                            string blockName = CadHelpers.GetBlockName(tr, br);
+                            if (BlockCategories.Of(blockName) == BlockCategories.Anchoring)
+                            {
+                                count.Anchorings++; // Amarração (ancoragem), como no relatório
+                                break;
+                            }
+                            // Reserva em bloco: o nome dele ou um atributo
+                            AddReserve(count, blockName + " " + string.Join(" ",
                                 br.AttributeCollection.Cast<ObjectId>().Select(a => tr.GetObject(a, OpenMode.ForRead))
                                     .OfType<AttributeReference>().Select(a => a.TextString)));
                             break;

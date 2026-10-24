@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// O que um desenho tem num momento, para a produção do dia: metros de cada cabo, CTO, CEO, postes, reservas
-    /// técnicas (textos como "RESERVA TÉCNICA 25m") e metros de cordoalha. A diferença entre dois momentos é o que foi feito entre eles.
+    /// O que um desenho tem num momento, para a produção do dia: metros de cada cabo, CTO, CEO, postes, amarrações
+    /// (ancoragens), reservas técnicas (textos como "RESERVA TÉCNICA 25m") e metros de cordoalha. A diferença entre dois momentos é o que foi feito entre eles.
     /// </summary>
     public sealed class ProductionCount
     {
@@ -16,6 +16,15 @@ namespace FiberPlugin.Core
         public int Cto { get; set; }
         public int Ceo { get; set; }
         public int Poles { get; set; }
+
+        /// <summary>Blocos de amarração (ancoragem do cabo no poste).</summary>
+        public int Anchorings { get; set; }
+
+        /// <summary>
+        /// As amarrações foram contadas. Anotação das versões anteriores à 1.9.77 não tem: comparada com uma nova, a
+        /// diferença de amarrações fica zero (senão as que já estavam no desenho pareceriam feitas no dia).
+        /// </summary>
+        public bool AnchoringsCounted { get; set; } = true;
         public int Reserves { get; set; }
         public double ReserveMeters { get; set; }
         public double StrandMeters { get; set; }
@@ -23,7 +32,7 @@ namespace FiberPlugin.Core
         public double CableTotal => CableMeters.Values.Sum();
 
         /// <summary>Nada mudou (diferenças de menos de 1 cm não contam).</summary>
-        public bool IsZero => Cto == 0 && Ceo == 0 && Poles == 0 && Reserves == 0 && Math.Abs(ReserveMeters) < 0.01 &&
+        public bool IsZero => Cto == 0 && Ceo == 0 && Poles == 0 && Anchorings == 0 && Reserves == 0 && Math.Abs(ReserveMeters) < 0.01 &&
                               Math.Abs(StrandMeters) < 0.01 && CableMeters.Values.All(m => Math.Abs(m) < 0.01);
 
         /// <summary>O que este momento tem a mais que <paramref name="start"/> (negativo onde foi apagado).</summary>
@@ -38,6 +47,7 @@ namespace FiberPlugin.Core
                 Cto = Cto + sign * other.Cto,
                 Ceo = Ceo + sign * other.Ceo,
                 Poles = Poles + sign * other.Poles,
+                Anchorings = AnchoringsCounted && other.AnchoringsCounted ? Anchorings + sign * other.Anchorings : sign > 0 ? Anchorings + other.Anchorings : 0,
                 Reserves = Reserves + sign * other.Reserves,
                 ReserveMeters = ReserveMeters + sign * other.ReserveMeters,
                 StrandMeters = StrandMeters + sign * other.StrandMeters
@@ -76,6 +86,7 @@ namespace FiberPlugin.Core
             yield return $"CTO={Cto}";
             yield return $"CEO={Ceo}";
             yield return $"Postes={Poles}";
+            yield return $"Amarracoes={Anchorings}";
             yield return $"Reservas={Reserves}";
             yield return $"Reservas (m)={N(ReserveMeters)}";
             yield return $"Cordoalha (m)={N(StrandMeters)}";
@@ -85,7 +96,7 @@ namespace FiberPlugin.Core
 
         public static ProductionCount FromFields(IEnumerable<string> fields)
         {
-            var count = new ProductionCount();
+            var count = new ProductionCount { AnchoringsCounted = false };
             foreach (string field in fields)
             {
                 int eq = field.LastIndexOf('=');
@@ -95,6 +106,11 @@ namespace FiberPlugin.Core
                 else if (key == "CTO") count.Cto = (int)v;
                 else if (key == "CEO") count.Ceo = (int)v;
                 else if (key == "Postes") count.Poles = (int)v;
+                else if (key == "Amarracoes")
+                {
+                    count.Anchorings = (int)v;
+                    count.AnchoringsCounted = true;
+                }
                 else if (key == "Reservas") count.Reserves = (int)v;
                 else if (key == "Reservas (m)") count.ReserveMeters = v;
                 else if (key == "Cordoalha (m)") count.StrandMeters = v;
@@ -279,6 +295,7 @@ namespace FiberPlugin.Core
             sb.AppendLine($"{indent}Postes: {c.Poles}");
             if (c.Reserves != 0 || Math.Abs(c.ReserveMeters) >= 0.01)
                 sb.AppendLine($"{indent}Reservas técnicas: {c.Reserves} ({Meters(c.ReserveMeters)})");
+            if (c.Anchorings != 0) sb.AppendLine($"{indent}Amarrações: {c.Anchorings}");
             if (Math.Abs(c.StrandMeters) >= 0.01) sb.AppendLine($"{indent}Cordoalha: {Meters(c.StrandMeters)}");
         }
 
@@ -290,6 +307,7 @@ namespace FiberPlugin.Core
             if (c.Cto != 0) parts.Add($"{c.Cto} CTO");
             if (c.Ceo != 0) parts.Add($"{c.Ceo} CEO");
             if (c.Poles != 0) parts.Add($"{c.Poles} poste{(Math.Abs(c.Poles) == 1 ? "" : "s")}");
+            if (c.Anchorings != 0) parts.Add($"{c.Anchorings} amarraç{(Math.Abs(c.Anchorings) == 1 ? "ão" : "ões")}");
             if (c.Reserves != 0) parts.Add($"{c.Reserves} reserva{(Math.Abs(c.Reserves) == 1 ? "" : "s")}");
             if (Math.Abs(c.StrandMeters) >= 0.01) parts.Add($"{Meters(c.StrandMeters)} de cordoalha");
             return parts.Count > 0 ? string.Join(" · ", parts) : "sem mudança";
