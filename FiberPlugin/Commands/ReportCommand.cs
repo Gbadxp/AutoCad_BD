@@ -48,12 +48,13 @@ namespace FiberPlugin.Commands
 
             var workbook = new XlsxWriter();
             UtmSettings? utm = UtmZone.Get(db);
+            Dictionary<PoleInfo, int> anchorings = AnchoringsByPole(project);
             WriteSummary(workbook, doc, db, project);
-            WritePoles(workbook, poles, effortPoints, project.Anchorings, utm);
+            WritePoles(workbook, poles, effortPoints, anchorings, utm);
             WriteBoxes(workbook, boxes, poles, utm);
-            WriteEfforts(workbook, effortPoints);
+            WriteEfforts(workbook, effortPoints, anchorings);
             WriteCables(workbook, cables);
-            WriteTableA(workbook, project.Occupied, boxes, poles, CompanyInfo.Load(out _), utm);
+            WriteTableA(workbook, project.Occupied, boxes, poles, anchorings, CompanyInfo.Load(out _), utm);
             WriteChecks(workbook, NormCheck.Run(project));
 
             try
@@ -68,7 +69,7 @@ namespace FiberPlugin.Commands
 
             ed.WriteMessage($"\n[SUCESSO]: Relatório salvo em {path}");
             ed.WriteMessage($"\n[INFO]: {poles.Count} poste(s), {effortPoints.Count} ponto(s) de esforço, {cables.Count} tipo(s) de cabo, " +
-                            $"{project.Anchorings.Count} amarração(ões).");
+                            $"{project.Anchorings.Count} ancoragem(ns).");
             if (legacyMarkers > 0)
             {
                 ed.WriteMessage($"\n[AVISO]: {legacyMarkers} seta(s) de esforço de versões antigas, sem dados. Rode o Esforço no Percurso de novo para incluí-las.");
@@ -108,6 +109,23 @@ namespace FiberPlugin.Commands
             if (withoutData > 0) sheet.Row("Sem tipo definido (postes antigos)", withoutData);
             sheet.Row("Total de postes", poles.Count).Blank();
 
+            // Ancoragens: os blocos de amarração desenhados (botão Amarração), por bloco quando o desenho usa mais de um, e
+            // os postes com cabo que ainda não têm
+            var anchorings = project.Anchorings;
+            var anchoredPoles = new HashSet<PoleInfo>(anchorings.Where(a => a.Pole != null).Select(a => a.Pole!));
+            sheet.Header("Ancoragens (amarrações desenhadas)", "Quantidade");
+            var byBlock = anchorings.GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key).ToList();
+            if (byBlock.Count > 1)
+            {
+                foreach (var group in byBlock) sheet.Row(group.Key, group.Count());
+            }
+            sheet.Row("Total de ancoragens", anchorings.Count);
+            sheet.Row("Postes com ancoragem", anchoredPoles.Count);
+            sheet.Row("Postes com cabo sem ancoragem", project.Occupied.Count(o => !anchoredPoles.Contains(o.Pole)));
+            int loose = anchorings.Count(a => a.Pole == null);
+            if (loose > 0) sheet.Row($"Ancoragens sem poste a até {FiberSettings.PoleLinkRadius:F0} m", loose);
+            sheet.Blank();
+
             sheet.Header("CTO e CEO", "Quantidade");
             sheet.Row("CTO", boxes.Count(b => b.Data.Kind == BlockCategories.Cto));
             sheet.Row("CEO", boxes.Count(b => b.Data.Kind == BlockCategories.Ceo)).Blank();
@@ -115,22 +133,6 @@ namespace FiberPlugin.Commands
             sheet.Header("Cabos", "Metragem (m)");
             foreach (CableTotal c in cables) sheet.Row(c.Description, Math.Round(c.Length, 2));
             sheet.Row("Total de cabos", Math.Round(cables.Sum(c => c.Length), 2)).Blank();
-
-            // Amarrações: por bloco (quando o desenho usa mais de um) e os postes com cabo que ainda não têm
-            var anchorings = project.Anchorings;
-            var anchoredPoles = new HashSet<PoleInfo>(anchorings.Where(a => a.Pole != null).Select(a => a.Pole!));
-            sheet.Header("Amarrações", "Quantidade");
-            var byBlock = anchorings.GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key).ToList();
-            if (byBlock.Count > 1)
-            {
-                foreach (var group in byBlock) sheet.Row(group.Key, group.Count());
-            }
-            sheet.Row("Total de amarrações", anchorings.Count);
-            sheet.Row("Postes com amarração", anchoredPoles.Count);
-            sheet.Row("Postes com cabo sem amarração", project.Occupied.Count(o => !anchoredPoles.Contains(o.Pole)));
-            int loose = anchorings.Count(a => a.Pole == null);
-            if (loose > 0) sheet.Row($"Amarrações sem poste a até {FiberSettings.PoleLinkRadius:F0} m", loose);
-            sheet.Blank();
 
             sheet.Header("Esforços", "Quantidade");
             sheet.Row("Pontos de esforço calculados", effortPoints.Count);
@@ -150,18 +152,20 @@ namespace FiberPlugin.Commands
         private static string ArrowText(EffortPoint e) =>
             !e.NeedsArrow ? "Dispensada" : e.Pole == null ? "Sem poste" : !e.HasArrow ? "Falta" : e.ArrowOutdated ? "Desatualizada" : "Sim";
 
+        /// <summary>Ancoragens (blocos de amarração) de cada poste; os postes sem nenhuma ficam de fora.</summary>
+        private static Dictionary<PoleInfo, int> AnchoringsByPole(ProjectData project) =>
+            project.Anchorings.Where(a => a.Pole != null).GroupBy(a => a.Pole!).ToDictionary(g => g.Key, g => g.Count());
+
         private static void WritePoles(XlsxWriter workbook, List<PoleInfo> poles, List<EffortPoint> effortPoints,
-            List<(string Name, Point3d Position, PoleInfo? Pole)> anchorings, UtmSettings? utm)
+            Dictionary<PoleInfo, int> anchorings, UtmSettings? utm)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Postes")
                 .ColumnWidths(10, 7, 14, 11, 16, 16, 11, 16, 16, 15, 16, 11, 22, 14, 13, 18, 15, 13, 13, 13);
 
             sheet.Header("Número", "Tipo", "Descrição", "Altura (m)", "Nominal (daN)", "Nominal (kgf)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)",
-                         "Poste", "Esforço no cabo (kgf)", "Ângulo (°)", "Situação", "Seta", "Amarrações", "A 20 cm do topo (kgf)", "Existente (kgf)",
+                         "Poste", "Esforço no cabo (kgf)", "Ângulo (°)", "Situação", "Seta", "Ancoragens", "A 20 cm do topo (kgf)", "Existente (kgf)",
                          "Total (kgf)", "Utilização (%)", "Resultado");
 
-            Dictionary<PoleInfo, int> anchoringsByPole = anchorings.Where(a => a.Pole != null)
-                .GroupBy(a => a.Pole!).ToDictionary(g => g.Key, g => g.Count());
             foreach (PoleInfo pole in poles)
             {
                 PoleData? d = pole.Data;
@@ -182,7 +186,7 @@ namespace FiberPlugin.Commands
                     Round(effort?.AngleDeg, 1),
                     effort?.Situation,
                     effort != null ? ArrowText(effort) : null,
-                    anchoringsByPole.TryGetValue(pole, out int count) ? count : 0,
+                    anchorings.TryGetValue(pole, out int count) ? count : 0,
                     Round(effort?.Load.TopKgf, 2),
                     Round(effort?.Load.ExistingKgf, 2),
                     Round(effort?.Load.TotalKgf, 2),
@@ -214,12 +218,12 @@ namespace FiberPlugin.Commands
             }
         }
 
-        private static void WriteEfforts(XlsxWriter workbook, List<EffortPoint> effortPoints)
+        private static void WriteEfforts(XlsxWriter workbook, List<EffortPoint> effortPoints, Dictionary<PoleInfo, int> anchorings)
         {
             XlsxWriter.Sheet sheet = workbook.AddSheet("Esforços")
-                .ColumnWidths(8, 14, 15, 20, 14, 18, 11, 10, 18, 15, 13, 15, 14, 13, 14, 14, 60);
+                .ColumnWidths(8, 14, 15, 20, 14, 18, 11, 10, 13, 18, 15, 13, 15, 14, 13, 14, 14, 60);
 
-            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Seta", "Esforço no cabo (kgf)", "Ângulo (°)", "Cabos",
+            sheet.Header("Ponto", "Poste de origem", "Poste", "Situação", "Seta", "Esforço no cabo (kgf)", "Ângulo (°)", "Cabos", "Ancoragens",
                          "A 20 cm do topo (kgf)", "Existente (kgf)", "Total (kgf)", "Nominal (kgf)", "Utilização (%)", "Resultado",
                          "Coordenada E", "Coordenada N", "Descrição");
 
@@ -240,6 +244,7 @@ namespace FiberPlugin.Commands
                     Math.Round(e.Kgf, 2),
                     Math.Round(e.AngleDeg, 1),
                     e.CableCount,
+                    e.Pole == null ? (int?)null : anchorings.TryGetValue(e.Pole, out int count) ? count : 0,
                     Round(e.Load.TopKgf, 2),
                     Round(e.Load.ExistingKgf, 2),
                     Round(e.Load.TotalKgf, 2),
@@ -268,13 +273,14 @@ namespace FiberPlugin.Commands
         /// Tabela A da NDU 009 (seção 23), obrigatória no projeto: uma linha por poste ocupado pelos cabos.
         /// O ID_Poste vem do FIBRA_ID_ENERGISA (em branco enquanto não informado).
         /// </summary>
+        /// <param name="anchorings">Ancoragens desenhadas de cada poste: vão numa coluna depois das da norma.</param>
         private static void WriteTableA(XlsxWriter workbook, List<(PoleInfo Pole, EffortResult Result)> occupied,
-            List<BoxInfo> boxes, List<PoleInfo> poles, CompanyInfo? company, UtmSettings? utm)
+            List<BoxInfo> boxes, List<PoleInfo> poles, Dictionary<PoleInfo, int> anchorings, CompanyInfo? company, UtmSettings? utm)
         {
-            XlsxWriter.Sheet sheet = workbook.AddSheet("Tabela A (NDU 009)").ColumnWidths(12, 14, 44, 14, 46, 16, 24, 20);
+            XlsxWriter.Sheet sheet = workbook.AddSheet("Tabela A (NDU 009)").ColumnWidths(12, 14, 44, 14, 46, 16, 24, 20, 14);
             sheet.Title("Tabela A - Projeto de Uso Mútuo (NDU 009, seção 23)").Blank();
             sheet.Header("Poste (projeto)", "ID_Poste", "Coordenadas Georreferenciadas", "Tipo de Cabo", "Nome da Ocupante",
-                         "Tipo de Companhia", "Tipo de Equipamento", "CNPJ da Companhia");
+                         "Tipo de Companhia", "Tipo de Equipamento", "CNPJ da Companhia", "Ancoragens");
 
             var polesByHandle = Poles.ByHandle(poles);
             var withBox = new HashSet<PoleInfo>(boxes.Select(b => Boxes.PoleOf(b, polesByHandle, poles)).OfType<PoleInfo>());
@@ -294,7 +300,8 @@ namespace FiberPlugin.Commands
                     company?.LegalName,
                     company?.CompanyType,
                     equipment,
-                    company?.Cnpj);
+                    company?.Cnpj,
+                    anchorings.TryGetValue(pole, out int count) ? count : 0);
             }
         }
 
