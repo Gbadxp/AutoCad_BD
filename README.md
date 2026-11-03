@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.90.msi`](Instalador/FiberPlugin-1.9.90.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.91.msi`](Instalador/FiberPlugin-1.9.91.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -242,8 +242,6 @@ O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com a
 |---|---|
 | Cliente, CPF/CNPJ, nº da obra, município, CEP, U.C. | Vão na legenda das folhas do Gerar Folhas, com o percurso, o endereço da obra e a ART da aba Projeto. Ficam no DWG (e o último salvo em `projeto.txt`, como os da aba Projeto). |
 | Conteúdo, área do projeto | Conteúdo da folha (padrão `PROJETO DE REDE ÓPTICA`) e a caixa marcada na legenda: **Urbana**, **Rural** ou nenhuma. |
-| Desenhista, verificador (com e-mail), aprovador, revisão, motivo | Quadro de alterações da legenda (revisão padrão `REV. 00 - EMISSÃO INICIAL`). |
-| Notas técnicas | Uma por linha (a folha numera); valem para todos os desenhos (`Documentos\Fiber Plugin\notas.txt`). **Restaurar padrão** volta as notas que vêm com o plugin. |
 
 A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
 desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG). A Empresa fica na Configuração de Projeto; as
@@ -467,15 +465,16 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
      de 1,0 mm (A0 e A1) ou 0,7 mm (A2 a A4); **malha de referência** na margem (campos de 50 mm a partir do meio, números
      em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita), com o formato no campo de baixo à
      direita; **marcas de centro** nos quatro lados e **marcas de corte** em L (10 x 5 mm) nos cantos;
-   - **legenda** (carimbo) de 180 mm no canto de baixo à direita, no modelo de prancha da empresa: **alterações**
-     (aprovação, verificação e desenho com o e-mail, revisão e motivo), **responsável técnico** com o CREA (e a ART), espaço
-     com linha para a **assinatura** (ou a imagem `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do
-     centro da folha com o fuso (ex.: `FUSO 20M`), **conteúdo**, **área do projeto** (rural ou urbana), escala, data,
-     projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço, município, CEP, **U.C.**,
-     **logo** com o nome da empresa, **nº da obra** e o número da folha. Os dados vêm da Configuração de Projeto (abas
-     Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`);
-   - à esquerda da legenda, as **notas técnicas** (as da aba Carimbo, numeradas) e o quadro **OBS.**; em folha sem espaço
-     para elas, as notas vão para o pé da coluna da legenda dos símbolos (no A4 deitado não cabem e saem de fora, com aviso);
+   - **coluna de 180 mm à direita**, do pé ao alto do quadro (figura 11 a da norma): em cima, a **seta do norte** e a
+     **legenda** em português dos símbolos usados no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado,
+     backbone e seta de esforço), como pede o item 16.3 da NDU 009; no pé, a **legenda** (carimbo) de 180 mm, em pé:
+     **logo** com o nome da empresa, projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço,
+     município, CEP, **U.C.**, **responsável técnico** com o CREA (e a ART), espaço com linha para a **assinatura** (ou a
+     imagem `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do centro da folha com o fuso (ex.:
+     `FUSO 20M`), **conteúdo**, **área do projeto** (rural ou urbana), escala, data, **nº da obra** e o número da folha. Os
+     dados vêm da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial
+     (`Dados\Memorial\logo.png`). No A4 e no A3 em pé (quadro de 267 mm ou menos) a coluna deixaria pouco desenho: a
+     legenda fica embaixo, em duas colunas, e o norte e os símbolos numa coluna estreita;
    - na margem esquerda, em pé, os avisos da **Lei 5.194/66** (alterações só pelo autor do projeto) e da **propriedade dos
      desenhos**, fora das marcas de dobra;
    - **marcas de dobramento** tracejadas na margem (figura 21 da NBR 16752: a cópia dobrada fica do tamanho A4 com a
@@ -483,8 +482,6 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
      190 (sobra 210), A2 192 + 192 (sobra 210), A3 190 + 105 (sobra 125); dobras horizontais de 297 em 297 mm a partir de
      baixo; no A0, A1 e A2, as pontas da dobra do canto superior esquerdo (de 105 mm no alto até 297 mm na borda
      esquerda). A4 não tem dobra;
-   - coluna à direita com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
-     (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009;
    - viewport travado na escala exata, mostrando o pedaço correspondente.
 6. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
 

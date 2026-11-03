@@ -94,8 +94,8 @@ namespace FiberPlugin.Commands
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
-            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, cliente, equipe e revisão das abas
-            // Projeto e Carimbo; notas técnicas do notas.txt; a logo (e a assinatura, se houver) da pasta do memorial
+            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, cliente, obra, conteúdo e área das
+            // abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
             CompanyInfo company = CompanyInfo.Read();
             ProjectInfo project = ProjectInfo.Load(db);
             var images = new Dictionary<PaperImage, ObjectId>();
@@ -123,14 +123,6 @@ namespace FiberPlugin.Commands
                 ZipCode = project.ZipCode,
                 ConsumerUnit = project.ConsumerUnit,
                 WorkNumber = project.WorkNumber,
-                Approver = project.Approver,
-                Checker = project.Checker,
-                CheckerEmail = project.CheckerEmail,
-                Drafter = project.Drafter,
-                DrafterEmail = project.DrafterEmail,
-                Revision = project.Revision,
-                RevisionReason = project.RevisionReason,
-                Notes = SheetNotes.Load(),
                 Zone = project.Zone,
                 LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
                 SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
@@ -149,7 +141,6 @@ namespace FiberPlugin.Commands
                     {
                         Rect shown = plan.Tiles[i].ModelArea;
                         SheetPaper paper = SheetFrame.Build(plan, i + 1, title, stamp, (shown.CenterX, shown.CenterY));
-                        if (paper.NotesLeftOut) warnings.Add($"As notas técnicas não cabem na folha {plan.Format.Name}: saíram sem elas (use uma folha maior).");
                         string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], paper, images, legend);
                         if (warning != null) warnings.Add(warning);
                         names.Add(name);

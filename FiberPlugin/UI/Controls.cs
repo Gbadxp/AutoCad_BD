@@ -227,17 +227,14 @@ namespace FiberPlugin.UI
     internal class InputBox : Panel
     {
         private readonly bool _searchIcon;
-        private readonly bool _multiline;
         private readonly Label _placeholder;
         private bool _hover;
 
         public TextBox Input { get; }
 
-        /// <param name="multiline">Várias linhas (Enter quebra a linha), com barra de rolagem: o campo ocupa a altura toda.</param>
-        public InputBox(string placeholder, bool searchIcon = true, bool multiline = false)
+        public InputBox(string placeholder, bool searchIcon = true)
         {
             _searchIcon = searchIcon;
-            _multiline = multiline;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             Cursor = Cursors.IBeam;
@@ -251,14 +248,6 @@ namespace FiberPlugin.UI
             };
             Input.GotFocus += (s, e) => UpdateColors();
             Input.LostFocus += (s, e) => UpdateColors();
-            if (multiline)
-            {
-                Input.Multiline = true;
-                Input.AcceptsReturn = true;
-                Input.WordWrap = true;
-                Input.ScrollBars = ScrollBars.Vertical;
-                Theme.UseDarkScrollbars(Input);
-            }
             Controls.Add(Input);
 
             // Texto de exemplo que continua visível com o cursor no campo
@@ -346,13 +335,6 @@ namespace FiberPlugin.UI
         {
             base.OnLayout(levent);
             int left = Theme.Scale(this, _searchIcon ? 28 : 9);
-            if (_multiline)
-            {
-                int pad = Theme.Scale(this, 5);
-                Input.SetBounds(left, pad, Math.Max(10, Width - left - Theme.Scale(this, 3)), Math.Max(10, Height - 2 * pad));
-                _placeholder?.SetBounds(Input.Left + Theme.Scale(this, 3), Input.Top, Math.Max(10, Input.Width - Theme.Scale(this, 20)), _placeholder.PreferredHeight);
-                return;
-            }
             Input.SetBounds(left, (Height - Input.Height) / 2, Math.Max(10, Width - left - Theme.Scale(this, 8)), Input.Height);
             // Deixa a coluna do cursor livre para ele continuar piscando
             _placeholder?.SetBounds(Input.Left + Theme.Scale(this, 3), Input.Top, Math.Max(10, Input.Width - Theme.Scale(this, 3)), Input.Height);

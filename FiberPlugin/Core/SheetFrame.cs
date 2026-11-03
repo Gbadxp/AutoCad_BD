@@ -20,14 +20,6 @@ namespace FiberPlugin.Core
         public string ZipCode { get; set; } = "";
         public string ConsumerUnit { get; set; } = "";
         public string WorkNumber { get; set; } = "";
-        public string Approver { get; set; } = "";
-        public string Checker { get; set; } = "";
-        public string CheckerEmail { get; set; } = "";
-        public string Drafter { get; set; } = "";
-        public string DrafterEmail { get; set; } = "";
-        public string Revision { get; set; } = "";
-        public string RevisionReason { get; set; } = "";
-        public IReadOnlyList<string> Notes { get; set; } = new string[0];
 
         /// <summary>Zona UTM do projeto, para o fuso das coordenadas; null sem zona.</summary>
         public UtmSettings? Zone { get; set; }
@@ -86,11 +78,8 @@ namespace FiberPlugin.Core
         /// <summary>Onde vão a logo e a assinatura, já na proporção de cada uma.</summary>
         public List<(Rect Rect, PaperImage Image)> Images { get; } = new List<(Rect, PaperImage)>();
 
-        /// <summary>O que sobra da coluna da direita para o norte e a legenda dos símbolos (as notas podem ficar embaixo dela).</summary>
+        /// <summary>Onde vão o norte e a legenda dos símbolos: o alto da coluna da direita.</summary>
         public Rect LegendArea { get; set; }
-
-        /// <summary>As notas técnicas não couberam na folha (A4 deitada).</summary>
-        public bool NotesLeftOut { get; set; }
     }
 
     /// <summary>
@@ -98,29 +87,20 @@ namespace FiberPlugin.Core
     /// <list type="bullet">
     /// <item>quadro com margem de 20 mm à esquerda e 10 mm nas outras, na largura de linha da tabela 4;</item>
     /// <item>malha de referência (letras e números na faixa de 5 mm em volta do quadro), marcas de centro e de corte;</item>
-    /// <item>legenda de 180 mm no canto inferior direito: alterações (aprovação, verificação, desenho, revisão), responsável
-    /// técnico com CREA e assinatura, coordenadas UTM do centro da folha, conteúdo, área rural ou urbana, escala, data,
-    /// projeto, cliente, U.C., logo, nº da obra e folha;</item>
-    /// <item>à esquerda da legenda, as notas técnicas e as observações; na margem esquerda, os avisos da Lei 5.194/66 e da
-    /// propriedade dos desenhos;</item>
+    /// <item>legenda de 180 mm no canto inferior direito, no pé da coluna da direita (figura 11 a; embaixo em folha estreita):
+    /// logo e empresa, projeto, cliente, CPF/CNPJ, endereço, município, CEP, U.C., responsável técnico com CREA e assinatura,
+    /// coordenadas UTM do centro da folha, conteúdo, área rural ou urbana, escala, data, nº da obra e folha;</item>
+    /// <item>na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos;</item>
     /// <item>marcas de dobramento da figura 21 (cópia dobrada em A4 com a legenda à vista).</item>
     /// </list>
     /// </summary>
     public static class SheetFrame
     {
-        // Legenda: duas fileiras de blocos com seis linhas de 7 mm. Em cima, alterações e responsável técnico; embaixo,
-        // projeto e cliente, e logo e folha. As larguras dos blocos são proporções, esticadas até os 180 mm
-        public const double RowHeight = 7;
-        private const int Rows = 6;
-        public const double BlockHeight = RowHeight * Rows;
-        private const double ChangesWidth = 50, ResponsibleWidth = 110, ClientWidth = 75, LogoWidth = 40;
-
         private const double TextHeight = 2.0;   // mm: campos da legenda ("CLIENTE: ...")
-        private const double SmallHeight = 1.6;  // mm: e-mails, títulos de quadro, nome da empresa
+        private const double SmallHeight = 1.6;  // mm: títulos de quadro
         private const double MinHeight = 1.4;    // mm: menor letra quando o texto não cabe
-        private const double TitleHeight = 3.5;  // mm: nome do desenho, à esquerda da legenda
+        private const double TitleHeight = 3.5;  // mm: nome do desenho, à esquerda da legenda (folha estreita)
         private const double Pad = 1.2;          // mm: da borda do quadro ao texto
-        private const double NotesMinWidth = 180; // mm: abaixo disso as notas vão para a coluna da legenda dos símbolos
 
         private const double GridBand = 5, GridField = 50, GridText = 3.5; // Malha de referência (NBR 16752, 4.4)
         private const double CenterMarkInside = 10;                       // Marcas de centro: 10 mm para dentro do quadro (4.3)
@@ -139,27 +119,25 @@ namespace FiberPlugin.Core
             Rect block = format.TitleBlock(landscape);
 
             paper.Boxes.Add((frame, format.FrameLineWidth));
-            paper.Lines.Add(new PaperLine(frame.MinX, block.MaxY, frame.MaxX, block.MaxY));
-            Legend(paper, block, plan, number, stamp, center);
-
-            // À esquerda da legenda: as notas técnicas e as observações; sem espaço para elas, o nome do desenho, e as notas
-            // vão para o pé da coluna da legenda dos símbolos
             paper.LegendArea = format.LegendArea(landscape);
-            var left = new Rect(frame.MinX, block.MinY, block.MinX, block.MaxY);
-            if (left.Width >= NotesMinWidth && stamp.Notes.Count > 0)
+            bool side = format.SideLegend(landscape);
+            if (side)
             {
-                NotesBox(paper, left, stamp.Notes);
+                // Coluna da direita, do pé ao alto do quadro: a legenda embaixo, o norte e os símbolos em cima
+                paper.Lines.Add(new PaperLine(block.MinX, frame.MinY, block.MinX, frame.MaxY));
             }
             else
             {
+                // Folha estreita: a legenda numa faixa embaixo e, à esquerda dela (se couber), o nome do desenho
+                paper.Lines.Add(new PaperLine(frame.MinX, block.MaxY, frame.MaxX, block.MaxY));
+                var left = new Rect(frame.MinX, block.MinY, block.MinX, block.MaxY);
                 if (left.Width >= 30)
                 {
-                    paper.Lines.Add(new PaperLine(block.MinX, block.MinY, block.MinX, block.MaxY));
                     double textWidth = left.Width - 8;
-                    paper.Texts.Add(Text(title, left.MinX + 4, left.MaxY - 4, Fit(title, TitleHeight, textWidth, 16, 3, 2.5), textWidth, PaperAnchor.TopLeft));
+                    paper.Texts.Add(Text(title, left.MinX + 4, left.MaxY - 4, Fit(title, TitleHeight, textWidth, left.Height - 8, 3, 2.5), textWidth, PaperAnchor.TopLeft));
                 }
-                if (stamp.Notes.Count > 0) paper.NotesLeftOut = !NotesInColumn(paper, stamp.Notes);
             }
+            Legend(paper, block, side, plan, number, stamp, center);
 
             var (_, horizontalFolds, corner) = Folds(width, height);
             ReferenceGrid(paper, format, landscape, frame);
@@ -188,114 +166,116 @@ namespace FiberPlugin.Core
 
         // ---------- Legenda ----------
 
-        private static void Legend(SheetPaper paper, Rect block, SheetPlan plan, int number, SheetStamp stamp, (double X, double Y) center)
-        {
-            paper.Boxes.Add((block, 0.35));
-            double middle = block.MinY + BlockHeight;
-            paper.Lines.Add(new PaperLine(block.MinX, middle, block.MaxX, middle));
-            var top = new Cells(block.MinX, block.MaxY, block.Width / (ChangesWidth + ResponsibleWidth));
-            Changes(paper, top, 0, stamp);
-            Responsible(paper, top, ChangesWidth, plan, stamp, center);
-            var bottom = new Cells(block.MinX, middle, block.Width / (ClientWidth + LogoWidth));
-            Client(paper, bottom, 0, stamp);
-            Logo(paper, bottom, ClientWidth, plan, number, stamp);
-        }
-
-        /// <summary>Quadro de alterações: título, aprovação, verificação e desenho (com o e-mail embaixo), revisão e motivo.</summary>
-        private static void Changes(SheetPaper paper, Cells g, double x0, SheetStamp stamp)
-        {
-            double w = ChangesWidth;
-            for (int r = 1; r < Rows; r++) g.HLine(paper, x0, x0 + w, r);
-            g.Center(paper, "ALTERAÇÕES", x0, w, 0, 1, 2.2);
-            g.Field(paper, x0, w, 1, "APROV.: " + stamp.Approver);
-            g.Person(paper, x0, w, 2, "VERIFI.: ", stamp.Checker, stamp.CheckerEmail);
-            g.Person(paper, x0, w, 3, "DESEN.: ", stamp.Drafter, stamp.DrafterEmail);
-            g.Field(paper, x0, w, 4, "REVISÃO: " + stamp.Revision);
-            g.Field(paper, x0, w, 5, "MOTIVO ALTERAÇÃO: " + stamp.RevisionReason);
-        }
-
         /// <summary>
-        /// Responsável técnico (nome, CREA e ART) com o espaço da assinatura ao lado; coordenadas UTM do centro da folha;
-        /// conteúdo e área do projeto; escala e data.
+        /// Legenda em dois blocos de sete linhas: identificação (logo e empresa, projeto, cliente, endereço, U.C.) e o técnico
+        /// (responsável técnico com a assinatura, coordenadas, conteúdo e área, escala, data, nº da obra e folha). Na coluna
+        /// da direita um fica em cima do outro; embaixo (folha estreita), lado a lado. A folha fica sempre no canto de baixo à
+        /// direita.
         /// </summary>
-        private static void Responsible(SheetPaper paper, Cells g, double x0, SheetPlan plan, SheetStamp stamp, (double X, double Y) center)
+        private static void Legend(SheetPaper paper, Rect block, bool side, SheetPlan plan, int number, SheetStamp stamp, (double X, double Y) center)
         {
-            const double nameWidth = 65, contentWidth = 72;
-            double w = ResponsibleWidth;
-            g.VLine(paper, x0, 0, Rows);
-            g.HLine(paper, x0, x0 + nameWidth, 1);
-            for (int r = 2; r < Rows; r++) if (r != 4) g.HLine(paper, x0, x0 + w, r);
-            g.VLine(paper, x0 + nameWidth, 0, 2);
-            g.VLine(paper, x0 + contentWidth, 3, Rows);
-
-            g.Field(paper, x0, nameWidth, 0, "RESPONSÁVEL TÉCNICO: " + stamp.Engineer);
-            g.Field(paper, x0, nameWidth, 1, "Nº CREA: " + stamp.Crea + (stamp.Art.Length > 0 ? "     ART: " + stamp.Art : ""));
-
-            // Assinatura: a imagem (se houver) ou o espaço com a linha para assinar
-            double sx = x0 + nameWidth;
-            paper.Texts.Add(Text("ASS.:", g.X(sx) + Pad, g.Row(0) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
-            double lineY = g.Row(2) + 2;
-            paper.Lines.Add(new PaperLine(g.X(sx + 8), lineY, g.X(x0 + w) - 2, lineY));
-            if (stamp.SignatureAspect > 0)
+            const double blockHeight = 7 * SheetFormat.LegendRow;
+            Rect identity, technical;
+            if (side)
             {
-                var room = new Rect(g.X(sx + 8), lineY - 1, g.X(x0 + w) - 2, g.Row(0) - 1);
-                paper.Images.Add((FitImage(room, stamp.SignatureAspect), PaperImage.Signature));
+                identity = new Rect(block.MinX, block.MaxY - blockHeight, block.MaxX, block.MaxY);
+                technical = new Rect(block.MinX, block.MinY, block.MaxX, block.MinY + blockHeight);
             }
-
-            string zone = stamp.Zone != null ? ZoneLabel(stamp.Zone, center.X, center.Y) + "     " : "";
-            g.Field(paper, x0, w, 2, $"COORDENADAS (UTM): {zone}X: {Coordinates.Meters(center.X)}     Y: {Coordinates.Meters(center.Y)}");
-
-            // Conteúdo (duas linhas de altura) e área do projeto com as caixas de marcar
-            paper.Texts.Add(Text("CONTEÚDO:", g.X(x0) + Pad, g.Row(3) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
-            g.Center(paper, stamp.Content, x0, contentWidth, 3, 5, 2.5, top: 2.5);
-            double ax = x0 + contentWidth;
-            paper.Texts.Add(Text("ÁREA DO PROJETO:", g.X(ax) + Pad, g.Row(3) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
-            CheckBox(paper, g.X(ax) + 4, g.Row(3) - 7.2, "RURAL", stamp.Area == ProjectInfo.Rural);
-            CheckBox(paper, g.X(ax) + 4, g.Row(3) - 11.4, "URBANO", stamp.Area == ProjectInfo.Urban);
-
-            g.Field(paper, x0, contentWidth, 5, "ESCALA: 1:" + plan.Scale.ToString(CultureInfo.InvariantCulture));
-            g.Field(paper, ax, w - contentWidth, 5, "DATA: " + stamp.Date);
+            else
+            {
+                double middle = block.MinX + block.Width / 2;
+                identity = new Rect(block.MinX, block.MinY, middle, block.MaxY);
+                technical = new Rect(middle, block.MinY, block.MaxX, block.MaxY);
+            }
+            paper.Boxes.Add((identity, 0));
+            paper.Boxes.Add((technical, 0));
+            paper.Boxes.Add((block, 0.35));
+            Identity(paper, identity, stamp);
+            Technical(paper, technical, plan, number, stamp, center);
         }
 
-        /// <summary>Projeto (no alto, centralizado), cliente, CPF/CNPJ, endereço, município, CEP e U.C.</summary>
-        private static void Client(SheetPaper paper, Cells g, double x0, SheetStamp stamp)
+        /// <summary>Logo com o nome da empresa ao lado, o projeto, cliente e CPF/CNPJ, endereço, município, CEP e U.C.</summary>
+        private static void Identity(SheetPaper paper, Rect r, SheetStamp stamp)
         {
-            const double zipWidth = 42;
-            double w = ClientWidth;
-            for (int r = 1; r < Rows; r++) g.HLine(paper, x0, x0 + w, r);
-            g.VLine(paper, x0 + zipWidth, 5, Rows);
-            g.Center(paper, stamp.Title, x0, w, 0, 1, 2.2);
-            g.Field(paper, x0, w, 1, "CLIENTE: " + stamp.Client);
-            g.Field(paper, x0, w, 2, "CPF/CNPJ: " + stamp.ClientDocument);
-            g.Field(paper, x0, w, 3, "ENDEREÇO: " + stamp.Address);
-            g.Field(paper, x0, w, 4, "MUNICÍPIO: " + stamp.City);
-            g.Field(paper, x0, zipWidth, 5, "CEP: " + stamp.ZipCode);
-            g.Field(paper, x0 + zipWidth, w - zipWidth, 5, "U.C.: " + stamp.ConsumerUnit);
-        }
+            var g = new Cells(r.MinX, r.MaxY);
+            double w = r.Width, logo = Math.Round(w * 0.38);
+            g.VLine(paper, logo, 0, 3);
+            for (int row = 3; row < 7; row++) g.HLine(paper, 0, w, row);
 
-        /// <summary>Logo com o nome da empresa embaixo, nº da obra e o número da folha em letra grande.</summary>
-        private static void Logo(SheetPaper paper, Cells g, double x0, SheetPlan plan, int number, SheetStamp stamp)
-        {
-            double w = LogoWidth;
-            g.VLine(paper, x0, 0, Rows);
-            g.HLine(paper, x0, x0 + w, 3);
-            g.HLine(paper, x0, x0 + w, 4);
-
-            double companyTop = g.Row(3) + 5.2;
             if (stamp.LogoAspect > 0)
             {
-                var room = new Rect(g.X(x0) + Pad, companyTop + 0.6, g.X(x0 + w) - Pad, g.Row(0) - Pad);
+                var room = new Rect(r.MinX + Pad, g.Row(3) + Pad, r.MinX + logo - Pad, g.Row(0) - Pad);
                 paper.Images.Add((FitImage(room, stamp.LogoAspect), PaperImage.Logo));
             }
             if (stamp.Company.Length > 0)
             {
-                double textWidth = g.Width(w) - 2 * Pad;
-                paper.Texts.Add(Text(stamp.Company, g.X(x0) + Pad, companyTop, Fit(stamp.Company, SmallHeight, textWidth, 4.6, 2, 1.2), textWidth, PaperAnchor.TopLeft));
+                double textWidth = w - logo - 2 * Pad;
+                paper.Texts.Add(Text(stamp.Company, r.MinX + logo + (w - logo) / 2, g.Row(1.5),
+                    Fit(stamp.Company, 2.2, textWidth, 3 * SheetFormat.LegendRow - 2, 3, MinHeight), textWidth, PaperAnchor.MiddleCenter));
             }
 
-            g.Field(paper, x0, w, 3, "Nº OBRA: " + stamp.WorkNumber);
-            paper.Texts.Add(Text("FOLHA:", g.X(x0) + Pad, g.Row(4) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
-            g.Center(paper, Sheet(number, plan.Tiles.Count), x0, w, 4, 6, 5, top: 2);
+            g.Center(paper, stamp.Title, 0, w, 3, 4, 2.4);
+            double client = Math.Round(w * 0.6), city = Math.Round(w * 0.48), zip = Math.Round(w * 0.24);
+            g.VLine(paper, client, 4, 5);
+            g.Field(paper, 0, client, 4, "CLIENTE: " + stamp.Client);
+            g.Field(paper, client, w - client, 4, "CPF/CNPJ: " + stamp.ClientDocument);
+            g.Field(paper, 0, w, 5, "ENDEREÇO: " + stamp.Address);
+            g.VLine(paper, city, 6, 7);
+            g.VLine(paper, city + zip, 6, 7);
+            g.Field(paper, 0, city, 6, "MUNICÍPIO: " + stamp.City);
+            g.Field(paper, city, zip, 6, "CEP: " + stamp.ZipCode);
+            g.Field(paper, city + zip, w - city - zip, 6, "U.C.: " + stamp.ConsumerUnit);
+        }
+
+        /// <summary>
+        /// Responsável técnico (nome, CREA e ART) com o espaço da assinatura ao lado; coordenadas UTM do centro da folha;
+        /// conteúdo e área do projeto; escala, data e nº da obra, com o número da folha em letra grande no canto.
+        /// </summary>
+        private static void Technical(SheetPaper paper, Rect r, SheetPlan plan, int number, SheetStamp stamp, (double X, double Y) center)
+        {
+            var g = new Cells(r.MinX, r.MaxY);
+            double w = r.Width, split = Math.Round(w * 0.6), half = Math.Round(split / 2);
+            g.VLine(paper, split, 0, 2);
+            g.VLine(paper, split, 3, 7);
+            g.HLine(paper, 0, w, 2);
+            g.HLine(paper, 0, w, 3);
+            g.HLine(paper, 0, w, 5);
+            g.HLine(paper, 0, split, 6);
+            g.VLine(paper, half, 5, 6);
+
+            // Responsável técnico: título do quadro, nome e CREA, uma linha embaixo da outra
+            double room = split - 2 * Pad;
+            paper.Texts.Add(Text("RESPONSÁVEL TÉCNICO:", r.MinX + Pad, g.Row(0) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
+            if (stamp.Engineer.Length > 0)
+                paper.Texts.Add(Text(stamp.Engineer, r.MinX + Pad, g.Row(0) - 4.3, Fit(stamp.Engineer, TextHeight, room, 4, 1, MinHeight), 0, PaperAnchor.TopLeft));
+            string crea = "Nº CREA: " + stamp.Crea + (stamp.Art.Length > 0 ? "   ART: " + stamp.Art : "");
+            paper.Texts.Add(Text(crea, r.MinX + Pad, g.Row(0) - 8.9, Fit(crea, 1.8, room, 4, 1, MinHeight), 0, PaperAnchor.TopLeft));
+
+            // Assinatura: a imagem (se houver) ou o espaço com a linha para assinar
+            paper.Texts.Add(Text("ASS.:", r.MinX + split + Pad, g.Row(0) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
+            double lineY = g.Row(2) + 2;
+            paper.Lines.Add(new PaperLine(r.MinX + split + 4, lineY, r.MaxX - 3, lineY));
+            if (stamp.SignatureAspect > 0)
+            {
+                var signature = new Rect(r.MinX + split + 4, lineY - 1, r.MaxX - 3, g.Row(0) - 3);
+                paper.Images.Add((FitImage(signature, stamp.SignatureAspect), PaperImage.Signature));
+            }
+
+            string zone = stamp.Zone != null ? ZoneLabel(stamp.Zone, center.X, center.Y) + "   " : "";
+            g.Field(paper, 0, w, 2, $"COORDENADAS (UTM): {zone}X: {Coordinates.Meters(center.X)}   Y: {Coordinates.Meters(center.Y)}");
+
+            // Conteúdo (duas linhas de altura) e área do projeto com as caixas de marcar
+            paper.Texts.Add(Text("CONTEÚDO:", r.MinX + Pad, g.Row(3) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
+            g.Center(paper, stamp.Content, 0, split, 3, 5, 2.5, top: 2.5);
+            paper.Texts.Add(Text("ÁREA DO PROJETO:", r.MinX + split + Pad, g.Row(3) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
+            CheckBox(paper, r.MinX + split + 4, g.Row(3) - 7.2, "RURAL", stamp.Area == ProjectInfo.Rural);
+            CheckBox(paper, r.MinX + split + 4, g.Row(3) - 11.4, "URBANO", stamp.Area == ProjectInfo.Urban);
+
+            g.Field(paper, 0, half, 5, "ESCALA: 1:" + plan.Scale.ToString(CultureInfo.InvariantCulture));
+            g.Field(paper, half, split - half, 5, "DATA: " + stamp.Date);
+            g.Field(paper, 0, split, 6, "Nº OBRA: " + stamp.WorkNumber);
+            paper.Texts.Add(Text("FOLHA:", r.MinX + split + Pad, g.Row(5) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
+            g.Center(paper, Sheet(number, plan.Tiles.Count), split, w - split, 5, 7, 5, top: 2);
         }
 
         private static void CheckBox(SheetPaper paper, double x, double y, string label, bool marked)
@@ -318,111 +298,43 @@ namespace FiberPlugin.Core
             return new Rect(room.CenterX - w / 2, room.CenterY - h / 2, room.CenterX + w / 2, room.CenterY + h / 2);
         }
 
-        /// <summary>
-        /// Linhas de uma fileira da legenda, de cima para baixo, com as larguras dos blocos multiplicadas pela escala que
-        /// estica a fileira até os 180 mm (o texto que não cabe diminui).
-        /// </summary>
+        /// <summary>Linhas de um bloco da legenda, de cima para baixo (x em mm a partir da esquerda do bloco).</summary>
         private sealed class Cells
         {
-            private readonly double _left, _top, _scale;
+            private readonly double _left, _top;
 
-            public Cells(double left, double top, double scale)
+            public Cells(double left, double top)
             {
                 _left = left;
                 _top = top;
-                _scale = scale;
             }
 
-            public double X(double local) => _left + local * _scale;
-            public double Width(double local) => local * _scale;
-            public double Row(double row) => _top - row * RowHeight;
+            public double Row(double row) => _top - row * SheetFormat.LegendRow;
 
             public void HLine(SheetPaper paper, double x1, double x2, double row) =>
-                paper.Lines.Add(new PaperLine(X(x1), Row(row), X(x2), Row(row)));
+                paper.Lines.Add(new PaperLine(_left + x1, Row(row), _left + x2, Row(row)));
 
             public void VLine(SheetPaper paper, double x, double fromRow, double toRow) =>
-                paper.Lines.Add(new PaperLine(X(x), Row(fromRow), X(x), Row(toRow)));
+                paper.Lines.Add(new PaperLine(_left + x, Row(fromRow), _left + x, Row(toRow)));
 
             /// <summary>"RÓTULO: valor" numa linha, no meio da altura da linha; diminui a letra para caber.</summary>
             public void Field(SheetPaper paper, double x, double w, int row, string text)
             {
-                double room = Width(w) - 2 * Pad;
-                paper.Texts.Add(Text(text, X(x) + Pad, Row(row) - RowHeight / 2, Fit(text, TextHeight, room, RowHeight, 1, MinHeight), 0, PaperAnchor.MiddleLeft));
-            }
-
-            /// <summary>Nome na linha de cima e o e-mail embaixo, um pouco para dentro (VERIFI. e DESEN.).</summary>
-            public void Person(SheetPaper paper, double x, double w, int row, string label, string name, string email)
-            {
-                double room = Width(w) - 2 * Pad;
-                string text = label + name;
-                if (email.Length == 0)
-                {
-                    Field(paper, x, w, row, text);
-                    return;
-                }
-                paper.Texts.Add(Text(text, X(x) + Pad, Row(row) - 0.9, Fit(text, TextHeight, room, RowHeight, 1, MinHeight), 0, PaperAnchor.TopLeft));
-                paper.Texts.Add(Text(email, X(x) + Pad + 3, Row(row) - 4.0, Fit(email, SmallHeight, room - 3, RowHeight, 1, 1.2), 0, PaperAnchor.TopLeft));
+                double room = w - 2 * Pad;
+                paper.Texts.Add(Text(text, _left + x + Pad, Row(row + 0.5), Fit(text, TextHeight, room, SheetFormat.LegendRow, 1, MinHeight), 0, PaperAnchor.MiddleLeft));
             }
 
             /// <summary>Texto no meio do quadro (centralizado na largura), entre as linhas <paramref name="fromRow"/> e <paramref name="toRow"/>.</summary>
             public void Center(SheetPaper paper, string text, double x, double w, int fromRow, int toRow, double height, double top = 0)
             {
                 if (text.Length == 0) return;
-                double room = Width(w) - 2 * Pad;
+                double room = w - 2 * Pad;
                 double y = (Row(fromRow) - top + Row(toRow)) / 2;
-                paper.Texts.Add(Text(text, X(x) + Width(w) / 2, y, Fit(text, height, room, (toRow - fromRow) * RowHeight - top, 1, MinHeight), 0, PaperAnchor.MiddleCenter));
+                paper.Texts.Add(Text(text, _left + x + w / 2, y, Fit(text, height, room, (toRow - fromRow) * SheetFormat.LegendRow - top, 1, MinHeight), 0, PaperAnchor.MiddleCenter));
             }
         }
 
-        // ---------- Notas e avisos ----------
-
-        /// <summary>Quadro NOTAS TÉCNICAS (numeradas) e, à direita dele, o de observações, na altura da legenda.</summary>
-        private static void NotesBox(SheetPaper paper, Rect area, IReadOnlyList<string> notes)
-        {
-            double obsWidth = Math.Min(70, area.Width * 0.22);
-            var notesArea = new Rect(area.MinX, area.MinY, area.MaxX - obsWidth, area.MaxY);
-            paper.Lines.Add(new PaperLine(notesArea.MaxX, area.MinY, notesArea.MaxX, area.MaxY));
-            paper.Lines.Add(new PaperLine(area.MaxX, area.MinY, area.MaxX, area.MaxY));
-            paper.Texts.Add(Text("OBS.:", notesArea.MaxX + Pad, area.MaxY - Pad, TextHeight, 0, PaperAnchor.TopLeft));
-            NotesText(paper, notesArea, notes);
-        }
-
-        /// <summary>
-        /// Notas no pé da coluna da legenda dos símbolos (folhas sem espaço ao lado da legenda). False se não couberem
-        /// deixando pelo menos 100 mm para o norte e os símbolos.
-        /// </summary>
-        private static bool NotesInColumn(SheetPaper paper, IReadOnlyList<string> notes)
-        {
-            Rect column = paper.LegendArea;
-            double needed = 8 + ParagraphsHeight(Numbered(notes), MinHeight + 0.2, column.Width - 2 * Pad) + 2;
-            if (column.Height - needed < 100) return false;
-
-            var box = new Rect(column.MinX, column.MinY, column.MaxX, column.MinY + needed);
-            paper.Lines.Add(new PaperLine(box.MinX, box.MaxY, box.MaxX, box.MaxY));
-            NotesText(paper, box, notes);
-            paper.LegendArea = new Rect(column.MinX, box.MaxY, column.MaxX, column.MaxY);
-            return true;
-        }
-
-        private static void NotesText(SheetPaper paper, Rect area, IReadOnlyList<string> notes)
-        {
-            paper.Texts.Add(Text("NOTAS TÉCNICAS:", area.CenterX, area.MaxY - 3.5, 2.2, 0, PaperAnchor.MiddleCenter));
-            string[] numbered = Numbered(notes);
-            double textWidth = area.Width - 2 * Pad, room = area.Height - 7 - Pad;
-            double height = 2.5; // Diminui até caber no quadro
-            while (height > MinHeight + 1e-9 && ParagraphsHeight(numbered, height, textWidth) > room) height = Math.Round(height - 0.1, 1);
-            paper.Texts.Add(Text(string.Join("\n", numbered), area.MinX + Pad, area.MaxY - 7, height, textWidth, PaperAnchor.TopLeft));
-        }
-
-        private static string[] Numbered(IReadOnlyList<string> notes) =>
-            notes.Select((note, i) => $"{i + 1}. {note}").ToArray();
-
-        /// <summary>Altura estimada dos parágrafos (cada um começa numa linha nova) quebrados na largura.</summary>
-        private static double ParagraphsHeight(IEnumerable<string> paragraphs, double height, double width)
-        {
-            int lines = paragraphs.Sum(p => Math.Max(1, (int)Math.Ceiling(p.Length * CharWidth * height / width)));
-            return height * (1 + Descent) + (lines - 1) * height * LineSpacing;
-        }
+        // ---------- Avisos ----------
 
         /// <summary>
         /// Os dois avisos na margem esquerda (fora da malha), em pé, lidos de baixo para cima: a Lei 5.194/66 no alto e a
@@ -478,7 +390,7 @@ namespace FiberPlugin.Core
         // largura média de uma letra (fonte do estilo Standard, contando com maiúsculas), em alturas de letra
         private const double LineSpacing = 5.0 / 3.0;
         private const double Descent = 0.35;
-        private const double CharWidth = 0.8;
+        private const double CharWidth = 0.86;
 
         /// <summary>
         /// Maior altura de letra, de <paramref name="height"/> para baixo até <paramref name="minimum"/>, em que o texto cabe

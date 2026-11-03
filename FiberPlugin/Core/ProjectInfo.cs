@@ -7,7 +7,7 @@ namespace FiberPlugin.Core
     /// <summary>
     /// Dados do projeto usados nos documentos (Memorial Descritivo, Memorial de Esforço e Coordenadas dos Postes) e no
     /// carimbo das folhas do Gerar Folhas: percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo da
-    /// obra; cliente, U.C., nº da obra, equipe e revisão (aba Carimbo). Ficam gravados no DWG e também em
+    /// obra; cliente, U.C., nº da obra, conteúdo e área (aba Carimbo). Ficam gravados no DWG e também em
     /// Documentos\Fiber Plugin\projeto.txt (os últimos salvos, fora do repositório): o campo que o desenho não tiver
     /// vem do arquivo, para não precisar digitar de novo a cada desenho.
     /// </summary>
@@ -17,15 +17,14 @@ namespace FiberPlugin.Core
         public const string FileName = "projeto.txt";
         public const string Rural = "Rural", Urban = "Urbana";
         public const string DefaultContent = "PROJETO DE REDE ÓPTICA";
-        public const string DefaultRevision = "REV. 00 - EMISSÃO INICIAL";
 
-        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90)
+        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90). A 1.9.90
+        // também gravava, nas posições 14 a 20, o quadro de alterações (desenhista, verificador, aprovador, revisão), que
+        // saiu da legenda: um campo novo deve entrar depois da posição 20, para não ler o que ficou lá
         private static readonly string[] Labels =
         {
             "Percurso", "Endereço da obra", "Contrato de uso mútuo", "ART", "Início previsto", "Prazo de execução",
-            "Cliente", "CPF/CNPJ do cliente", "Município", "CEP", "U.C.", "Nº da obra", "Área do projeto", "Conteúdo",
-            "Desenhista", "E-mail do desenhista", "Verificador", "E-mail do verificador", "Aprovador", "Revisão",
-            "Motivo da alteração"
+            "Cliente", "CPF/CNPJ do cliente", "Município", "CEP", "U.C.", "Nº da obra", "Área do projeto", "Conteúdo"
         };
 
         public string Route { get; set; } = "";
@@ -44,13 +43,6 @@ namespace FiberPlugin.Core
         public string WorkNumber { get; set; } = "";      // Nº da obra
         public string Area { get; set; } = "";            // Rural, Urbana ou vazio
         public string Content { get; set; } = "";         // Conteúdo (ex.: PROJETO DE REDE ÓPTICA)
-        public string Drafter { get; set; } = "";         // Desenhista
-        public string DrafterEmail { get; set; } = "";
-        public string Checker { get; set; } = "";         // Verificador
-        public string CheckerEmail { get; set; } = "";
-        public string Approver { get; set; } = "";
-        public string Revision { get; set; } = "";
-        public string RevisionReason { get; set; } = "";
 
         /// <summary>
         /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
@@ -69,8 +61,7 @@ namespace FiberPlugin.Core
         private string[] Values => new[]
         {
             Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline,
-            Client, ClientDocument, City, ZipCode, ConsumerUnit, WorkNumber, Area, Content,
-            Drafter, DrafterEmail, Checker, CheckerEmail, Approver, Revision, RevisionReason
+            Client, ClientDocument, City, ZipCode, ConsumerUnit, WorkNumber, Area, Content
         };
 
         /// <summary>Mesmos textos e mesma zona (para saber se algo mudou na aba Projeto).</summary>
@@ -82,8 +73,7 @@ namespace FiberPlugin.Core
         {
             Route = v[0], WorkAddress = v[1], ContractNumber = v[2], ArtNumber = v[3], StartDate = v[4], Deadline = v[5],
             Client = v[6], ClientDocument = v[7], City = v[8], ZipCode = v[9], ConsumerUnit = v[10], WorkNumber = v[11],
-            Area = v[12], Content = v[13], Drafter = v[14], DrafterEmail = v[15], Checker = v[16], CheckerEmail = v[17],
-            Approver = v[18], Revision = v[19], RevisionReason = v[20]
+            Area = v[12], Content = v[13]
         };
 
         /// <summary>Uma cópia, para mudar só alguns campos e gravar sem perder os outros.</summary>
@@ -102,9 +92,7 @@ namespace FiberPlugin.Core
             Dictionary<string, string> file = ReadFile();
 
             ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(file, Labels[i])).ToArray());
-            // Sem nada gravado ainda: o conteúdo e a revisão de uma primeira emissão
-            if (info.Content.Length == 0) info.Content = DefaultContent;
-            if (info.Revision.Length == 0) info.Revision = DefaultRevision;
+            if (info.Content.Length == 0) info.Content = DefaultContent; // Sem nada gravado ainda
             info.Zone = UtmZone.Get(db);
             if (info.Zone == null && ParseZone(FromFile(file, ZoneLabel)) is UtmSettings saved)
             {
