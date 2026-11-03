@@ -10,7 +10,7 @@ namespace FiberPlugin.UI
     /// enquanto digita e mostra o tamanho da área; trocar Lat/Long ↔ UTM ou Retângulo ↔ Centro converte o que já foi
     /// preenchido. Se a área já tem ruas no desenho, oferece escrever só os nomes.
     /// </summary>
-    internal class RoadsForm : Form
+    internal class RoadsForm : ThemedForm
     {
         private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos" };
         private const int RowHeight = 36;  // Linha "rótulo | opções": botão de 28 + margens e folga
@@ -72,7 +72,6 @@ namespace FiberPlugin.UI
             // Com ruas no desenho entra a linha "Ruas no desenho" e a dica dela
             bool hasDrawn = _drawn.Count > 0;
 
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - Importar Ruas";
             ClientSize = new Size(700, (hasDrawn ? 830 : 758) + 38);
 
@@ -243,7 +242,6 @@ namespace FiberPlugin.UI
                 _radius.Box.Input.Focus();
             };
 
-            Load += (s, e) => ApplyKindAndMode();
             pick.Click += (s, e) => Pick();
             _ok.Click += (s, e) =>
             {
@@ -409,13 +407,8 @@ namespace FiberPlugin.UI
         private void ApplyKindAndMode()
         {
             bool geo = _kind.SelectedIndex == 0;
-            // Antes de a janela carregar os dois painéis ficam visíveis: o Windows Forms não ajusta a escala (DPI)
-            // de um painel que começa escondido, e ele apareceria maior que o resto ao trocar para ele
-            if (IsHandleCreated)
-            {
-                _rectPanel.Visible = _mode.SelectedIndex == 0;
-                _centerPanel.Visible = _mode.SelectedIndex == 1;
-            }
+            _rectPanel.Visible = _mode.SelectedIndex == 0;
+            _centerPanel.Visible = _mode.SelectedIndex == 1;
 
             _rectPanel.Geographic = geo;
             Set(_north, geo ? "Norte · latitude" : "Norte · N (m)", geo ? "ex.: -3.0950" : "ex.: 9657100");

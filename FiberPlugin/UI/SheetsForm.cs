@@ -10,7 +10,7 @@ namespace FiberPlugin.UI
     /// (em destaque quando há um aviso). À direita a prévia da divisão (as folhas que serão criadas, com o nome, e os
     /// pedaços vazios que ficam de fora) e o resumo. Confere enquanto digita.
     /// </summary>
-    internal class SheetsForm : Form
+    internal class SheetsForm : ThemedForm
     {
         private const int MaxSheets = 300;   // Mais que isso é escala ou área errada
         private const int ManySheets = 60;   // Acima disso ainda gera, com aviso
@@ -61,12 +61,8 @@ namespace FiberPlugin.UI
             _drawingScale = drawingScale;
             _existingSheets = existingSheets;
 
-            Theme.ApplyForm(this);
-            // Os tamanhos daqui são multiplicados pela escala da tela (S): no AutoCAD a escala automática do Windows Forms não
-            // acompanhava a fonte (em 125% os textos cresciam e as linhas, não)
-            AutoScaleMode = AutoScaleMode.None;
             Text = "Fiber Plugin - Gerar Folhas";
-            ClientSize = new Size(S(980), S(440));
+            ClientSize = new Size(980, 440);
 
             var header = new HeaderPanel
             {
@@ -76,9 +72,9 @@ namespace FiberPlugin.UI
             };
 
             // ---------- Área do projeto ----------
-            _pick = new ThemedButton("Marcar no desenho", false) { Margin = new Padding(0, S(4), S(6), S(4)) };
-            _useNetwork = new ThemedButton("Área da rede", false) { Margin = new Padding(0, S(4), S(6), S(4)), Enabled = network != null };
-            _useWhole = new ThemedButton("Desenho todo", false) { Margin = new Padding(0, S(4), 0, S(4)), Enabled = _whole != null };
+            _pick = new ThemedButton("Marcar no desenho", false) { Margin = new Padding(0, 4, 6, 4) };
+            _useNetwork = new ThemedButton("Área da rede", false) { Margin = new Padding(0, 4, 6, 4), Enabled = network != null };
+            _useWhole = new ThemedButton("Desenho todo", false) { Margin = new Padding(0, 4, 0, 4), Enabled = _whole != null };
             var areaButtons = new FlowLayoutPanel { WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
             areaButtons.Controls.AddRange(new Control[] { _pick, _useNetwork, _useWhole });
             _areaText = new Label { AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true, Margin = Padding.Empty };
@@ -94,9 +90,9 @@ namespace FiberPlugin.UI
 
             // ---------- Folha ----------
             _format = new ChoiceBar(SheetFormat.All.Select(f => f.Name).ToArray());
-            foreach (Control button in _format.Controls) button.Width = S(56); // "A0" a "A4": botões estreitos, os cinco numa linha
+            foreach (Control button in _format.Controls) button.Width = 56; // "A0" a "A4": botões estreitos, os cinco numa linha
             _orientation = new ChoiceBar("Automática", "Paisagem", "Retrato");
-            TableLayoutPanel sheetGrid = FormLayout.OptionGrid(S(96), S(36), ("Tamanho", _format), ("Orientação", _orientation));
+            TableLayoutPanel sheetGrid = FormLayout.OptionGrid(96, 36, ("Tamanho", _format), ("Orientação", _orientation));
             _sheetHelp = new HelpButton("Folha");
 
             // ---------- Escala, sobreposição e nomes ----------
@@ -114,7 +110,7 @@ namespace FiberPlugin.UI
                 (Fields((_scale, _scaleHelp), (_overlap, _overlapHelp), (_prefix, _prefixHelp)), 56));
 
             // ---------- Prévia ----------
-            _preview = new SheetPreview { Margin = new Padding(0, S(2), 0, S(2)) };
+            _preview = new SheetPreview { Margin = new Padding(0, 2, 0, 2) };
             _status = new StatusLabel { Margin = Padding.Empty };
             _previewHelp = new HelpButton("Prévia das folhas")
             {
@@ -122,9 +118,9 @@ namespace FiberPlugin.UI
                            "desenhado: não viram folha. A linha tracejada clara é a área escolhida.\n\n" + SheetContents
             };
             var right = Column((Section("Prévia das folhas", _previewHelp), 30), (_preview, 0), (_status, 36));
-            right.Padding = new Padding(S(16), 0, 0, 0);
+            right.Padding = new Padding(16, 0, 0, 0);
 
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(S(18), S(6), S(18), S(8)), BackColor = Theme.Background };
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(18, 6, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -177,9 +173,6 @@ namespace FiberPlugin.UI
 
             UpdateAll();
         }
-
-        /// <summary>Pixels de 96 dpi na escala da tela.</summary>
-        private int S(int pixels) => Theme.Scale(this, pixels);
 
         private void UseArea(Rect area, string source)
         {
@@ -347,7 +340,7 @@ namespace FiberPlugin.UI
             column.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in rows)
             {
-                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, S(height)) : new RowStyle(SizeType.Percent, 100));
+                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, height) : new RowStyle(SizeType.Percent, 100));
                 control.Dock = DockStyle.Fill;
                 column.Controls.Add(control, 0, column.RowCount++);
             }
@@ -364,12 +357,12 @@ namespace FiberPlugin.UI
                 Font = Theme.Section,
                 ForeColor = Theme.Muted,
                 AutoSize = true,
-                Margin = new Padding(0, S(11), S(6), 0)
+                Margin = new Padding(0, 11, 6, 0)
             });
             if (help != null)
             {
-                help.Size = new Size(S(20), S(20));
-                help.Margin = new Padding(0, S(7), 0, 0);
+                help.Size = new Size(20, 20);
+                help.Margin = new Padding(0, 7, 0, 0);
                 row.Controls.Add(help);
             }
             return row;
@@ -380,19 +373,19 @@ namespace FiberPlugin.UI
         {
             var row = new TableLayoutPanel { ColumnCount = 2 * fields.Length, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
             row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            int help = S(22);
+            int help = 22;
             // O LabeledInput tem tamanhos fixos (título de 20 e caixa de 28, abaixo de 2 de margem): o "?" no meio da caixa
             int helpTop = 2 + 20 + (28 - help) / 2;
             for (int i = 0; i < fields.Length; i++)
             {
                 row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / fields.Length));
-                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(i == fields.Length - 1 ? 24 : 32)));
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, i == fields.Length - 1 ? 24 : 32));
                 var (field, button) = fields[i];
                 field.Dock = DockStyle.Fill;
-                field.Margin = new Padding(0, 2, S(4), 2);
+                field.Margin = new Padding(0, 2, 4, 2);
                 button.Size = new Size(help, help);
                 button.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-                button.Margin = new Padding(0, Math.Max(0, helpTop), 0, 0);
+                button.Margin = new Padding(0, helpTop, 0, 0);
                 row.Controls.Add(field, 2 * i, 0);
                 row.Controls.Add(button, 2 * i + 1, 0);
             }

@@ -8,7 +8,7 @@ namespace FiberPlugin.UI
     /// tração (Tabela 08 da norma ou peso do cabo) e altura mínima do cabo ao solo, com atalhos da Tabela 02.
     /// Confere os valores enquanto o usuário digita.
     /// </summary>
-    internal class ParametersForm : Form
+    internal class ParametersForm : ThemedForm
     {
         private static readonly double[] Clearances = { 5.0, 4.5, 3.0 }; // Tabela 02: ruas, rural com veículos, pedestres
 
@@ -26,7 +26,6 @@ namespace FiberPlugin.UI
 
         public ParametersForm(CalcSettings current)
         {
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - Parâmetros de Cálculo";
             ClientSize = new Size(600, 556);
 

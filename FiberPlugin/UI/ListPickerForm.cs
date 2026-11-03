@@ -8,7 +8,7 @@ namespace FiberPlugin.UI
     /// Janela de escolha com busca e lista (cabo, modelo de poste, bloco): cabeçalho, campo de busca,
     /// lista filtrada e botões. Enter ou duplo clique confirma.
     /// </summary>
-    internal class ListPickerForm<T> : Form where T : class
+    internal class ListPickerForm<T> : ThemedForm where T : class
     {
         private readonly List<T> _items;
         private readonly Func<T, string, bool> _matches;
@@ -33,7 +33,6 @@ namespace FiberPlugin.UI
             _items = items;
             _matches = matches;
 
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - " + heading;
             ClientSize = new Size(480, 500);
 

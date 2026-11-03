@@ -139,7 +139,7 @@ namespace FiberPlugin.UI
     /// (Documentos\Fiber Plugin\cabos.txt, postes.txt, tracao.txt e empresa.txt); Nomes e Desenho vão para
     /// configuracoes.txt (UserSettings). Valem para todos os desenhos. Confere tudo enquanto o usuário digita.
     /// </summary>
-    internal class SettingsForm : Form
+    internal class SettingsForm : ThemedForm
     {
         private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5,
             CableLinetype = 6, CableLineWeight = 7;
@@ -253,7 +253,6 @@ namespace FiberPlugin.UI
             _visible = tabs ?? Enumerable.Range(0, TabTitles.Length).ToArray();
             Settings = settings.Clone();
             Traction = traction;
-            Theme.ApplyForm(this);
             // Configuração de Projeto (dados deste projeto e da empresa) ou de Desenho (o plugin e o que ele põe no desenho)
             bool projectWindow = _visible.Contains(TabProject) && !_visible.Contains(TabCables);
             string title = projectWindow ? "Configuração de Projeto" : "Configuração de Desenho";
@@ -521,14 +520,15 @@ namespace FiberPlugin.UI
                 grid.RowsRemoved += (s, e) => UpdateStatus();
                 grid.RowsAdded += (s, e) => UpdateStatus();
             }
-            // A aba inicial é marcada antes de ligar o evento: as páginas só se escondem no Load (por causa do DPI)
+            // A aba inicial é marcada antes de ligar o evento: as páginas só se escondem no Load (veja abaixo)
             _tabs.SelectedIndex = Math.Max(0, Array.IndexOf(_visible, initialTab));
             _tabs.SelectedChanged += (s, e) => { ShowPage(CurrentTab); UpdateStatus(); };
             Shown += (s, e) => { if (CurrentTab == TabProject) _project.FocusFirst(); };
             _defaults.Click += (s, e) => RestoreDefaults();
             _ok.Click += (s, e) => Save();
 
-            // As páginas ficam visíveis até a janela carregar: escondidas antes disso não acompanham a escala do DPI
+            // As páginas ficam visíveis até a janela carregar: assim as tabelas de todas as abas são criadas junto com ela e o
+            // ClearSelection tira de todas a seleção da primeira célula
             Load += (s, e) =>
             {
                 ShowPage(CurrentTab);

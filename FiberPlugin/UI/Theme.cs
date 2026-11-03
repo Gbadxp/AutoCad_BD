@@ -152,11 +152,11 @@ namespace FiberPlugin.UI
         private static readonly string? IconFamily = FindIconFamily();
         private const string SearchGlyph = "\uE721";
 
+        /// <summary>Cores, fonte e bordas de uma janela (a ThemedForm chama ao ser criada).</summary>
         public static void ApplyForm(Form form)
         {
             Refresh();
-            form.AutoScaleDimensions = new SizeF(96F, 96F);
-            form.AutoScaleMode = AutoScaleMode.Dpi;
+            form.AutoScaleMode = AutoScaleMode.None; // A escala da tela é aplicada pela ThemedForm, no Load
             form.BackColor = Background;
             form.ForeColor = Text;
             form.Font = Body;
@@ -168,7 +168,6 @@ namespace FiberPlugin.UI
             form.ShowInTaskbar = false;
             form.StartPosition = FormStartPosition.CenterScreen;
             if (Current.IsDark) form.HandleCreated += (s, e) => UseDarkTitleBar(form.Handle);
-            form.Load += (s, e) => WindowSizes.Attach(form);
         }
 
         /// <summary>Barras de rolagem escuras no tema escuro (Windows 10 1809+).</summary>

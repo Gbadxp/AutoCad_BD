@@ -20,7 +20,7 @@ namespace FiberPlugin.UI
     /// esforços) vêm do desenho e aparecem no cabeçalho. Campo que o documento não usa não aparece e mantém o
     /// valor recebido, para não apagar o que foi gravado no desenho.
     /// </summary>
-    internal class MemorialForm : Form
+    internal class MemorialForm : ThemedForm
     {
         private readonly TableLayoutPanel _body;
         private readonly InputBox? _route;
@@ -51,7 +51,6 @@ namespace FiberPlugin.UI
             _initial = new[] { route, address, placeAndDate, contract, art, start, deadline };
             bool Has(MemorialFields f) => (fields & f) != 0;
 
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - " + heading;
 
             // Altura conforme o número de linhas de campos (contrato e ART dividem uma linha, início e prazo outra)
