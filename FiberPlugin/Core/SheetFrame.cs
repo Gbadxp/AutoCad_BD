@@ -87,7 +87,7 @@ namespace FiberPlugin.Core
     /// <list type="bullet">
     /// <item>quadro com margem de 20 mm à esquerda e 10 mm nas outras, na largura de linha da tabela 4;</item>
     /// <item>malha de referência (letras e números na faixa de 5 mm em volta do quadro), marcas de centro e de corte;</item>
-    /// <item>legenda de 180 mm no canto inferior direito, no pé da coluna da direita (figura 11 a; embaixo em folha estreita):
+    /// <item>legenda de 180 mm deitada no canto inferior direito (com o norte e os símbolos na coluna da direita, acima):
     /// logo e empresa, projeto, cliente, CPF/CNPJ, endereço, município, CEP, U.C., responsável técnico com CREA e assinatura,
     /// coordenadas UTM do centro da folha, conteúdo, área rural ou urbana, escala, data, nº da obra e folha;</item>
     /// <item>na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos;</item>
@@ -120,24 +120,16 @@ namespace FiberPlugin.Core
 
             paper.Boxes.Add((frame, format.FrameLineWidth));
             paper.LegendArea = format.LegendArea(landscape);
-            bool side = format.SideLegend(landscape);
-            if (side)
+
+            // A legenda numa faixa embaixo e, à esquerda dela (se couber), o nome do desenho
+            paper.Lines.Add(new PaperLine(frame.MinX, block.MaxY, frame.MaxX, block.MaxY));
+            var left = new Rect(frame.MinX, block.MinY, block.MinX, block.MaxY);
+            if (left.Width >= 30)
             {
-                // Coluna da direita, do pé ao alto do quadro: a legenda embaixo, o norte e os símbolos em cima
-                paper.Lines.Add(new PaperLine(block.MinX, frame.MinY, block.MinX, frame.MaxY));
+                double textWidth = left.Width - 8;
+                paper.Texts.Add(Text(title, left.MinX + 4, left.MaxY - 4, Fit(title, TitleHeight, textWidth, left.Height - 8, 3, 2.5), textWidth, PaperAnchor.TopLeft));
             }
-            else
-            {
-                // Folha estreita: a legenda numa faixa embaixo e, à esquerda dela (se couber), o nome do desenho
-                paper.Lines.Add(new PaperLine(frame.MinX, block.MaxY, frame.MaxX, block.MaxY));
-                var left = new Rect(frame.MinX, block.MinY, block.MinX, block.MaxY);
-                if (left.Width >= 30)
-                {
-                    double textWidth = left.Width - 8;
-                    paper.Texts.Add(Text(title, left.MinX + 4, left.MaxY - 4, Fit(title, TitleHeight, textWidth, left.Height - 8, 3, 2.5), textWidth, PaperAnchor.TopLeft));
-                }
-            }
-            Legend(paper, block, side, plan, number, stamp, center);
+            Legend(paper, block, plan, number, stamp, center);
 
             var (_, horizontalFolds, corner) = Folds(width, height);
             ReferenceGrid(paper, format, landscape, frame);
@@ -167,26 +159,15 @@ namespace FiberPlugin.Core
         // ---------- Legenda ----------
 
         /// <summary>
-        /// Legenda em dois blocos de sete linhas: identificação (logo e empresa, projeto, cliente, endereço, U.C.) e o técnico
-        /// (responsável técnico com a assinatura, coordenadas, conteúdo e área, escala, data, nº da obra e folha). Na coluna
-        /// da direita um fica em cima do outro; embaixo (folha estreita), lado a lado. A folha fica sempre no canto de baixo à
-        /// direita.
+        /// Legenda deitada, em dois blocos de sete linhas lado a lado: identificação (logo e empresa, projeto, cliente,
+        /// endereço, U.C.) e o técnico (responsável técnico com a assinatura, coordenadas, conteúdo e área, escala, data, nº da
+        /// obra e a folha, no canto de baixo à direita).
         /// </summary>
-        private static void Legend(SheetPaper paper, Rect block, bool side, SheetPlan plan, int number, SheetStamp stamp, (double X, double Y) center)
+        private static void Legend(SheetPaper paper, Rect block, SheetPlan plan, int number, SheetStamp stamp, (double X, double Y) center)
         {
-            const double blockHeight = 7 * SheetFormat.LegendRow;
-            Rect identity, technical;
-            if (side)
-            {
-                identity = new Rect(block.MinX, block.MaxY - blockHeight, block.MaxX, block.MaxY);
-                technical = new Rect(block.MinX, block.MinY, block.MaxX, block.MinY + blockHeight);
-            }
-            else
-            {
-                double middle = block.MinX + block.Width / 2;
-                identity = new Rect(block.MinX, block.MinY, middle, block.MaxY);
-                technical = new Rect(middle, block.MinY, block.MaxX, block.MaxY);
-            }
+            double middle = block.MinX + block.Width / 2;
+            var identity = new Rect(block.MinX, block.MinY, middle, block.MaxY);
+            var technical = new Rect(middle, block.MinY, block.MaxX, block.MaxY);
             paper.Boxes.Add((identity, 0));
             paper.Boxes.Add((technical, 0));
             paper.Boxes.Add((block, 0.35));

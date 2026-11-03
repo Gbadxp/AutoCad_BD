@@ -20,11 +20,12 @@ namespace FiberPlugin.UI
         private const string SheetContents =
             "O que cada folha terá (NBR 16752):\n" +
             "•  Quadro com margem de 20 mm à esquerda, malha de referência (letras e números na margem), marcas de centro e de corte.\n" +
-            "•  Coluna de 180 mm à direita, do pé ao alto do quadro: em cima, a seta do norte e a legenda dos símbolos usados no desenho " +
-            "(NDU 009, item 16.3); no pé, a legenda (carimbo) com logo e empresa, projeto, cliente, CPF/CNPJ, endereço, município, CEP, U.C., " +
-            "responsável técnico com o CREA e a assinatura, coordenadas UTM do centro da folha, conteúdo, área rural ou urbana, escala, data, " +
-            "nº da obra e folha (01/06). No A4 e no A3 em pé a legenda fica embaixo. Os dados vêm da Configuração de Projeto (abas Projeto, " +
-            "Carimbo e Empresa); a logo, de Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
+            "•  Legenda (carimbo) de 180 mm deitada no canto de baixo à direita: logo e empresa, projeto, cliente, CPF/CNPJ, endereço, " +
+            "município, CEP, U.C., responsável técnico com o CREA e a assinatura, coordenadas UTM do centro da folha, conteúdo, área rural ou " +
+            "urbana, escala, data, nº da obra e folha (01/06). Os dados vêm da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a " +
+            "logo, de Dados\\Memorial\\logo.png, a mesma do memorial. À esquerda dela, o nome do desenho.\n" +
+            "•  Coluna à direita com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3), todos: as linhas " +
+            "diminuem se precisar.\n" +
             "•  Na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos.\n" +
             "•  Marcas de dobramento nas bordas (a cópia dobrada fica do tamanho A4, com a legenda à vista).\n" +
             "•  Viewport travado na escala, mostrando o pedaço da prévia com o mesmo nome.\n" +
@@ -296,7 +297,7 @@ namespace FiberPlugin.UI
             string paper = $"{format.Name} = {format.LongSide:0} × {format.ShortSide:0} mm.";
             string covers = scale is int s
                 ? $" Em {(landscape ? "paisagem" : "retrato")}, cada folha mostra {viewport.Width * s / 1000:N0} × {viewport.Height * s / 1000:N0} m do " +
-                  $"desenho em 1:{s}; o resto da folha é a moldura e a coluna da direita com a legenda."
+                  $"desenho em 1:{s}; o resto da folha é a moldura, a legenda embaixo e a coluna do norte e dos símbolos."
                 : "";
             string automatic = plan != null && orientation == SheetSettings.Automatic ? $" (agora ficou {(plan.Landscape ? "paisagem" : "retrato")})" : "";
             _sheetHelp.HelpText = paper + covers + "\n\n" +

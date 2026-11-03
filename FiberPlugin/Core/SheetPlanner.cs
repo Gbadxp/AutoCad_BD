@@ -40,14 +40,13 @@ namespace FiberPlugin.Core
         public const double MarginLeft = 20;
         public const double Margin = 10;
 
-        // Legenda (o carimbo, SheetFrame) no canto inferior direito do quadro, com os 180 mm de comprimento que a NBR 16752
-        // (5.3) pede em todos os formatos e altura livre. Os 180 mm mais a margem de 10 mm são o painel da frente da cópia
-        // dobrada em A4 (190 mm, figura 21). Do A3 deitado para cima ela fica no pé da coluna da direita, que vai do alto ao
-        // pé do quadro com o norte e os símbolos em cima (figura 11 a); em folha estreita (A4 e A3 em pé, com 267 mm de quadro
-        // ou menos) a coluna deixaria pouco desenho: a legenda fica embaixo, mais baixa, e os símbolos na coluna estreita
+        // Legenda (o carimbo, SheetFrame) deitada no canto inferior direito do quadro, com os 180 mm de comprimento que a
+        // NBR 16752 (5.3) pede em todos os formatos: sete linhas de 7 mm, numa faixa embaixo. Os 180 mm mais a margem de 10 mm
+        // são o painel da frente da cópia dobrada em A4 (190 mm, figura 21). O norte e os símbolos ficam na coluna estreita da
+        // direita, acima da faixa
         public const double TitleBlockWidth = 180;
-        public const double LegendRow = 7;                 // Altura de uma linha da legenda
-        private const double SideLegendMinFrame = 330;     // Quadro a partir do qual a legenda vai para a coluna da direita
+        public const double LegendRow = 7;   // Altura de uma linha da legenda
+        public const double TitleBlockHeight = 7 * LegendRow;
 
         public SheetFormat(string name, double width, double height)
         {
@@ -83,36 +82,28 @@ namespace FiberPlugin.Core
             _ => (6, 4)
         };
 
-        /// <summary>A legenda fica em pé, no pé da coluna da direita (do A3 deitado para cima); senão, embaixo.</summary>
-        public bool SideLegend(bool landscape) => Frame(landscape).Width >= SideLegendMinFrame;
+        /// <summary>Largura da coluna de norte e símbolos, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
+        public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
 
-        /// <summary>Altura da legenda: 14 linhas em pé na coluna, 7 linhas (em duas colunas) quando fica embaixo.</summary>
-        public double TitleBlockHeight(bool landscape) => (SideLegend(landscape) ? 14 : 7) * LegendRow;
-
-        /// <summary>Largura da coluna de norte e símbolos: a da legenda (180 mm) ou, com a legenda embaixo, de 45 a 65 mm.</summary>
-        public double LegendWidth(bool landscape) =>
-            SideLegend(landscape) ? TitleBlockWidth : Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
-
-        /// <summary>Área do viewport: o quadro menos a coluna da direita (e a faixa da legenda, quando ela fica embaixo), em mm no papel.</summary>
+        /// <summary>Área do viewport: o quadro menos a faixa da legenda e a coluna da direita, em mm no papel.</summary>
         public Rect ViewportArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            double bottom = SideLegend(landscape) ? frame.MinY : frame.MinY + TitleBlockHeight(landscape);
-            return new Rect(frame.MinX, bottom, frame.MaxX - LegendWidth(landscape), frame.MaxY);
+            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight, frame.MaxX - LegendWidth(landscape), frame.MaxY);
         }
 
-        /// <summary>Norte e símbolos, no alto da coluna da direita (acima da legenda), em mm no papel.</summary>
+        /// <summary>Norte e símbolos, na coluna da direita (acima da faixa da legenda), em mm no papel.</summary>
         public Rect LegendArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight(landscape), frame.MaxX, frame.MaxY);
+            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight, frame.MaxX, frame.MaxY);
         }
 
         /// <summary>Legenda (carimbo), no canto de baixo à direita do quadro (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
         public Rect TitleBlock(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + TitleBlockHeight(landscape));
+            return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + TitleBlockHeight);
         }
     }
 

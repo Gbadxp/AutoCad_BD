@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.91.msi`](Instalador/FiberPlugin-1.9.91.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.92.msi`](Instalador/FiberPlugin-1.9.92.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -465,16 +465,16 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
      de 1,0 mm (A0 e A1) ou 0,7 mm (A2 a A4); **malha de referência** na margem (campos de 50 mm a partir do meio, números
      em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita), com o formato no campo de baixo à
      direita; **marcas de centro** nos quatro lados e **marcas de corte** em L (10 x 5 mm) nos cantos;
-   - **coluna de 180 mm à direita**, do pé ao alto do quadro (figura 11 a da norma): em cima, a **seta do norte** e a
-     **legenda** em português dos símbolos usados no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado,
-     backbone e seta de esforço), como pede o item 16.3 da NDU 009; no pé, a **legenda** (carimbo) de 180 mm, em pé:
-     **logo** com o nome da empresa, projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço,
-     município, CEP, **U.C.**, **responsável técnico** com o CREA (e a ART), espaço com linha para a **assinatura** (ou a
-     imagem `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do centro da folha com o fuso (ex.:
-     `FUSO 20M`), **conteúdo**, **área do projeto** (rural ou urbana), escala, data, **nº da obra** e o número da folha. Os
-     dados vêm da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial
-     (`Dados\Memorial\logo.png`). No A4 e no A3 em pé (quadro de 267 mm ou menos) a coluna deixaria pouco desenho: a
-     legenda fica embaixo, em duas colunas, e o norte e os símbolos numa coluna estreita;
+   - **legenda** (carimbo) de 180 x 49 mm deitada no canto de baixo à direita, em dois blocos lado a lado: **logo** com o
+     nome da empresa, projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço, município, CEP e
+     **U.C.**; **responsável técnico** com o CREA (e a ART), espaço com linha para a **assinatura** (ou a imagem
+     `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do centro da folha com o fuso (ex.: `FUSO 20M`),
+     **conteúdo**, **área do projeto** (rural ou urbana), escala, data, **nº da obra** e o número da folha. Os dados vêm da
+     Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`). À
+     esquerda da legenda, o nome do desenho;
+   - coluna à direita, acima da legenda, com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
+     (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009:
+     todos os símbolos cabem (as linhas diminuem em folha baixa, como o A4 deitado);
    - na margem esquerda, em pé, os avisos da **Lei 5.194/66** (alterações só pelo autor do projeto) e da **propriedade dos
      desenhos**, fora das marcas de dobra;
    - **marcas de dobramento** tracejadas na margem (figura 21 da NBR 16752: a cópia dobrada fica do tamanho A4 com a

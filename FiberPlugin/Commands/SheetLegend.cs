@@ -11,7 +11,8 @@ namespace FiberPlugin.Commands
     internal sealed class SheetLegend
     {
         private const int MaxEntries = 14;
-        private const double RowHeight = 10;     // mm
+        private const double RowHeight = 10;     // mm; menor (até MinRowHeight) para caberem todos os símbolos na coluna
+        private const double MinRowHeight = 5;
         private const double SymbolSize = 7;     // mm, maior lado do símbolo
         private const double LabelHeight = 2.3;  // mm
 
@@ -90,50 +91,55 @@ namespace FiberPlugin.Commands
             Add(new Solid(tip, left, notch));
             Add(new Line(new Point3d(area.MinX, top - 34, 0), new Point3d(area.MaxX, top - 34, 0)));
 
-            // Legenda
+            // Legenda: as linhas encolhem (com o símbolo e a letra) para caberem todos os símbolos na altura da coluna
             Text("LEGENDA", new Point3d(area.MinX + 4, top - 38, 0), 3, AttachmentPoint.TopLeft);
-            double y = top - 38 - 3 - RowHeight / 2 - 2;
-            double symbolX = area.MinX + 4 + SymbolSize / 2;
-            double labelX = area.MinX + 4 + SymbolSize + 3;
+            double firstTop = top - 38 - 3 - 2;
+            int count = _blocks.Count + (_cable ? 1 : 0) + (_backbone ? 1 : 0) + (_effort ? 1 : 0);
+            double row = count == 0 ? RowHeight : Math.Max(MinRowHeight, Math.Min(RowHeight, (firstTop - area.MinY - 1) / count));
+            double symbol = Math.Min(SymbolSize, row * 0.7);
+            double labelHeight = Math.Max(1.6, Math.Min(LabelHeight, row * 0.23));
+            double y = firstTop - row / 2;
+            double symbolX = area.MinX + 4 + symbol / 2;
+            double labelX = area.MinX + 4 + symbol + 3;
             double labelWidth = area.MaxX - labelX - 2;
 
             foreach (var (label, blockId) in _blocks)
             {
-                if (y - RowHeight / 2 < area.MinY) break;
-                var (scale, centerOffset) = BlockInsertHelpers.FitSymbol(db, blockId, SymbolSize);
+                if (y - row / 2 < area.MinY - 0.01) break;
+                var (scale, centerOffset) = BlockInsertHelpers.FitSymbol(db, blockId, symbol);
                 CadHelpers.InsertBlock(tr, paperSpace, blockId, new Point3d(symbolX, y, 0) - centerOffset, 0, layer, _ => "", scale);
-                Text(label, new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= RowHeight;
+                Text(label, new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                y -= row;
             }
 
             // Cabo e backbone nas cores das Configurações (a cor própria de um cabo na planilha não entra aqui)
-            if (_cable && y - RowHeight / 2 >= area.MinY)
+            if (_cable && y - row / 2 >= area.MinY - 0.01)
             {
-                Add(new Line(new Point3d(symbolX - SymbolSize / 2, y, 0), new Point3d(symbolX + SymbolSize / 2, y, 0))).ColorIndex =
+                Add(new Line(new Point3d(symbolX - symbol / 2, y, 0), new Point3d(symbolX + symbol / 2, y, 0))).ColorIndex =
                     UserSettings.Current.CableColor;
-                Text("Cabo óptico projetado", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= RowHeight;
+                Text("Cabo óptico projetado", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                y -= row;
             }
 
-            if (_backbone && y - RowHeight / 2 >= area.MinY)
+            if (_backbone && y - row / 2 >= area.MinY - 0.01)
             {
                 var line = new Polyline();
-                line.AddVertexAt(0, new Point2d(symbolX - SymbolSize / 2, y), 0, 0, 0);
-                line.AddVertexAt(1, new Point2d(symbolX + SymbolSize / 2, y), 0, 0, 0);
+                line.AddVertexAt(0, new Point2d(symbolX - symbol / 2, y), 0, 0, 0);
+                line.AddVertexAt(1, new Point2d(symbolX + symbol / 2, y), 0, 0, 0);
                 line.ConstantWidth = CableDrawing.BackboneWidth; // Depois dos vértices; em mm, como no desenho em 1:1000
                 Add(line).ColorIndex = UserSettings.Current.BackboneColor;
-                Text("Cabo óptico tronco (backbone)", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= RowHeight;
+                Text("Cabo óptico tronco (backbone)", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                y -= row;
             }
 
-            if (_effort && y - RowHeight / 2 >= area.MinY)
+            if (_effort && y - row / 2 >= area.MinY - 0.01)
             {
                 var arrow = new Polyline();
-                arrow.AddVertexAt(0, new Point2d(symbolX - SymbolSize / 2, y), 0, 0, 0);
-                arrow.AddVertexAt(1, new Point2d(symbolX + SymbolSize / 2 - 2, y), 0, 1.4, 0);
-                arrow.AddVertexAt(2, new Point2d(symbolX + SymbolSize / 2, y), 0, 0, 0);
+                arrow.AddVertexAt(0, new Point2d(symbolX - symbol / 2, y), 0, 0, 0);
+                arrow.AddVertexAt(1, new Point2d(symbolX + symbol / 2 - symbol * 0.28, y), 0, symbol * 0.2, 0);
+                arrow.AddVertexAt(2, new Point2d(symbolX + symbol / 2, y), 0, 0, 0);
                 Add(arrow).ColorIndex = 4;
-                Text("Esforço no poste (kgf e ângulo)", new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                Text("Esforço no poste (kgf e ângulo)", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
             }
         }
     }
