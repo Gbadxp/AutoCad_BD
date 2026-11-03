@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.86.msi`](Instalador/FiberPlugin-1.9.86.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.87.msi`](Instalador/FiberPlugin-1.9.87.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -212,7 +212,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
-| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Divide uma área do projeto em folhas A0 a A4 na escala escolhida, com moldura e viewport, prontas para PDF (veja abaixo). |
+| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela explicada passo a passo: área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes, com a prévia das folhas sobre o desenho. Gera as folhas com moldura, legenda e viewport, prontas para PDF (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
@@ -436,20 +436,28 @@ executivo, confira com a base oficial do município.
 
 ## Folhas para impressão (PDF)
 
-`FIBRA_GERAR_FOLHAS` monta o jogo de pranchas a partir do Model:
+`FIBRA_GERAR_FOLHAS` monta o jogo de pranchas a partir do Model, numa janela em que cada opção tem a explicação do que
+ela faz ao lado:
 
-1. Marque a área com dois cliques (retângulo em volta do trecho do projeto).
-2. Escolha a folha (A0 a A4), a escala (padrão: a do desenho, em Configuração de Projeto), a sobreposição entre folhas
-   vizinhas (padrão 5%) e o prefixo dos nomes (padrão `FL`).
-3. O plugin divide a área numa grade de folhas, escolhe a orientação (paisagem ou retrato) que usa
-   menos folhas e descarta os pedaços sem nenhum elemento do desenho.
-4. Cada folha vira um layout (`FL-01`, `FL-02`...) com:
+1. **Área do projeto**: **Marcar no desenho** (a janela some e você clica os dois cantos), **Área da rede** (onde há
+   postes, cabos e caixas do plugin, com uma folga) ou **Desenho todo**. Na próxima vez volta a área usada.
+2. **Folha**: tamanho (A0 a A4) e orientação: **Automática** (o plugin testa paisagem e retrato e fica com a que dá
+   menos folhas), **Paisagem** ou **Retrato**. A dica mostra as medidas do papel e quantos metros do desenho cabem em
+   cada folha.
+3. **Escala** (padrão: a do desenho, em Configuração de Projeto; aceita `1000`, `1:1000` ou `1.000`). Se for outra, a dica
+   avisa quanto os textos e símbolos saem maiores ou menores na folha. **Sobreposição** entre folhas vizinhas (padrão 5%,
+   de 0 a 50%; a dica mostra em metros) e **prefixo dos nomes** (padrão `FL`; se já existem folhas com ele, a janela avisa
+   que elas serão substituídas e o botão vira **Substituir folhas**).
+4. A **prévia** mostra o desenho com a grade: as folhas que serão criadas (azuis, com o nome) e os pedaços sem nenhum
+   elemento do desenho, que ficam de fora (tracejados). Embaixo, o resumo: quantas folhas, a orientação, a grade e os
+   pedaços vazios. Escala ou área que dariam folhas demais (mais de 300) são recusadas, com a sugestão de uma escala.
+5. As escolhas ficam gravadas no desenho para a próxima vez. Cada folha vira um layout (`FL-01`, `FL-02`...) com:
    - configuração de página **DWG To PDF**, papel do formato escolhido, plotagem 1:1;
    - moldura (margem de 25 mm à esquerda e 10 mm nas demais) e faixa com número da folha, escala e formato;
    - coluna à direita com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
      (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009;
    - viewport travado na escala exata, mostrando o pedaço correspondente.
-5. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
+6. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
 
 Para gerar o PDF, use o comando **PUBLICAR** (PUBLISH) do AutoCAD e selecione as folhas.
 Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve estar em metros.

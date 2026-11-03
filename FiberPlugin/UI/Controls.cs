@@ -32,6 +32,22 @@ namespace FiberPlugin.UI
             AutoEllipsis = true
         };
 
+        /// <summary>Linhas "rótulo | opções" alinhadas: rótulos numa coluna de largura fixa, opções na outra.</summary>
+        public static TableLayoutPanel OptionGrid(int labelWidth, int rowHeight, params (string Label, Control Control)[] rows)
+        {
+            var grid = new TableLayoutPanel { ColumnCount = 2, Margin = Padding.Empty, BackColor = Theme.Background };
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, labelWidth));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            foreach (var (label, control) in rows)
+            {
+                grid.RowStyles.Add(new RowStyle(SizeType.Absolute, rowHeight));
+                grid.Controls.Add(new Label { Text = label, ForeColor = Theme.Text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Margin = Padding.Empty }, 0, grid.RowCount);
+                grid.Controls.Add(control, 1, grid.RowCount);
+                grid.RowCount++;
+            }
+            return grid;
+        }
+
         /// <summary>Campos lado a lado, com a mesma largura.</summary>
         public static TableLayoutPanel Row(params Control[] controls) => Row(controls.Select(c => (c, 1f)).ToArray());
 

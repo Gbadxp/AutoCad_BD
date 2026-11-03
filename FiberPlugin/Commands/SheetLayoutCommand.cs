@@ -24,15 +24,6 @@ namespace FiberPlugin.Commands
         private const string ViewportLayer = "FIBRA_VIEWPORTS";      // Borda do viewport (não imprime)
         private const double PaperTextHeight = 3.5;                  // mm no papel
 
-        private class SheetOptions
-        {
-            public Rect Area { get; set; }
-            public SheetFormat Format { get; set; } = SheetFormat.All[2];
-            public int Scale { get; set; }
-            public double Overlap { get; set; }
-            public string Prefix { get; set; } = "FL";
-        }
-
         [CommandMethod("FIBRA_GERAR_FOLHAS")]
         public void GenerateSheets()
         {
@@ -46,40 +37,42 @@ namespace FiberPlugin.Commands
                 return;
             }
 
-            SheetOptions? options = AskOptions(ed, db);
-            if (options == null) return;
-
-            // Planejamento: grade de folhas, melhor orientação, descartando folhas vazias
+            // O que tem no Model: as extensões de tudo (para a prévia e para descartar os pedaços vazios), a área da rede
+            // e os símbolos da legenda
             List<Rect> content;
+            Rect? network;
             SheetLegend legend;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead);
-                content = CollectContent(tr, modelSpace);
+                (content, network) = CollectContent(tr, modelSpace, DrawingScale.Factor(db));
                 legend = SheetLegend.Collect(tr, modelSpace);
                 tr.Commit();
             }
 
-            SheetPlan plan = SheetPlanner.PlanBestOrientation(options.Area, options.Format, options.Scale, options.Overlap, content);
-            if (plan.Tiles.Count == 0)
+            // Tudo numa janela, com a prévia da divisão; as escolhas da última vez neste desenho voltam preenchidas
+            SheetSettings options;
+            SheetPlan plan;
+            using (var form = new UI.SheetsForm(SheetSettings.Load(db), DrawingScale.Get(db), content, network,
+                       prefix => LayoutsWithPrefix(db, prefix).Count))
             {
-                ed.WriteMessage("\n[AVISO]: Nenhum elemento do desenho dentro da área escolhida.");
-                return;
+                form.PickInDrawing = () => Pick(ed, form);
+                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Result == null || form.Plan == null) return;
+                options = form.Result;
+                plan = form.Plan;
+            }
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                options.Save(tr, db);
+                tr.Commit();
             }
 
             string orientation = plan.Landscape ? "paisagem" : "retrato";
             ed.WriteMessage($"\n[INFO]: {plan.Tiles.Count} folha(s) {plan.Format.Name} {orientation}, escala 1:{plan.Scale} " +
                             $"(grade {plan.Columns} x {plan.Rows}, {plan.SkippedEmpty} pedaço(s) vazio(s) ignorado(s)).");
 
+            // A janela já avisou que as folhas com o mesmo prefixo são substituídas
             List<string> existing = LayoutsWithPrefix(db, options.Prefix);
-            string question = existing.Count > 0
-                ? $"\nSubstituir as {existing.Count} folha(s) \"{options.Prefix}-...\" que já existem? [Sim/Nao] <Sim>: "
-                : "\nCriar as folhas? [Sim/Nao] <Sim>: ";
-            if (!CadHelpers.AskYes(ed, question))
-            {
-                ed.WriteMessage(existing.Count > 0 ? "\n[INFO]: Nada foi alterado. Use outro prefixo para manter as folhas atuais." : "\n[INFO]: Cancelado.");
-                return;
-            }
 
             int drawingScale = DrawingScale.Get(db);
             if (drawingScale != plan.Scale)
@@ -133,74 +126,65 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
-        private static SheetOptions? AskOptions(Editor ed, Database db)
+        /// <summary>
+        /// Botão "Marcar no desenho" da janela: esconde a janela enquanto o usuário clica os dois cantos e devolve a área
+        /// em coordenadas do mundo. Null se cancelar.
+        /// </summary>
+        private static Rect? Pick(Editor ed, System.Windows.Forms.Form form)
         {
-            // 1. Área
-            PromptPointResult p1 = ed.GetPoint("\nPrimeiro canto da área a dividir em folhas: ");
-            if (p1.Status != PromptStatus.OK) return null;
-            PromptPointResult p2 = ed.GetCorner("\nCanto oposto: ", p1.Value);
-            if (p2.Status != PromptStatus.OK) return null;
-
-            Matrix3d ucs = ed.CurrentUserCoordinateSystem;
-            Point3d a = p1.Value.TransformBy(ucs);
-            Point3d b = p2.Value.TransformBy(ucs);
-            var area = new Rect(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
-            if (area.Width < 1 || area.Height < 1)
+            using (EditorUserInteraction interaction = ed.StartUserInteraction(form))
             {
-                ed.WriteMessage("\n[AVISO]: Área muito pequena.");
-                return null;
+                PromptPointResult p1 = ed.GetPoint("\nPrimeiro canto da área a dividir em folhas: ");
+                if (p1.Status != PromptStatus.OK) return null;
+                PromptPointResult p2 = ed.GetCorner("\nCanto oposto: ", p1.Value);
+                if (p2.Status != PromptStatus.OK) return null;
+
+                Matrix3d ucs = ed.CurrentUserCoordinateSystem;
+                Point3d a = p1.Value.TransformBy(ucs), b = p2.Value.TransformBy(ucs);
+                interaction.End();
+                form.Focus();
+                return new Rect(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Max(a.X, b.X), Math.Max(a.Y, b.Y));
             }
-
-            // 2. Folha
-            string? formatName = CadHelpers.AskKeyword(ed, "\nTamanho da folha [A0/A1/A2/A3/A4] <A2>: ", "A0 A1 A2 A3 A4", "A2");
-            if (formatName == null) return null;
-            SheetFormat format = SheetFormat.Find(formatName) ?? SheetFormat.All[2];
-
-            // 3. Escala (padrão: a escala do desenho)
-            int? scale = DrawingScale.Ask(ed, "\nEscala 1:X", DrawingScale.Get(db));
-            if (scale == null) return null;
-
-            // 4. Sobreposição
-            var pdo = new PromptDoubleOptions("\nSobreposição entre folhas vizinhas em % <5>: ")
-            {
-                AllowNone = true,
-                AllowNegative = false
-            };
-            PromptDoubleResult overlapRes = ed.GetDouble(pdo);
-            if (overlapRes.Status == PromptStatus.Cancel) return null;
-            double overlap = Math.Min(50, overlapRes.Status == PromptStatus.OK ? overlapRes.Value : 5) / 100.0;
-
-            // 5. Prefixo dos nomes
-            var pso = new PromptStringOptions("\nPrefixo dos nomes das folhas <FL>: ") { AllowSpaces = false };
-            PromptResult prefixRes = ed.GetString(pso);
-            if (prefixRes.Status == PromptStatus.Cancel) return null;
-            string prefix = CadHelpers.SanitizeName(prefixRes.StringResult.Trim());
-            if (prefix.Length == 0) prefix = "FL";
-
-            return new SheetOptions { Area = area, Format = format, Scale = scale.Value, Overlap = overlap, Prefix = prefix };
         }
 
-        /// <summary>Extensões dos elementos do Model, para descobrir quais folhas têm conteúdo.</summary>
-        private static List<Rect> CollectContent(Transaction tr, BlockTableRecord modelSpace)
+        /// <summary>
+        /// Extensões dos elementos do Model, para descobrir quais folhas têm conteúdo, e a área da rede: onde há cabos,
+        /// postes e caixas do plugin, com uma folga (10 m em 1:1000, na proporção da escala do desenho). Null sem rede.
+        /// </summary>
+        private static (List<Rect> Content, Rect? Network) CollectContent(Transaction tr, BlockTableRecord modelSpace, double scaleFactor)
         {
             var boxes = new List<Rect>();
+            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
             foreach (ObjectId id in modelSpace)
             {
                 if (tr.GetObject(id, OpenMode.ForRead) is not Entity ent) continue;
                 if (ent is Ray || ent is Xline) continue; // Infinitas
                 if (ent.Layer.Equals(SheetIndexLayer, StringComparison.OrdinalIgnoreCase)) continue;
 
+                Rect box;
                 try
                 {
                     Extents3d ext = ent.GeometricExtents;
-                    boxes.Add(new Rect(ext.MinPoint.X, ext.MinPoint.Y, ext.MaxPoint.X, ext.MaxPoint.Y));
+                    box = new Rect(ext.MinPoint.X, ext.MinPoint.Y, ext.MaxPoint.X, ext.MaxPoint.Y);
                 }
                 catch (Autodesk.AutoCAD.Runtime.Exception)
                 {
-                    // Entidades sem extensão (texto vazio etc.)
+                    continue; // Entidades sem extensão (texto vazio etc.)
                 }
+                boxes.Add(box);
+
+                bool network = ent is Polyline && XDataTags.GetCableName(ent) != null ||
+                               ent is BlockReference br && (XDataTags.ReadPole(br) != null || XDataTags.ReadBox(br) != null);
+                if (!network) continue;
+                minX = Math.Min(minX, box.MinX);
+                minY = Math.Min(minY, box.MinY);
+                maxX = Math.Max(maxX, box.MaxX);
+                maxY = Math.Max(maxY, box.MaxY);
             }
-            return boxes;
+
+            double margin = 10 * scaleFactor;
+            Rect? area = minX <= maxX ? new Rect(minX - margin, minY - margin, maxX + margin, maxY + margin) : (Rect?)null;
+            return (boxes, area);
         }
 
         private static List<string> LayoutsWithPrefix(Database db, string prefix)

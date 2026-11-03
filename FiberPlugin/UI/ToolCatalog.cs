@@ -117,7 +117,7 @@ namespace FiberPlugin.UI
             }),
             ("Pranchas", new[]
             {
-                new Tool("FIBRA_GERAR_FOLHAS", "Gerar Folhas", "Divide a área em folhas A0 a A4 com viewports", "Gerar\nFolhas")
+                new Tool("FIBRA_GERAR_FOLHAS", "Gerar Folhas", "Janela com prévia: divide o projeto em folhas A0 a A4 com viewports", "Gerar\nFolhas")
             }),
             ("Documentos", new[]
             {

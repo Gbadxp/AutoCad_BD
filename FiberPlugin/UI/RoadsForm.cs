@@ -537,21 +537,8 @@ namespace FiberPlugin.UI
 
         // ---------- Montagem ----------
 
-        /// <summary>Linhas "rótulo | opções" alinhadas.</summary>
-        private static TableLayoutPanel OptionGrid(params (string Label, Control Control)[] rows)
-        {
-            var grid = new TableLayoutPanel { ColumnCount = 2, Margin = Padding.Empty, BackColor = Theme.Background };
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LabelWidth));
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            foreach (var (label, control) in rows)
-            {
-                grid.RowStyles.Add(new RowStyle(SizeType.Absolute, RowHeight));
-                grid.Controls.Add(new Label { Text = label, ForeColor = Theme.Text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Margin = Padding.Empty }, 0, grid.RowCount);
-                grid.Controls.Add(control, 1, grid.RowCount);
-                grid.RowCount++;
-            }
-            return grid;
-        }
+        private static TableLayoutPanel OptionGrid(params (string Label, Control Control)[] rows) =>
+            FormLayout.OptionGrid(LabelWidth, RowHeight, rows);
 
         /// <summary>Grade de três colunas iguais com as alturas de linha informadas.</summary>
         private static TableLayoutPanel Grid(int columns, float[] rowHeights)

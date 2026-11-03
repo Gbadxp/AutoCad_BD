@@ -98,7 +98,11 @@ namespace FiberPlugin.Core
         public int Columns { get; set; }
         public int Rows { get; set; }
         public List<SheetTile> Tiles { get; } = new List<SheetTile>();
-        public int SkippedEmpty { get; set; }
+
+        /// <summary>Pedaços da grade sem nenhum elemento do desenho: não viram folha.</summary>
+        public List<SheetTile> Skipped { get; } = new List<SheetTile>();
+
+        public int SkippedEmpty => Skipped.Count;
 
         /// <summary>Metros de desenho por mm de papel (1:1000 → 1 m por mm).</summary>
         public double MetersPerMm => Scale / 1000.0;
@@ -114,7 +118,7 @@ namespace FiberPlugin.Core
         /// <param name="area">Área escolhida pelo usuário (metros).</param>
         /// <param name="overlap">Sobreposição entre folhas vizinhas (0,05 = 5%).</param>
         /// <param name="content">Extensões dos elementos do desenho, para descartar folhas vazias.</param>
-        public static SheetPlan Plan(Rect area, SheetFormat format, bool landscape, int scale, double overlap, IList<Rect> content)
+        public static SheetPlan Plan(Rect area, SheetFormat format, bool landscape, int scale, double overlap, IReadOnlyList<Rect> content)
         {
             var plan = new SheetPlan { Format = format, Landscape = landscape, Scale = scale };
 
@@ -144,13 +148,8 @@ namespace FiberPlugin.Core
 
                     // Só o que está dentro da área escolhida conta como conteúdo da folha
                     bool hasContent = content.Any(c => c.Intersects(tileArea) && c.Intersects(area));
-                    if (!hasContent)
-                    {
-                        plan.SkippedEmpty++;
-                        continue;
-                    }
-
-                    plan.Tiles.Add(new SheetTile { Row = row, Column = col, ModelArea = tileArea });
+                    var tile = new SheetTile { Row = row, Column = col, ModelArea = tileArea };
+                    (hasContent ? plan.Tiles : plan.Skipped).Add(tile);
                 }
             }
 
@@ -158,11 +157,22 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>Planeja em paisagem e em retrato e fica com o que gerar menos folhas (empate: paisagem).</summary>
-        public static SheetPlan PlanBestOrientation(Rect area, SheetFormat format, int scale, double overlap, IList<Rect> content)
+        public static SheetPlan PlanBestOrientation(Rect area, SheetFormat format, int scale, double overlap, IReadOnlyList<Rect> content)
         {
             SheetPlan landscape = Plan(area, format, true, scale, overlap, content);
             SheetPlan portrait = Plan(area, format, false, scale, overlap, content);
             return portrait.Tiles.Count < landscape.Tiles.Count ? portrait : landscape;
+        }
+
+        /// <summary>
+        /// Quantos pedaços a grade teria, com os vazios, sem olhar o conteúdo: para recusar logo uma divisão grande demais
+        /// (área enorme numa escala pequena) antes de planejar.
+        /// </summary>
+        public static long GridCells(Rect area, SheetFormat format, bool landscape, int scale, double overlap)
+        {
+            Rect vp = format.ViewportArea(landscape);
+            double coverW = vp.Width * scale / 1000.0, coverH = vp.Height * scale / 1000.0;
+            return (long)Count(area.Width, coverW, coverW * (1 - overlap)) * Count(area.Height, coverH, coverH * (1 - overlap));
         }
 
         private static int Count(double length, double cover, double step)
