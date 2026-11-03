@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.85.msi`](Instalador/FiberPlugin-1.9.85.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.86.msi`](Instalador/FiberPlugin-1.9.86.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -573,11 +573,17 @@ desenhos em que se trabalhou: **metros de cabo** (no total e por tipo), **CTO**,
 técnicas** (as do comando Reserva Técnica e qualquer texto com "RESERVA", como "RESERVA TÉCNICA 25m": conta a reserva
 e soma a metragem escrita) e **metros de cordoalha** (a do comando Cordoalha ou linhas na layer `FIBRA_CORDOALHA`).
 
-- **Como conta**: o plugin anota o que cada desenho tem ao ser aberto (ou no primeiro comando do dia, se ficou aberto
-  de um dia para o outro) e a cada vez que é salvo. A produção do dia é o que o desenho tem no fim (o último
-  salvamento, ou agora, se ainda está aberto) menos o que tinha no começo. O que foi apagado desconta.
+- **Como conta**: só o que foi **desenhado no dia** e continua no desenho. O plugin anota o começo do dia de cada
+  desenho (ao abrir, ou no primeiro comando do dia, se ficou aberto de um dia para o outro) e, a cada vez que ele é
+  salvo, conta os objetos criados depois disso (pelo handle do AutoCAD, que só cresce). O que já estava no desenho e
+  foi apagado **não desconta**: reaproveitar um projeto antigo como base para uma demanda nova e apagar o que era
+  dele não deixa a produção negativa. O que foi desenhado e apagado no mesmo dia não conta.
+- O que for colado de outro desenho (Ctrl+V) e o que o plugin refaz (rodar a Amarração de novo num poste troca as
+  amarrações dele por novas) contam como desenhados no dia.
 - **Salvar como**: o desenho novo começa do ponto em que o anterior foi salvo, então nada conta duas vezes. Desenho
   novo, ainda sem salvar, também entra (como "não salvo").
+- Anotações de antes da 1.9.86 guardavam o desenho inteiro: nesses dias, o que foi apagado aparece como zero (não
+  mais negativo).
 - **Janela**: os números do dia, o cabo por tipo e os desenhos que mudaram (os abertos só para consulta não
   aparecem). As setas mudam o dia; **Copiar Resumo** copia o texto para colar numa mensagem e **Excel do Mês** gera a
   planilha do mês com a produção de cada dia, de cada desenho e de cada tipo de cabo.

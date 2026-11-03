@@ -6,8 +6,9 @@ using System.Text.RegularExpressions;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// O que um desenho tem num momento, para a produção do dia: metros de cada cabo, CTO, CEO, postes, amarrações
-    /// (ancoragens), reservas técnicas (textos como "RESERVA TÉCNICA 25m") e metros de cordoalha. A diferença entre dois momentos é o que foi feito entre eles.
+    /// Para a produção do dia: metros de cada cabo, CTO, CEO, postes, amarrações (ancoragens), reservas técnicas (textos
+    /// como "RESERVA TÉCNICA 25m") e metros de cordoalha. Desde a 1.9.86, só o que foi desenhado no dia (os objetos criados
+    /// depois do começo do dia, veja ProductionEntry.Since); nas anotações de antes, o desenho inteiro.
     /// </summary>
     public sealed class ProductionCount
     {
@@ -37,6 +38,24 @@ namespace FiberPlugin.Core
 
         /// <summary>O que este momento tem a mais que <paramref name="start"/> (negativo onde foi apagado).</summary>
         public ProductionCount Minus(ProductionCount start) => Combine(start, -1);
+
+        /// <summary>Só o que aumentou: o que ficou negativo (apagado) vira zero.</summary>
+        public ProductionCount WithoutNegatives()
+        {
+            var result = new ProductionCount
+            {
+                Cto = Math.Max(0, Cto),
+                Ceo = Math.Max(0, Ceo),
+                Poles = Math.Max(0, Poles),
+                Anchorings = Math.Max(0, Anchorings),
+                AnchoringsCounted = AnchoringsCounted,
+                Reserves = Math.Max(0, Reserves),
+                ReserveMeters = Math.Max(0, ReserveMeters),
+                StrandMeters = Math.Max(0, StrandMeters)
+            };
+            foreach (var cable in CableMeters.Where(c => c.Value >= 0.01)) result.CableMeters[cable.Key] = cable.Value;
+            return result;
+        }
 
         public ProductionCount Plus(ProductionCount other) => Combine(other, 1);
 
@@ -128,12 +147,21 @@ namespace FiberPlugin.Core
         public DateTime When { get; set; }
         public string Event { get; set; } = "";
         public string File { get; set; } = "";
+
+        /// <summary>
+        /// Começo do dia do desenho: o handle que o AutoCAD ia dar ao próximo objeto (Database.Handseed). Count tem só os
+        /// objetos criados depois dele, os desenhados no dia (o que já estava e foi apagado não entra). Null nas anotações
+        /// de antes da 1.9.86, que têm o desenho inteiro.
+        /// </summary>
+        public long? Since { get; set; }
+
         public ProductionCount Count { get; set; } = new ProductionCount();
     }
 
     /// <summary>
     /// Arquivo de produção: uma linha por anotação, um arquivo por mês (producao-2026-10.txt) na pasta Producao de
-    /// Documentos\Fiber Plugin. Colunas separadas por tabulação: data e hora, evento, desenho e os números.
+    /// Documentos\Fiber Plugin. Colunas separadas por tabulação: data e hora, evento, desenho, o começo do dia (Desde=) e
+    /// os números.
     /// </summary>
     public sealed class ProductionLog
     {
@@ -145,13 +173,17 @@ namespace FiberPlugin.Core
 
         public string FileFor(DateTime day) => Path.Combine(Folder, $"producao-{day:yyyy-MM}.txt");
 
-        /// <summary>Anota o que o desenho tem agora. Sem conseguir gravar (pasta bloqueada), não anota.</summary>
-        public void Append(DateTime when, string evt, string file, ProductionCount count)
+        private const string SinceField = "Desde=";
+
+        /// <summary>
+        /// Anota o que o desenho tem agora (com <paramref name="since"/>, só o criado depois dele). Sem conseguir gravar
+        /// (pasta bloqueada), não anota.
+        /// </summary>
+        public void Append(DateTime when, string evt, string file, ProductionCount count, long? since = null)
         {
-            string line = string.Join("\t", new[]
-            {
-                when.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), evt, file
-            }.Concat(count.ToFields())) + Environment.NewLine;
+            var columns = new List<string> { when.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), evt, file };
+            if (since != null) columns.Add(SinceField + since.Value.ToString(CultureInfo.InvariantCulture));
+            string line = string.Join("\t", columns.Concat(count.ToFields())) + Environment.NewLine;
             try
             {
                 Directory.CreateDirectory(Folder);
@@ -187,7 +219,16 @@ namespace FiberPlugin.Core
                 string[] cols = line.Split('\t');
                 if (cols.Length < 3 || !DateTime.TryParseExact(cols[0], "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
                         DateTimeStyles.None, out DateTime when)) continue;
-                entries.Add(new ProductionEntry { When = when, Event = cols[1], File = cols[2], Count = ProductionCount.FromFields(cols.Skip(3)) });
+                string? since = cols.Skip(3).FirstOrDefault(c => c.StartsWith(SinceField, StringComparison.Ordinal));
+                entries.Add(new ProductionEntry
+                {
+                    When = when,
+                    Event = cols[1],
+                    File = cols[2],
+                    Since = since != null && long.TryParse(since.Substring(SinceField.Length), NumberStyles.Integer, CultureInfo.InvariantCulture,
+                        out long handle) ? handle : (long?)null,
+                    Count = ProductionCount.FromFields(cols.Skip(3))
+                });
             }
             return entries.OrderBy(e => e.When).ToList();
         }
@@ -205,20 +246,19 @@ namespace FiberPlugin.Core
         /// <summary>Arquivo do desenho; null se ainda não foi salvo nenhuma vez (Desenho1.dwg).</summary>
         public string? File { get; set; }
         public string Name { get; set; } = "";
+        /// <summary>O que foi desenhado desde <see cref="Since"/> (o desenho inteiro, se Since for null).</summary>
         public ProductionCount Now { get; set; } = new ProductionCount();
 
-        /// <summary>Começo do dia do desenho que ainda não foi salvo (o arquivo de produção só tem desenhos salvos).</summary>
-        public ProductionCount? Start { get; set; }
+        /// <summary>Começo do dia do desenho (veja ProductionEntry.Since); null se não deu para saber.</summary>
+        public long? Since { get; set; }
     }
 
-    /// <summary>Produção de um desenho no dia: o que ele tem no fim menos o que tinha no começo.</summary>
+    /// <summary>Produção de um desenho no dia: o que foi desenhado nele e continua lá.</summary>
     public sealed class DrawingProduction
     {
         public string File { get; set; } = "";
         public string Name => Path.GetFileName(File);
-        public ProductionCount Start { get; set; } = new ProductionCount();
-        public ProductionCount End { get; set; } = new ProductionCount();
-        public ProductionCount Done => End.Minus(Start);
+        public ProductionCount Done { get; set; } = new ProductionCount();
 
         /// <summary>Aberto agora: o fim é o que ele tem agora, mesmo sem salvar.</summary>
         public bool Open { get; set; }
@@ -251,24 +291,51 @@ namespace FiberPlugin.Core
 
             foreach (var group in entries.Where(e => e.When.Date == day.Date).GroupBy(e => e.File, StringComparer.OrdinalIgnoreCase))
             {
-                var drawing = new DrawingProduction { File = group.First().File, Start = group.First().Count, End = group.Last().Count };
-                LiveDrawing? now = live.FirstOrDefault(l => string.Equals(l.File, drawing.File, StringComparison.OrdinalIgnoreCase));
-                if (now != null)
-                {
-                    drawing.End = now.Now;
-                    drawing.Open = true;
-                }
-                all.Add(drawing);
+                List<ProductionEntry> list = group.ToList();
+                LiveDrawing? now = live.FirstOrDefault(l => string.Equals(l.File, list[0].File, StringComparison.OrdinalIgnoreCase));
+                all.Add(new DrawingProduction { File = list[0].File, Done = Done(list, now), Open = now != null });
             }
-            foreach (LiveDrawing unnamed in live.Where(l => l.File == null && l.Start != null))
+            // Desenho nunca salvo: o que foi desenhado nele desde o começo do dia
+            foreach (LiveDrawing unnamed in live.Where(l => l.File == null && l.Since != null))
             {
-                all.Add(new DrawingProduction { File = unnamed.Name, Start = unnamed.Start!, End = unnamed.Now, Open = true, Unnamed = true });
+                all.Add(new DrawingProduction { File = unnamed.Name, Done = unnamed.Now, Open = true, Unnamed = true });
             }
 
             result.Drawings = all.Where(d => !d.Done.IsZero).OrderByDescending(d => d.Done.CableTotal).ThenBy(d => d.Name).ToList();
             result.Unchanged = all.Count - result.Drawings.Count;
             result.Total = result.Drawings.Aggregate(new ProductionCount(), (sum, d) => sum.Plus(d.Done));
             return result;
+        }
+
+        /// <summary>
+        /// Produção de um desenho no dia, pelas anotações dele (e pelo que ele tem agora, se está aberto). Em cada trecho de
+        /// anotações com o mesmo começo (Desde), a última menos a primeira: a primeira é zero, ou o que o desenho de antes
+        /// já tinha anotado (Salvar como). Nas anotações de antes da 1.9.86, com o desenho inteiro, o que foi apagado não
+        /// conta (senão ficaria negativo, por exemplo ao reaproveitar um projeto e apagar o que era dele).
+        /// </summary>
+        private static ProductionCount Done(List<ProductionEntry> entries, LiveDrawing? now)
+        {
+            var segments = new List<(long? Since, ProductionCount First, ProductionCount Last)>();
+            foreach (ProductionEntry e in entries)
+            {
+                int last = segments.Count - 1;
+                if (last >= 0 && segments[last].Since == e.Since) segments[last] = (e.Since, segments[last].First, e.Count);
+                else segments.Add((e.Since, e.Count, e.Count));
+            }
+            if (now != null)
+            {
+                int last = segments.Count - 1;
+                if (last >= 0 && segments[last].Since == now.Since) segments[last] = (now.Since, segments[last].First, now.Now);
+                else if (now.Since != null) segments.Add((now.Since, new ProductionCount(), now.Now));
+            }
+
+            var done = new ProductionCount();
+            foreach (var (since, first, last) in segments)
+            {
+                ProductionCount delta = last.Minus(first);
+                done = done.Plus(since == null ? delta.WithoutNegatives() : delta);
+            }
+            return done;
         }
 
         /// <summary>Resumo em texto, para colar numa mensagem.</summary>

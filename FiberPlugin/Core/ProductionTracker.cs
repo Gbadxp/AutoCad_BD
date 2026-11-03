@@ -6,9 +6,10 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Anota no arquivo de produção (ProductionLog) o que cada desenho tem no começo do dia (ao abrir, ou no primeiro
-    /// comando do dia se ele ficou aberto de um dia para o outro) e a cada vez que é salvo. A produção do dia de um
-    /// desenho é o que ele tem no fim (salvo, ou agora se ainda está aberto) menos o que tinha no começo.
+    /// Anota no arquivo de produção (ProductionLog) o começo do dia de cada desenho (ao abrir, ou no primeiro comando do
+    /// dia se ele ficou aberto de um dia para o outro) e, a cada vez que é salvo, o que foi desenhado nele desde então.
+    /// O começo é o handle que o AutoCAD ia dar ao próximo objeto (Database.Handseed): os handles só crescem, então o que
+    /// tem handle a partir dele foi criado no dia. O que já estava e foi apagado não conta (não fica negativo).
     /// Nada aqui pode atrapalhar o AutoCAD: qualquer erro só deixa de anotar.
     /// </summary>
     public static class ProductionTracker
@@ -17,7 +18,7 @@ namespace FiberPlugin.Core
         {
             public string? File;            // Null enquanto o desenho não foi salvo (Desenho1.dwg)
             public DateTime Day;            // Dia do começo já anotado
-            public ProductionCount? Start;  // Começo do dia do desenho ainda sem arquivo
+            public long Since;              // Começo do dia: os objetos com handle a partir deste foram criados no dia
         }
 
         private static readonly Dictionary<Database, Tracked> Docs = new Dictionary<Database, Tracked>();
@@ -57,15 +58,15 @@ namespace FiberPlugin.Core
                 if (!Docs.TryGetValue(doc.Database, out Tracked? t) || t.Day == DateTime.Today) return;
                 t.Day = DateTime.Today;
                 t.File = FileOf(doc);
-                ProductionCount now = Count(doc.Database);
-                if (t.File == null)
+                ProductionLog log = ProductionLog.Default;
+                // Reaberto no mesmo dia: continua do começo anotado (os handles ficam gravados no arquivo)
+                if (t.File != null && log.Last(t.Day, t.File)?.Since is long since)
                 {
-                    t.Start = now;
+                    t.Since = since;
                     return;
                 }
-                t.Start = null;
-                ProductionLog log = ProductionLog.Default;
-                if (log.Last(t.Day, t.File) == null) log.Append(DateTime.Now, ProductionEntry.StartEvent, t.File, now);
+                t.Since = doc.Database.Handseed.Value;
+                if (t.File != null) log.Append(DateTime.Now, ProductionEntry.StartEvent, t.File, new ProductionCount(), t.Since);
             }
             catch (System.Exception)
             {
@@ -83,21 +84,26 @@ namespace FiberPlugin.Core
                 if (!file.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase)) return;
 
                 DateTime today = DateTime.Today;
-                ProductionCount now = Count(db);
-                ProductionLog log = ProductionLog.Default;
-                if (log.Last(today, file) == null)
+                if (t.Day != today)
                 {
-                    // Desenho salvo hoje pela primeira vez com este nome (Salvar como, ou desenho novo): o começo do dia
-                    // dele é o do desenho de antes, até o ponto em que o de antes foi salvo
-                    ProductionCount start = t.Day != today ? now
-                        : t.File != null ? log.Last(today, t.File)?.Count ?? now
-                        : t.Start ?? now;
-                    log.Append(DateTime.Now, ProductionEntry.StartEvent, file, start);
+                    // Sem começo anotado hoje: começa agora
+                    t.Day = today;
+                    t.Since = db.Handseed.Value;
                 }
-                log.Append(DateTime.Now, ProductionEntry.SavedEvent, file, now);
+                ProductionCount now = Count(db, t.Since);
+                ProductionLog log = ProductionLog.Default;
+                if (log.Last(today, file)?.Since != t.Since)
+                {
+                    // Desenho salvo hoje pela primeira vez com este nome (Salvar como, ou desenho novo): começa do que o
+                    // desenho de antes já tinha anotado hoje, para não contar duas vezes
+                    ProductionCount start = t.File != null && !t.File.Equals(file, StringComparison.OrdinalIgnoreCase) &&
+                                            log.Last(today, t.File) is ProductionEntry before && before.Since == t.Since
+                        ? before.Count
+                        : new ProductionCount();
+                    log.Append(DateTime.Now, ProductionEntry.StartEvent, file, start, t.Since);
+                }
+                log.Append(DateTime.Now, ProductionEntry.SavedEvent, file, now, t.Since);
                 t.File = file;
-                t.Day = today;
-                t.Start = null;
             }
             catch (System.Exception)
             {
@@ -127,8 +133,8 @@ namespace FiberPlugin.Core
                     {
                         File = t?.File ?? FileOf(doc),
                         Name = Path.GetFileName(doc.Name),
-                        Now = Count(doc.Database),
-                        Start = t?.Start
+                        Now = Count(doc.Database, t?.Since ?? 0),
+                        Since = t?.Since
                     });
                 }
                 catch (System.Exception)
@@ -140,17 +146,19 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// O que o desenho tem agora no Model: cabos, CTO, CEO, postes, amarrações, reservas técnicas e cordoalha. Uma passada só (roda a
-        /// cada vez que o desenho é salvo), com as regras do relatório: cabo pelo nome (CableDrawing.Totals), CTO/CEO pelo
-        /// XData (Boxes.Collect) e postes como no Poles.Collect.
+        /// O que o desenho tem agora no Model: cabos, CTO, CEO, postes, amarrações, reservas técnicas e cordoalha, só dos
+        /// objetos com handle a partir de <paramref name="since"/> (0 = todos). Uma passada só (roda a cada vez que o desenho
+        /// é salvo), com as regras do relatório: cabo pelo nome (CableDrawing.Totals), CTO/CEO pelo XData (Boxes.Collect) e
+        /// postes como no Poles.Collect.
         /// </summary>
-        public static ProductionCount Count(Database db)
+        public static ProductionCount Count(Database db, long since = 0)
         {
             var count = new ProductionCount();
             using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
             {
                 foreach (ObjectId id in CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead))
                 {
+                    if (id.Handle.Value < since) continue; // Já estava no começo do dia
                     switch (tr.GetObject(id, OpenMode.ForRead))
                     {
                         case Polyline poly when XDataTags.GetCableName(poly) is string cable:
