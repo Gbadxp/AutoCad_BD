@@ -86,9 +86,6 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[AVISO]: As anotações do desenho estão em 1:{drawingScale}. Para textos proporcionais a 1:{plan.Scale}, ajuste a escala em Configuração de Projeto.");
             }
 
-            LayoutManager lm = LayoutManager.Current;
-            DeleteLayouts(ed, lm, existing);
-
             string title = Path.GetFileNameWithoutExtension(doc.Name);
             int digits = plan.Tiles.Count >= 100 ? 3 : 2;
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
@@ -129,6 +126,10 @@ namespace FiberPlugin.Commands
             };
             if (company.IsEmpty || company.Representative.Length == 0)
                 warnings.Add("Empresa ou responsável técnico em branco na legenda: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
+
+            // Só com a legenda pronta: as folhas antigas saem logo antes de as novas serem criadas
+            LayoutManager lm = LayoutManager.Current;
+            DeleteLayouts(ed, lm, existing);
 
             // Não deixa o AutoCAD criar o viewport padrão nas folhas novas
             object? previousLcv = TrySetSystemVariable("LAYOUTCREATEVIEWPORT", (short)0);
@@ -302,9 +303,18 @@ namespace FiberPlugin.Commands
                     ObjectId dictionaryId = RasterImageDef.GetImageDictionary(db);
                     if (dictionaryId.IsNull) dictionaryId = RasterImageDef.CreateImageDictionary(db);
                     var dictionary = (DBDictionary)tr.GetObject(dictionaryId, OpenMode.ForWrite);
-                    RasterImageDef? definition = dictionary.Cast<DBDictionaryEntry>()
-                        .Select(entry => tr.GetObject(entry.Value, OpenMode.ForRead) as RasterImageDef)
-                        .FirstOrDefault(d => d != null && string.Equals(d.SourceFileName, file, StringComparison.OrdinalIgnoreCase));
+                    // foreach com o tipo, não Cast<DBDictionaryEntry>(): o enumerador "genérico" do dicionário devolve
+                    // DictionaryEntry, e o Cast quebrava quando o desenho já tinha uma imagem (ex.: o mapa do Importar Ruas)
+                    RasterImageDef? definition = null;
+                    foreach (DBDictionaryEntry entry in dictionary)
+                    {
+                        if (tr.GetObject(entry.Value, OpenMode.ForRead) is RasterImageDef d &&
+                            string.Equals(d.SourceFileName, file, StringComparison.OrdinalIgnoreCase))
+                        {
+                            definition = d;
+                            break;
+                        }
+                    }
                     if (definition == null)
                     {
                         definition = new RasterImageDef { SourceFileName = file };
@@ -326,6 +336,12 @@ namespace FiberPlugin.Commands
             catch (Autodesk.AutoCAD.Runtime.Exception ex)
             {
                 warnings.Add($"A imagem {file} não pôde ser lida ({ex.ErrorStatus}): a legenda saiu sem ela.");
+                return null;
+            }
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidCastException)
+            {
+                // A imagem é só da legenda: um problema com ela não pode impedir as folhas de saírem
+                warnings.Add($"A imagem {file} não pôde ser usada ({ex.Message}): a legenda saiu sem ela.");
                 return null;
             }
         }
