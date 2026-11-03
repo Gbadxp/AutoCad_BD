@@ -7,7 +7,7 @@ namespace FiberPlugin.Core
     /// <summary>
     /// Dados do projeto usados nos documentos (Memorial Descritivo, Memorial de Esforço e Coordenadas dos Postes) e no
     /// carimbo das folhas do Gerar Folhas: percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo da
-    /// obra; cliente, U.C., nº da obra, conteúdo e área (aba Carimbo). Ficam gravados no DWG e também em
+    /// obra; município, CEP, conteúdo e área (aba Carimbo). Ficam gravados no DWG e também em
     /// Documentos\Fiber Plugin\projeto.txt (os últimos salvos, fora do repositório): o campo que o desenho não tiver
     /// vem do arquivo, para não precisar digitar de novo a cada desenho.
     /// </summary>
@@ -18,13 +18,14 @@ namespace FiberPlugin.Core
         public const string Rural = "Rural", Urban = "Urbana";
         public const string DefaultContent = "PROJETO DE REDE ÓPTICA";
 
-        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90). A 1.9.90
-        // também gravava, nas posições 14 a 20, o quadro de alterações (desenhista, verificador, aprovador, revisão), que
-        // saiu da legenda: um campo novo deve entrar depois da posição 20, para não ler o que ficou lá
-        private static readonly string[] Labels =
+        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90). Os null são
+        // campos que saíram da legenda e ficam vazios no registro (e fora do projeto.txt): cliente, CPF/CNPJ do cliente, U.C.
+        // e nº da obra (até a 1.9.93). A 1.9.90 também gravava, nas posições 14 a 20, o quadro de alterações (desenhista,
+        // verificador, aprovador, revisão): um campo novo deve entrar depois da posição 20, para não ler o que ficou lá
+        private static readonly string?[] Labels =
         {
             "Percurso", "Endereço da obra", "Contrato de uso mútuo", "ART", "Início previsto", "Prazo de execução",
-            "Cliente", "CPF/CNPJ do cliente", "Município", "CEP", "U.C.", "Nº da obra", "Área do projeto", "Conteúdo"
+            null, null, "Município", "CEP", null, null, "Área do projeto", "Conteúdo"
         };
 
         public string Route { get; set; } = "";
@@ -35,12 +36,8 @@ namespace FiberPlugin.Core
         public string Deadline { get; set; } = "";
 
         // Carimbo das folhas (aba Carimbo da Configuração de Projeto)
-        public string Client { get; set; } = "";
-        public string ClientDocument { get; set; } = "";  // CPF ou CNPJ
         public string City { get; set; } = "";            // Município
         public string ZipCode { get; set; } = "";
-        public string ConsumerUnit { get; set; } = "";    // U.C. (unidade consumidora)
-        public string WorkNumber { get; set; } = "";      // Nº da obra
         public string Area { get; set; } = "";            // Rural, Urbana ou vazio
         public string Content { get; set; } = "";         // Conteúdo (ex.: PROJETO DE REDE ÓPTICA)
 
@@ -61,7 +58,7 @@ namespace FiberPlugin.Core
         private string[] Values => new[]
         {
             Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline,
-            Client, ClientDocument, City, ZipCode, ConsumerUnit, WorkNumber, Area, Content
+            "", "", City, ZipCode, "", "", Area, Content
         };
 
         /// <summary>Mesmos textos e mesma zona (para saber se algo mudou na aba Projeto).</summary>
@@ -72,8 +69,7 @@ namespace FiberPlugin.Core
         private static ProjectInfo From(string[] v) => new ProjectInfo
         {
             Route = v[0], WorkAddress = v[1], ContractNumber = v[2], ArtNumber = v[3], StartDate = v[4], Deadline = v[5],
-            Client = v[6], ClientDocument = v[7], City = v[8], ZipCode = v[9], ConsumerUnit = v[10], WorkNumber = v[11],
-            Area = v[12], Content = v[13]
+            City = v[8], ZipCode = v[9], Area = v[12], Content = v[13]
         };
 
         /// <summary>Uma cópia, para mudar só alguns campos e gravar sem perder os outros.</summary>
@@ -91,7 +87,7 @@ namespace FiberPlugin.Core
             string[] drawing = ReadDrawing(db);
             Dictionary<string, string> file = ReadFile();
 
-            ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(file, Labels[i])).ToArray());
+            ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 || Labels[i] is not string label ? value : FromFile(file, label)).ToArray());
             if (info.Content.Length == 0) info.Content = DefaultContent; // Sem nada gravado ainda
             info.Zone = UtmZone.Get(db);
             if (info.Zone == null && ParseZone(FromFile(file, ZoneLabel)) is UtmSettings saved)
@@ -127,7 +123,8 @@ namespace FiberPlugin.Core
                 var text = new StringBuilder();
                 text.AppendLine("# Dados do projeto do Fiber Plugin (os últimos salvos). Preenchem a janela dos documentos");
                 text.AppendLine("# nos desenhos que ainda não têm esses dados. Pode editar aqui, um campo por linha.");
-                for (int i = 0; i < Labels.Length; i++) text.AppendLine($"{Labels[i]}: {Values[i]}");
+                for (int i = 0; i < Labels.Length; i++)
+                    if (Labels[i] != null) text.AppendLine($"{Labels[i]}: {Values[i]}");
                 // Sem zona informada (ex.: salvo por um documento), mantém a que já estava no arquivo
                 string zone = Zone != null ? $"{Zone.Zone} {(Zone.South ? "Sul" : "Norte")}" : FromFile(ReadFile(), ZoneLabel);
                 text.AppendLine($"{ZoneLabel}: {zone}");

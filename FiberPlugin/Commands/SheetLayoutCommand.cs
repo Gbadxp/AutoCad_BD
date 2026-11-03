@@ -91,8 +91,8 @@ namespace FiberPlugin.Commands
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
-            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, cliente, obra, conteúdo e área das
-            // abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
+            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, endereço, município, CEP, conteúdo
+            // e área das abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
             CompanyInfo company = CompanyInfo.Read();
             ProjectInfo project = ProjectInfo.Load(db);
             var images = new Dictionary<PaperImage, ObjectId>();
@@ -113,14 +113,9 @@ namespace FiberPlugin.Commands
                 Content = project.Content,
                 Area = project.Area,
                 Date = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                Client = project.Client,
-                ClientDocument = project.ClientDocument,
                 Address = project.WorkAddress,
                 City = project.City,
                 ZipCode = project.ZipCode,
-                ConsumerUnit = project.ConsumerUnit,
-                WorkNumber = project.WorkNumber,
-                Zone = project.Zone,
                 LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
                 SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
             };
@@ -140,8 +135,7 @@ namespace FiberPlugin.Commands
                     string name = $"{options.Prefix}-{(i + 1).ToString("D" + digits, CultureInfo.InvariantCulture)}";
                     try
                     {
-                        Rect shown = plan.Tiles[i].ModelArea;
-                        SheetPaper paper = SheetFrame.Build(plan, i + 1, title, stamp, (shown.CenterX, shown.CenterY));
+                        SheetPaper paper = SheetFrame.Build(plan, i + 1, title, stamp);
                         string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], paper, images, legend);
                         if (warning != null) warnings.Add(warning);
                         names.Add(name);

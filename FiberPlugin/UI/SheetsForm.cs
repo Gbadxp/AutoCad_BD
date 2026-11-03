@@ -20,10 +20,11 @@ namespace FiberPlugin.UI
         private const string SheetContents =
             "O que cada folha terá (NBR 16752):\n" +
             "•  Quadro com margem de 20 mm à esquerda, malha de referência (letras e números na margem), marcas de centro e de corte.\n" +
-            "•  Legenda (carimbo) de 180 mm deitada no canto de baixo à direita: logo e empresa, projeto, cliente, CPF/CNPJ, endereço, " +
-            "município, CEP, U.C., responsável técnico com o CREA e a assinatura, coordenadas UTM do centro da folha, conteúdo, área rural ou " +
-            "urbana, escala, data, nº da obra e folha (01/06). Os dados vêm da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a " +
-            "logo, de Dados\\Memorial\\logo.png, a mesma do memorial. À esquerda dela, o nome do desenho.\n" +
+            "•  Legenda (carimbo) de 180 mm deitada no canto de baixo à direita: logo e empresa, projeto, endereço, município, CEP, " +
+            "responsável técnico com o CREA, a ART e a assinatura, conteúdo, área rural ou urbana, escala, data e folha (01/06). Os dados vêm " +
+            "da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo, de Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
+            "•  À esquerda da legenda (no A4 em pé, em cima dela), a articulação das folhas: o mapa da divisão com o número de cada folha " +
+            "e a folha atual hachurada, e o formato no canto (FOLHA A2). Sobrando espaço, o nome do desenho.\n" +
             "•  Coluna à direita com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3), todos: as linhas " +
             "diminuem se precisar.\n" +
             "•  Na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos.\n" +

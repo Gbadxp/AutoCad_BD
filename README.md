@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.93.msi`](Instalador/FiberPlugin-1.9.93.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.94.msi`](Instalador/FiberPlugin-1.9.94.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -213,7 +213,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
 | Norma NBR 16752 | `FIBRA_NORMA_FOLHAS` | Abre o PDF da NBR 16752:2020 (folhas de desenho), a norma que o Gerar Folhas segue. A norma é da ABNT (vendida por ela) e não vem com o plugin: quem tem a norma coloca o PDF (com `16752` no nome) em `Documentos\Fiber Plugin\Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
-| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, carimbo (logo, empresa, responsável técnico, assinatura), marcas de dobra, legenda e viewport, prontas para PDF; também apaga as folhas geradas (veja abaixo). |
+| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, carimbo (logo, empresa, responsável técnico, assinatura, articulação das folhas), marcas de dobra, legenda e viewport, prontas para PDF; também apaga as folhas geradas (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
@@ -240,7 +240,7 @@ O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com a
 
 | Aba Carimbo (Configuração de Projeto) | Função |
 |---|---|
-| Cliente, CPF/CNPJ, nº da obra, município, CEP, U.C. | Vão na legenda das folhas do Gerar Folhas, com o percurso, o endereço da obra e a ART da aba Projeto. Ficam no DWG (e o último salvo em `projeto.txt`, como os da aba Projeto). |
+| Município, CEP | Vão na legenda das folhas do Gerar Folhas, com o percurso, o endereço da obra e a ART da aba Projeto. Ficam no DWG (e o último salvo em `projeto.txt`, como os da aba Projeto). |
 | Conteúdo, área do projeto | Conteúdo da folha (padrão `PROJETO DE REDE ÓPTICA`) e a caixa marcada na legenda: **Urbana**, **Rural** ou nenhuma. |
 
 A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
@@ -463,15 +463,18 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
    - configuração de página **DWG To PDF**, papel do formato escolhido, plotagem 1:1;
    - folha pela **NBR 16752:2020** (folhas de desenho): quadro com margem de 20 mm à esquerda e 10 mm nas demais, linha
      de 1,0 mm (A0 e A1) ou 0,7 mm (A2 a A4); **malha de referência** na margem (campos de 50 mm a partir do meio, números
-     em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita), com o formato no campo de baixo à
-     direita; **marcas de centro** nos quatro lados e **marcas de corte** em L (10 x 5 mm) nos cantos;
+     em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita); **marcas de centro** nos quatro lados
+     (as que dão no carimbo ou na coluna da direita param na linha do quadro) e **marcas de corte** em L (10 x 5 mm) nos
+     cantos;
    - **legenda** (carimbo) de 180 x 49 mm deitada no canto de baixo à direita, em dois blocos lado a lado: **logo** com o
-     nome da empresa, projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço, município, CEP e
-     **U.C.**; **responsável técnico** com o CREA (e a ART), espaço com linha para a **assinatura** (ou a imagem
-     `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do centro da folha com o fuso (ex.: `FUSO 20M`),
-     **conteúdo**, **área do projeto** (rural ou urbana), escala, data, **nº da obra** e o número da folha. Os dados vêm da
-     Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`). À
-     esquerda da legenda, o nome do desenho;
+     nome da empresa, projeto (o percurso da rede, ou o nome do desenho), endereço, município e CEP; **responsável
+     técnico** com o CREA e a ART, espaço com linha para a **assinatura** (ou a imagem `Dados\Memorial\assinatura.png`, se
+     existir), **conteúdo**, **área do projeto** (rural ou urbana), escala, data e o número da folha. Os dados vêm da
+     Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`);
+   - à esquerda da legenda (até 120 mm; no A4 em pé, que não tem espaço ao lado, em cima dela), a **articulação das
+     folhas**: o mapa da divisão, com cada folha no lugar dela e o número, a folha atual hachurada (pintada, se ficar
+     pequena demais no mapa) e o formato no canto de baixo à esquerda (**FOLHA A2**). Sobrando espaço à esquerda, o nome
+     do desenho;
    - coluna à direita, acima da legenda, com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
      (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009:
      todos os símbolos cabem (as linhas diminuem em folha baixa, como o A4 deitado);

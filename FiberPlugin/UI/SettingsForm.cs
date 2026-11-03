@@ -138,7 +138,7 @@ namespace FiberPlugin.UI
     /// abas. Cabos (com cor, tipo de linha e espessura), Postes, Tração (Tabela 08) e Empresa são os cadastros do plugin
     /// (Documentos\Fiber Plugin\cabos.txt, postes.txt, tracao.txt e empresa.txt); Nomes e Desenho vão para
     /// configuracoes.txt (UserSettings). Valem para todos os desenhos. A aba Carimbo (na Configuração de Projeto) tem o que
-    /// vai na legenda das folhas: cliente, obra, conteúdo e área deste desenho (ProjectInfo).
+    /// vai na legenda das folhas: município, CEP, conteúdo e área deste desenho (ProjectInfo).
     /// Confere tudo enquanto o usuário digita.
     /// </summary>
     internal class SettingsForm : Form
@@ -202,7 +202,7 @@ namespace FiberPlugin.UI
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
         // Aba Carimbo: o que vai na legenda das folhas do Gerar Folhas (fica no ProjectInfo)
-        private readonly LabeledInput _client, _clientDocument, _city, _zipCode, _consumerUnit, _workNumber, _content;
+        private readonly LabeledInput _city, _zipCode, _content;
         private readonly ChoiceBar _area;
         private readonly ChoiceBar _digits;
         private readonly Label _example;
@@ -229,12 +229,8 @@ namespace FiberPlugin.UI
             get
             {
                 ProjectInfo info = _project.Info.Clone();
-                info.Client = _client.Value;
-                info.ClientDocument = _clientDocument.Value;
                 info.City = _city.Value;
                 info.ZipCode = _zipCode.Value;
-                info.ConsumerUnit = _consumerUnit.Value;
-                info.WorkNumber = _workNumber.Value;
                 info.Area = Areas[Math.Max(0, _area.SelectedIndex)];
                 info.Content = _content.Value;
                 return info;
@@ -397,12 +393,8 @@ namespace FiberPlugin.UI
                         _company[field].Value = company[field];
 
             // ---------- Carimbo (legenda das folhas do Gerar Folhas) ----------
-            _client = new LabeledInput("Cliente", "");
-            _clientDocument = new LabeledInput("CPF/CNPJ do cliente", "");
             _city = new LabeledInput("Município", "ex.: Porto Velho-RO");
             _zipCode = new LabeledInput("CEP", "");
-            _consumerUnit = new LabeledInput("U.C.", "unidade consumidora");
-            _workNumber = new LabeledInput("Nº da obra", "");
             _content = new LabeledInput("Conteúdo", ProjectInfo.DefaultContent);
             _area = new ChoiceBar("Urbana", "Rural", "Sem marcar") { Dock = DockStyle.Top };
             var areaField = new Panel { BackColor = Theme.Background };
@@ -410,12 +402,11 @@ namespace FiberPlugin.UI
             areaField.Controls.Add(FieldTitle("Área do projeto"));
             Control stampPage = FormPage(new (Control, float)[]
             {
-                (new SectionLabel("Cliente e obra (deste desenho)"), 22),
-                (Row(new (Control, float)[] { (_client, 2), (_clientDocument, 1), (_workNumber, 1) }), 52),
-                (Row(new (Control, float)[] { (_city, 2), (_zipCode, 1), (_consumerUnit, 1) }), 52),
+                (new SectionLabel("Obra (deste desenho)"), 22),
+                (Row(new (Control, float)[] { (_city, 2), (_zipCode, 1), (new Panel { BackColor = Theme.Background }, 1) }), 52),
                 (Row(new (Control, float)[] { (_content, 2), (areaField, 2) }), 52),
                 (Hint("Vão na legenda das folhas do Gerar Folhas (NBR 16752), com o percurso, o endereço da obra e a ART da aba Projeto e a " +
-                      "empresa, o responsável técnico e o CREA da aba Empresa."), 40)
+                      "empresa, o responsável técnico e o CREA da aba Empresa. A articulação das folhas e o formato saem da divisão."), 40)
             });
             FillStamp(project);
 
@@ -594,16 +585,12 @@ namespace FiberPlugin.UI
 
         // ---------- Preenchimento ----------
 
-        private IEnumerable<LabeledInput> StampFields => new[] { _client, _clientDocument, _city, _zipCode, _consumerUnit, _workNumber, _content };
+        private IEnumerable<LabeledInput> StampFields => new[] { _city, _zipCode, _content };
 
         private void FillStamp(ProjectInfo p)
         {
-            _client.Value = p.Client;
-            _clientDocument.Value = p.ClientDocument;
             _city.Value = p.City;
             _zipCode.Value = p.ZipCode;
-            _consumerUnit.Value = p.ConsumerUnit;
-            _workNumber.Value = p.WorkNumber;
             _content.Value = p.Content;
             _area.SelectedIndex = Math.Max(0, Array.IndexOf(Areas, p.Area));
         }
@@ -754,9 +741,9 @@ namespace FiberPlugin.UI
                     _status.Set($"Empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · vale para todos os projetos " +
                                 "(memorial e Tabela A)", StatusKind.Ok);
                 else if (CurrentTab == TabStamp)
-                    _status.Set($"Legenda das folhas: {(_client.Value.Length > 0 ? "cliente " + _client.Value : "sem cliente")}" +
-                                (_workNumber.Value.Length > 0 ? $" · obra {_workNumber.Value}" : "") +
-                                (_content.Value.Length > 0 ? $" · {_content.Value}" : ""), StatusKind.Ok);
+                    _status.Set($"Legenda das folhas: {(_content.Value.Length > 0 ? _content.Value : "sem conteúdo")}" +
+                                (_city.Value.Length > 0 ? $" · {_city.Value}" : "") +
+                                (Areas[Math.Max(0, _area.SelectedIndex)] is string area && area.Length > 0 ? $" · área {area.ToLower(DataFiles.Br)}" : ""), StatusKind.Ok);
                 else if (CurrentTab == TabShortcuts)
                     _status.Set($"{Shortcuts.Count(s => s.Value.Length > 0)} de {Shortcuts.Count} comandos com atalho, sem conflitos · " +
                                 "digite o atalho na linha de comando e tecle Enter", StatusKind.Ok);

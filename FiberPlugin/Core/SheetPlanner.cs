@@ -40,13 +40,16 @@ namespace FiberPlugin.Core
         public const double MarginLeft = 20;
         public const double Margin = 10;
 
-        // Legenda (o carimbo, SheetFrame) deitada no canto inferior direito do quadro, com os 180 mm de comprimento que a
-        // NBR 16752 (5.3) pede em todos os formatos: sete linhas de 7 mm, numa faixa embaixo. Os 180 mm mais a margem de 10 mm
-        // são o painel da frente da cópia dobrada em A4 (190 mm, figura 21). O norte e os símbolos ficam na coluna estreita da
-        // direita, acima da faixa
+        // Carimbo (SheetFrame) deitado no canto inferior direito do quadro, numa faixa embaixo: a legenda, com os 180 mm de
+        // comprimento que a NBR 16752 (5.3) pede em todos os formatos (sete linhas de 7 mm), e à esquerda dela a articulação
+        // das folhas (até 120 mm). Os 180 mm mais a margem de 10 mm são o painel da frente da cópia dobrada em A4 (190 mm,
+        // figura 21). Sem espaço ao lado (A4 em pé), a articulação vai em cima da legenda. O norte e os símbolos ficam na coluna
+        // estreita da direita, acima da faixa
         public const double TitleBlockWidth = 180;
         public const double LegendRow = 7;   // Altura de uma linha da legenda
-        public const double TitleBlockHeight = 7 * LegendRow;
+        public const double LegendHeight = 7 * LegendRow;
+        private const double ArticulationMaxWidth = 120, ArticulationMinWidth = 60;
+        private const double ArticulationOnTopHeight = 5 * LegendRow;
 
         public SheetFormat(string name, double width, double height)
         {
@@ -85,25 +88,45 @@ namespace FiberPlugin.Core
         /// <summary>Largura da coluna de norte e símbolos, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
         public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
 
-        /// <summary>Área do viewport: o quadro menos a faixa da legenda e a coluna da direita, em mm no papel.</summary>
+        /// <summary>Largura da articulação das folhas, à esquerda da legenda; 0 = não cabe ao lado (vai em cima da legenda).</summary>
+        public double ArticulationWidth(bool landscape)
+        {
+            double room = Frame(landscape).Width - TitleBlockWidth;
+            return room >= ArticulationMinWidth ? Math.Min(ArticulationMaxWidth, room) : 0;
+        }
+
+        /// <summary>Altura da faixa do carimbo: a da legenda, ou a da legenda mais a articulação em cima dela.</summary>
+        public double TitleBlockHeight(bool landscape) => LegendHeight + (ArticulationWidth(landscape) > 0 ? 0 : ArticulationOnTopHeight);
+
+        /// <summary>Área do viewport: o quadro menos a faixa do carimbo e a coluna da direita, em mm no papel.</summary>
         public Rect ViewportArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight, frame.MaxX - LegendWidth(landscape), frame.MaxY);
+            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight(landscape), frame.MaxX - LegendWidth(landscape), frame.MaxY);
         }
 
-        /// <summary>Norte e símbolos, na coluna da direita (acima da faixa da legenda), em mm no papel.</summary>
+        /// <summary>Norte e símbolos, na coluna da direita (acima da faixa do carimbo), em mm no papel.</summary>
         public Rect LegendArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight, frame.MaxX, frame.MaxY);
+            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight(landscape), frame.MaxX, frame.MaxY);
         }
 
-        /// <summary>Legenda (carimbo), no canto de baixo à direita do quadro (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
+        /// <summary>Legenda (180 mm), no canto de baixo à direita do quadro (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
         public Rect TitleBlock(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + TitleBlockHeight);
+            return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + LegendHeight);
+        }
+
+        /// <summary>Articulação das folhas: à esquerda da legenda ou, sem espaço, em cima dela, em mm no papel.</summary>
+        public Rect ArticulationArea(bool landscape)
+        {
+            Rect legend = TitleBlock(landscape);
+            double width = ArticulationWidth(landscape);
+            return width > 0
+                ? new Rect(legend.MinX - width, legend.MinY, legend.MinX, legend.MaxY)
+                : new Rect(legend.MinX, legend.MaxY, legend.MaxX, legend.MaxY + ArticulationOnTopHeight);
         }
     }
 
