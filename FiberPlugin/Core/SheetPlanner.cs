@@ -36,15 +36,15 @@ namespace FiberPlugin.Core
             new SheetFormat("A4", 297, 210)
         };
 
-        // Margens da moldura (NBR 10068: 25 mm à esquerda para encadernação, 10 mm nas demais)
-        public const double MarginLeft = 25;
+        // Margens da moldura (NBR 16752, tabela 4: 20 mm à esquerda para furar e arquivar, 10 mm nas demais)
+        public const double MarginLeft = 20;
         public const double Margin = 10;
 
-        // Faixa na base da moldura: o carimbo (SheetFrame) à direita e, à esquerda dele, o nome do desenho. O carimbo tem
-        // 175 mm de largura para ficar à vista na cópia dobrada em A4 (NBR 13142: o último painel tem 185 mm, menos a
-        // margem de 10 mm)
-        public const double TitleBlockHeight = 34;
-        public const double TitleBlockWidth = 175;
+        // Faixa na base da moldura: a legenda (o carimbo, SheetFrame) no canto direito, com os 180 mm de comprimento que a
+        // NBR 16752 (5.3) pede em todos os formatos e altura livre, e à esquerda dela as notas técnicas. Os 180 mm mais a
+        // margem de 10 mm são o painel da frente da cópia dobrada em A4 (190 mm, figura 21)
+        public const double TitleBlockHeight = 84;
+        public const double TitleBlockWidth = 180;
 
         public SheetFormat(string name, double width, double height)
         {
@@ -63,9 +63,22 @@ namespace FiberPlugin.Core
         public double PaperWidth(bool landscape) => landscape ? LongSide : ShortSide;
         public double PaperHeight(bool landscape) => landscape ? ShortSide : LongSide;
 
-        /// <summary>Moldura, em mm no papel.</summary>
+        /// <summary>Moldura (o quadro), em mm no papel.</summary>
         public Rect Frame(bool landscape) =>
             new Rect(MarginLeft, Margin, PaperWidth(landscape) - Margin, PaperHeight(landscape) - Margin);
+
+        /// <summary>Largura da linha do quadro (NBR 16752, tabela 4): 1,0 mm no A0 e no A1, 0,7 mm nos menores.</summary>
+        public double FrameLineWidth => LongSide >= 840 ? 1.0 : 0.7;
+
+        /// <summary>Campos da malha de referência no lado maior e no menor (NBR 16752, tabela 5).</summary>
+        public (int Long, int Short) GridFields => Name switch
+        {
+            "A0" => (24, 16),
+            "A1" => (16, 12),
+            "A2" => (12, 8),
+            "A3" => (8, 6),
+            _ => (6, 4)
+        };
 
         /// <summary>Largura da coluna de norte e legenda, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
         public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
@@ -84,7 +97,7 @@ namespace FiberPlugin.Core
             return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight, frame.MaxX, frame.MaxY);
         }
 
-        /// <summary>Carimbo, no canto de baixo à direita da moldura (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
+        /// <summary>Legenda (carimbo), no canto de baixo à direita do quadro (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
         public Rect TitleBlock(bool landscape)
         {
             Rect frame = Frame(landscape);

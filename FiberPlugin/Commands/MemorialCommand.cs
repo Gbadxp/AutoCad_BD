@@ -109,11 +109,16 @@ namespace FiberPlugin.Commands
             if (kind != Kind.Coordinates && data.ContractNumber.Length == 0)
                 ed.WriteMessage("\n[AVISO]: Sem o número do contrato de uso mútuo, que a NDU 009 exige no memorial (item 16.2 a).");
 
-            new ProjectInfo
-            {
-                Route = data.Route, WorkAddress = data.WorkAddress, ContractNumber = data.ContractNumber,
-                ArtNumber = data.ArtNumber, StartDate = data.StartDate, Deadline = data.Deadline
-            }.Save(db);
+            // Só os campos da janela mudam: os do carimbo das folhas continuam os gravados
+            ProjectInfo updated = saved.Clone();
+            updated.Route = data.Route;
+            updated.WorkAddress = data.WorkAddress;
+            updated.ContractNumber = data.ContractNumber;
+            updated.ArtNumber = data.ArtNumber;
+            updated.StartDate = data.StartDate;
+            updated.Deadline = data.Deadline;
+            updated.Zone = null; // Quem grava a zona é a Configuração de Projeto (o projeto.txt mantém a que já tinha)
+            updated.Save(db);
 
             string folder = Path.GetDirectoryName(doc.Name) is string dir && dir.Length > 0
                 ? dir

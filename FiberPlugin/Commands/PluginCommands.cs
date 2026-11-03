@@ -24,6 +24,26 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[AVISO]: A NDU 009 não está na pasta {PluginPaths.NormsFolderName} do plugin. Reinstale o plugin.");
                 return;
             }
+            OpenPdf(ed, pdf);
+        }
+
+        /// <summary>Abre a NBR 16752 (folhas de desenho, a norma que o Gerar Folhas segue), se o PDF estiver na pasta Normas.</summary>
+        [CommandMethod("FIBRA_NORMA_FOLHAS")]
+        public void OpenSheetNorm()
+        {
+            Editor ed = AcApp.DocumentManager.MdiActiveDocument.Editor;
+            string? pdf = PluginPaths.SheetNormFile;
+            if (pdf == null)
+            {
+                ed.WriteMessage($"\n[AVISO]: A NBR 16752 é vendida pela ABNT e não vem com o plugin. Coloque o PDF dela (com 16752 no nome) em " +
+                                $"{Path.Combine(PluginPaths.UserRoot, PluginPaths.NormsFolderName)}.");
+                return;
+            }
+            OpenPdf(ed, pdf);
+        }
+
+        private static void OpenPdf(Editor ed, string pdf)
+        {
             try
             {
                 Process.Start(new ProcessStartInfo(pdf) { UseShellExecute = true });

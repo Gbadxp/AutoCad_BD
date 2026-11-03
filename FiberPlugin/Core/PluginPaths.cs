@@ -50,6 +50,21 @@ namespace FiberPlugin.Core
 
         public const string NormsFolderName = "Normas";
 
+        /// <summary>
+        /// PDF da NBR 16752 (folhas de desenho): em Documentos\Fiber Plugin\Normas ou na pasta Normas do plugin. A norma é da
+        /// ABNT (vendida por ela): não vem no instalador; quem tem a norma coloca o PDF na pasta. Null se não estiver lá.
+        /// </summary>
+        public static string? SheetNormFile =>
+            new[] { Path.Combine(UserRoot, NormsFolderName), FindUpwards(NormsFolderName) }
+                .Where(dir => dir != null && Directory.Exists(dir))
+                .SelectMany(dir =>
+                {
+                    try { return Directory.EnumerateFiles(dir!, "*16752*.pdf").OrderBy(f => f).ToList(); }
+                    catch (IOException) { return new List<string>(); }
+                    catch (UnauthorizedAccessException) { return new List<string>(); }
+                })
+                .FirstOrDefault();
+
         /// <summary>PDF da NDU 009 na pasta Normas (a do código-fonte ou a do pacote). Null se não estiver lá.</summary>
         public static string? NormFile
         {

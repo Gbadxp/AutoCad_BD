@@ -94,22 +94,49 @@ namespace FiberPlugin.Commands
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
-            // Carimbo: empresa e responsável técnico da aba Empresa, projeto e ART da aba Projeto, a logo do memorial
+            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, cliente, equipe e revisão das abas
+            // Projeto e Carimbo; notas técnicas do notas.txt; a logo (e a assinatura, se houver) da pasta do memorial
             CompanyInfo company = CompanyInfo.Read();
             ProjectInfo project = ProjectInfo.Load(db);
-            (ObjectId Id, double Aspect)? logo = LogoDefinition(db, warnings);
+            var images = new Dictionary<PaperImage, ObjectId>();
+            double ImageAspect(PaperImage kind, string file, bool required)
+            {
+                if (ImageDefinition(db, file, required, warnings) is not (ObjectId id, double aspect)) return 0;
+                images[kind] = id;
+                return aspect;
+            }
+            bool engineer = company.Qualification.IndexOf("engenheir", StringComparison.OrdinalIgnoreCase) >= 0;
             var stamp = new SheetStamp
             {
                 Company = company.LegalName,
-                Engineer = company.Representative,
+                Engineer = (engineer && company.Representative.Length > 0 ? "ENG. " : "") + company.Representative.ToUpper(DataFiles.Br),
                 Crea = company.Crea,
-                Project = project.Route.Length > 0 ? project.Route : title,
                 Art = project.ArtNumber,
+                Title = project.Route.Length > 0 ? project.Route : title,
+                Content = project.Content,
+                Area = project.Area,
                 Date = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                LogoAspect = logo?.Aspect ?? 0
+                Client = project.Client,
+                ClientDocument = project.ClientDocument,
+                Address = project.WorkAddress,
+                City = project.City,
+                ZipCode = project.ZipCode,
+                ConsumerUnit = project.ConsumerUnit,
+                WorkNumber = project.WorkNumber,
+                Approver = project.Approver,
+                Checker = project.Checker,
+                CheckerEmail = project.CheckerEmail,
+                Drafter = project.Drafter,
+                DrafterEmail = project.DrafterEmail,
+                Revision = project.Revision,
+                RevisionReason = project.RevisionReason,
+                Notes = SheetNotes.Load(),
+                Zone = project.Zone,
+                LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
+                SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
             };
             if (company.IsEmpty || company.Representative.Length == 0)
-                warnings.Add("Empresa ou responsável técnico em branco no carimbo: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
+                warnings.Add("Empresa ou responsável técnico em branco na legenda: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
 
             // Não deixa o AutoCAD criar o viewport padrão nas folhas novas
             object? previousLcv = TrySetSystemVariable("LAYOUTCREATEVIEWPORT", (short)0);
@@ -120,7 +147,10 @@ namespace FiberPlugin.Commands
                     string name = $"{options.Prefix}-{(i + 1).ToString("D" + digits, CultureInfo.InvariantCulture)}";
                     try
                     {
-                        string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], SheetFrame.Build(plan, i + 1, title, stamp), logo?.Id, legend);
+                        Rect shown = plan.Tiles[i].ModelArea;
+                        SheetPaper paper = SheetFrame.Build(plan, i + 1, title, stamp, (shown.CenterX, shown.CenterY));
+                        if (paper.NotesLeftOut) warnings.Add($"As notas técnicas não cabem na folha {plan.Format.Name}: saíram sem elas (use uma folha maior).");
+                        string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], paper, images, legend);
                         if (warning != null) warnings.Add(warning);
                         names.Add(name);
                     }
@@ -257,17 +287,21 @@ namespace FiberPlugin.Commands
             ed.Regen();
         }
 
+        // Imagens da legenda, na pasta do memorial (Dados\Memorial): a logo (a mesma do memorial) e, se houver, a assinatura
+        private const string LogoFile = "logo.png", SignatureFile = "assinatura.png";
+
         /// <summary>
-        /// Logo do carimbo: a mesma do memorial (Dados\Memorial\logo.png). Uma definição de imagem por desenho, reaproveitada
-        /// a cada geração, e a proporção da imagem. Null sem o arquivo (o quadro da logo fica vazio).
+        /// Definição de uma imagem da legenda (uma por desenho, reaproveitada a cada geração) e a proporção dela. Null sem o
+        /// arquivo: o quadro fica vazio (a falta da logo é avisada; a assinatura é opcional).
         /// </summary>
-        private static (ObjectId Id, double Aspect)? LogoDefinition(Database db, HashSet<string> warnings)
+        private static (ObjectId Id, double Aspect)? ImageDefinition(Database db, string fileName, bool required, HashSet<string> warnings)
         {
             string? folder = PluginPaths.DataFile(MemorialDocument.AssetsFolder);
-            string? file = folder == null ? null : Path.Combine(folder, "logo.png");
+            string? file = folder == null ? null : Path.Combine(folder, fileName);
             if (file == null || !File.Exists(file))
             {
-                warnings.Add("Sem a logo no carimbo: coloque a imagem em Dados\\Memorial\\logo.png (botão Pasta de Dados da Configuração de Projeto).");
+                if (required)
+                    warnings.Add($"Sem a logo na legenda: coloque a imagem em Dados\\Memorial\\{fileName} (botão Pasta de Dados da Configuração de Projeto).");
                 return null;
             }
             try
@@ -300,14 +334,14 @@ namespace FiberPlugin.Commands
             }
             catch (Autodesk.AutoCAD.Runtime.Exception ex)
             {
-                warnings.Add($"A logo ({file}) não pôde ser lida ({ex.ErrorStatus}): o carimbo saiu sem ela.");
+                warnings.Add($"A imagem {file} não pôde ser lida ({ex.ErrorStatus}): a legenda saiu sem ela.");
                 return null;
             }
         }
 
         /// <returns>Aviso sobre a configuração de impressão, ou null se tudo certo.</returns>
         private static string? CreateSheet(Database db, LayoutManager lm, string name, SheetPlan plan, SheetTile tile, SheetPaper paper,
-            ObjectId? logo, SheetLegend legend)
+            Dictionary<PaperImage, ObjectId> images, SheetLegend legend)
         {
             ObjectId layoutId = lm.CreateLayout(name);
             lm.CurrentLayout = name; // O viewport só pode ser ligado com a folha ativa
@@ -330,8 +364,8 @@ namespace FiberPlugin.Commands
                 CadHelpers.EnsureLayer(tr, db, FrameLayer, 7);
                 CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
 
-                DrawFrame(tr, paperSpace, paper, logo);
-                legend.Draw(tr, db, paperSpace, plan.Format.LegendArea(plan.Landscape), FrameLayer);
+                DrawFrame(tr, paperSpace, paper, images);
+                legend.Draw(tr, db, paperSpace, paper.LegendArea, FrameLayer);
 
                 Rect area = plan.Format.ViewportArea(plan.Landscape);
                 Viewport vp = CadHelpers.Append(tr, paperSpace, new Viewport
@@ -354,8 +388,8 @@ namespace FiberPlugin.Commands
             return warning;
         }
 
-        /// <summary>Moldura, carimbo, marcas de dobra e de corte (montados pelo SheetFrame), em mm no papel.</summary>
-        private static void DrawFrame(Transaction tr, BlockTableRecord paperSpace, SheetPaper paper, ObjectId? logo)
+        /// <summary>Quadro, legenda, malha, notas, avisos e marcas (montados pelo SheetFrame), em mm no papel.</summary>
+        private static void DrawFrame(Transaction tr, BlockTableRecord paperSpace, SheetPaper paper, Dictionary<PaperImage, ObjectId> images)
         {
             foreach (var (rect, width) in paper.Boxes)
             {
@@ -364,7 +398,11 @@ namespace FiberPlugin.Commands
                 AddPaper(tr, paperSpace, box);
             }
             foreach (PaperLine l in paper.Lines)
-                AddPaper(tr, paperSpace, new Line(new Point3d(l.X1, l.Y1, 0), new Point3d(l.X2, l.Y2, 0)));
+            {
+                var line = new Line(new Point3d(l.X1, l.Y1, 0), new Point3d(l.X2, l.Y2, 0));
+                AddPaper(tr, paperSpace, line);
+                if (l.Weight > 0) line.LineWeight = Weight(l.Weight);
+            }
             foreach (Rect r in paper.Fills)
                 AddPaper(tr, paperSpace, new Solid(new Point3d(r.MinX, r.MinY, 0), new Point3d(r.MaxX, r.MinY, 0),
                                                    new Point3d(r.MinX, r.MaxY, 0), new Point3d(r.MaxX, r.MaxY, 0)));
@@ -372,31 +410,47 @@ namespace FiberPlugin.Commands
             {
                 AddPaper(tr, paperSpace, new MText
                 {
-                    Contents = CadHelpers.MTextLiteral(t.Text),
+                    Contents = CadHelpers.MTextLiteral(t.Text).Replace("\n", "\\P"),
                     Location = new Point3d(t.X, t.Y, 0),
                     Attachment = t.Anchor switch
                     {
                         PaperAnchor.BottomLeft => AttachmentPoint.BottomLeft,
                         PaperAnchor.MiddleLeft => AttachmentPoint.MiddleLeft,
+                        PaperAnchor.MiddleCenter => AttachmentPoint.MiddleCenter,
+                        PaperAnchor.MiddleRight => AttachmentPoint.MiddleRight,
                         _ => AttachmentPoint.TopLeft
                     },
                     TextHeight = t.Height,
-                    Width = t.Width
+                    Width = t.Width,
+                    Rotation = t.Rotation
                 });
             }
 
-            if (logo is not ObjectId logoId || paper.Logo is not Rect area) return;
-            var definition = (RasterImageDef)tr.GetObject(logoId, OpenMode.ForWrite);
-            var image = new RasterImage
+            foreach (var (area, kind) in paper.Images)
             {
-                ImageDefId = logoId,
-                Orientation = new CoordinateSystem3d(new Point3d(area.MinX, area.MinY, 0), new Vector3d(area.Width, 0, 0), new Vector3d(0, area.Height, 0)),
-                ShowImage = true,
-                ImageTransparency = true // Fundo transparente do PNG
-            };
-            AddPaper(tr, paperSpace, image);
-            RasterImage.EnableReactors(true);
-            image.AssociateRasterDef(definition);
+                if (!images.TryGetValue(kind, out ObjectId definitionId)) continue;
+                var definition = (RasterImageDef)tr.GetObject(definitionId, OpenMode.ForWrite);
+                var image = new RasterImage
+                {
+                    ImageDefId = definitionId,
+                    Orientation = new CoordinateSystem3d(new Point3d(area.MinX, area.MinY, 0), new Vector3d(area.Width, 0, 0), new Vector3d(0, area.Height, 0)),
+                    ShowImage = true,
+                    ImageTransparency = true // Fundo transparente do PNG
+                };
+                AddPaper(tr, paperSpace, image);
+                RasterImage.EnableReactors(true);
+                image.AssociateRasterDef(definition);
+            }
+        }
+
+        /// <summary>Espessura de impressão mais próxima das do AutoCAD (0,18, 0,35, 0,70, 1,00 mm...).</summary>
+        private static LineWeight Weight(double mm)
+        {
+            int hundredths = (int)Math.Round(mm * 100);
+            return Enum.GetValues(typeof(LineWeight)).Cast<LineWeight>()
+                .Where(w => (int)w >= 0)
+                .OrderBy(w => Math.Abs((int)w - hundredths))
+                .First();
         }
 
         private static void AddPaper(Transaction tr, BlockTableRecord paperSpace, Entity ent)

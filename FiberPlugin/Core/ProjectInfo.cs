@@ -5,19 +5,28 @@ using Autodesk.AutoCAD.DatabaseServices;
 namespace FiberPlugin.Core
 {
     /// <summary>
-    /// Dados do projeto usados nos documentos (Memorial Descritivo, Memorial de Esforço e Coordenadas dos Postes):
-    /// percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo da obra. Ficam gravados no DWG e
-    /// também em Documentos\Fiber Plugin\projeto.txt (os últimos salvos, fora do repositório): o campo que o desenho
-    /// não tiver vem do arquivo, para não precisar digitar de novo a cada desenho.
+    /// Dados do projeto usados nos documentos (Memorial Descritivo, Memorial de Esforço e Coordenadas dos Postes) e no
+    /// carimbo das folhas do Gerar Folhas: percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo da
+    /// obra; cliente, U.C., nº da obra, equipe e revisão (aba Carimbo). Ficam gravados no DWG e também em
+    /// Documentos\Fiber Plugin\projeto.txt (os últimos salvos, fora do repositório): o campo que o desenho não tiver
+    /// vem do arquivo, para não precisar digitar de novo a cada desenho.
     /// </summary>
     public sealed class ProjectInfo
     {
         private const string DictionaryKey = "FIBRA_PLUGIN_MEMORIAL";
         public const string FileName = "projeto.txt";
+        public const string Rural = "Rural", Urban = "Urbana";
+        public const string DefaultContent = "PROJETO DE REDE ÓPTICA";
+        public const string DefaultRevision = "REV. 00 - EMISSÃO INICIAL";
 
-        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14)
+        // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90)
         private static readonly string[] Labels =
-            { "Percurso", "Endereço da obra", "Contrato de uso mútuo", "ART", "Início previsto", "Prazo de execução" };
+        {
+            "Percurso", "Endereço da obra", "Contrato de uso mútuo", "ART", "Início previsto", "Prazo de execução",
+            "Cliente", "CPF/CNPJ do cliente", "Município", "CEP", "U.C.", "Nº da obra", "Área do projeto", "Conteúdo",
+            "Desenhista", "E-mail do desenhista", "Verificador", "E-mail do verificador", "Aprovador", "Revisão",
+            "Motivo da alteração"
+        };
 
         public string Route { get; set; } = "";
         public string WorkAddress { get; set; } = "";
@@ -25,6 +34,23 @@ namespace FiberPlugin.Core
         public string ArtNumber { get; set; } = "";
         public string StartDate { get; set; } = "";
         public string Deadline { get; set; } = "";
+
+        // Carimbo das folhas (aba Carimbo da Configuração de Projeto)
+        public string Client { get; set; } = "";
+        public string ClientDocument { get; set; } = "";  // CPF ou CNPJ
+        public string City { get; set; } = "";            // Município
+        public string ZipCode { get; set; } = "";
+        public string ConsumerUnit { get; set; } = "";    // U.C. (unidade consumidora)
+        public string WorkNumber { get; set; } = "";      // Nº da obra
+        public string Area { get; set; } = "";            // Rural, Urbana ou vazio
+        public string Content { get; set; } = "";         // Conteúdo (ex.: PROJETO DE REDE ÓPTICA)
+        public string Drafter { get; set; } = "";         // Desenhista
+        public string DrafterEmail { get; set; } = "";
+        public string Checker { get; set; } = "";         // Verificador
+        public string CheckerEmail { get; set; } = "";
+        public string Approver { get; set; } = "";
+        public string Revision { get; set; } = "";
+        public string RevisionReason { get; set; } = "";
 
         /// <summary>
         /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
@@ -40,7 +66,12 @@ namespace FiberPlugin.Core
         /// <summary>Documentos\Fiber Plugin\projeto.txt.</summary>
         public static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
 
-        private string[] Values => new[] { Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline };
+        private string[] Values => new[]
+        {
+            Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline,
+            Client, ClientDocument, City, ZipCode, ConsumerUnit, WorkNumber, Area, Content,
+            Drafter, DrafterEmail, Checker, CheckerEmail, Approver, Revision, RevisionReason
+        };
 
         /// <summary>Mesmos textos e mesma zona (para saber se algo mudou na aba Projeto).</summary>
         public bool SameAs(ProjectInfo other) =>
@@ -49,8 +80,20 @@ namespace FiberPlugin.Core
 
         private static ProjectInfo From(string[] v) => new ProjectInfo
         {
-            Route = v[0], WorkAddress = v[1], ContractNumber = v[2], ArtNumber = v[3], StartDate = v[4], Deadline = v[5]
+            Route = v[0], WorkAddress = v[1], ContractNumber = v[2], ArtNumber = v[3], StartDate = v[4], Deadline = v[5],
+            Client = v[6], ClientDocument = v[7], City = v[8], ZipCode = v[9], ConsumerUnit = v[10], WorkNumber = v[11],
+            Area = v[12], Content = v[13], Drafter = v[14], DrafterEmail = v[15], Checker = v[16], CheckerEmail = v[17],
+            Approver = v[18], Revision = v[19], RevisionReason = v[20]
         };
+
+        /// <summary>Uma cópia, para mudar só alguns campos e gravar sem perder os outros.</summary>
+        public ProjectInfo Clone()
+        {
+            ProjectInfo copy = From(Values);
+            copy.Zone = Zone;
+            copy.ZoneFromFile = ZoneFromFile;
+            return copy;
+        }
 
         /// <summary>Os dados do desenho; o que ele não tiver vem do projeto.txt (os últimos salvos).</summary>
         public static ProjectInfo Load(Database db)
@@ -59,6 +102,9 @@ namespace FiberPlugin.Core
             Dictionary<string, string> file = ReadFile();
 
             ProjectInfo info = From(drawing.Select((value, i) => value.Length > 0 ? value : FromFile(file, Labels[i])).ToArray());
+            // Sem nada gravado ainda: o conteúdo e a revisão de uma primeira emissão
+            if (info.Content.Length == 0) info.Content = DefaultContent;
+            if (info.Revision.Length == 0) info.Revision = DefaultRevision;
             info.Zone = UtmZone.Get(db);
             if (info.Zone == null && ParseZone(FromFile(file, ZoneLabel)) is UtmSettings saved)
             {

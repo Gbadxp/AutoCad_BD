@@ -18,11 +18,14 @@ namespace FiberPlugin.UI
         private const long MaxGridCells = 3000; // Grade (com os pedaços vazios) grande demais nem é planejada
 
         private const string SheetContents =
-            "O que cada folha terá:\n" +
-            "•  Moldura (25 mm à esquerda para encadernar) e, embaixo, o nome do desenho e o carimbo (NBR 16752): logo, empresa, " +
-            "projeto, responsável técnico com o CREA, espaço para a assinatura, data, escala, formato, número da folha (01/06) e ART. " +
-            "Empresa e responsável vêm da Configuração de Projeto (aba Empresa); a logo, de Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
-            "•  Marcas de dobra nas bordas (NBR 13142: a cópia dobrada fica do tamanho A4, com o carimbo à vista) e marcas de corte nos cantos.\n" +
+            "O que cada folha terá (NBR 16752):\n" +
+            "•  Quadro com margem de 20 mm à esquerda, malha de referência (letras e números na margem), marcas de centro e de corte.\n" +
+            "•  Legenda de 180 mm no canto de baixo: alterações (aprovação, verificação, desenho, revisão), responsável técnico com o CREA e a " +
+            "assinatura, coordenadas UTM do centro da folha, conteúdo, área rural ou urbana, escala, data, projeto, cliente, U.C., logo, " +
+            "nº da obra e folha (01/06). Os dados vêm da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo, de " +
+            "Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
+            "•  Notas técnicas e observações ao lado da legenda, e na margem esquerda os avisos da Lei 5.194/66 e da propriedade dos desenhos.\n" +
+            "•  Marcas de dobramento nas bordas (a cópia dobrada fica do tamanho A4, com a legenda à vista).\n" +
             "•  Coluna com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3).\n" +
             "•  Viewport travado na escala, mostrando o pedaço da prévia com o mesmo nome.\n" +
             "•  Já configurada para DWG To PDF: para gerar o PDF, use o comando PUBLICAR e escolha as folhas.\n" +

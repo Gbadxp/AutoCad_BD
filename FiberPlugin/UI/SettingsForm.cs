@@ -137,18 +137,22 @@ namespace FiberPlugin.UI
     /// Janela Configurações (FIBRA_CONFIGURACOES): os dados do plugin e o que ele coloca sozinho no desenho, em seis
     /// abas. Cabos (com cor, tipo de linha e espessura), Postes, Tração (Tabela 08) e Empresa são os cadastros do plugin
     /// (Documentos\Fiber Plugin\cabos.txt, postes.txt, tracao.txt e empresa.txt); Nomes e Desenho vão para
-    /// configuracoes.txt (UserSettings). Valem para todos os desenhos. Confere tudo enquanto o usuário digita.
+    /// configuracoes.txt (UserSettings). Valem para todos os desenhos. A aba Carimbo (na Configuração de Projeto) tem o que
+    /// vai na legenda das folhas: cliente, obra e equipe deste desenho (ProjectInfo) e as notas técnicas (notas.txt).
+    /// Confere tudo enquanto o usuário digita.
     /// </summary>
     internal class SettingsForm : Form
     {
         private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5,
             CableLinetype = 6, CableLineWeight = 7;
         private const int PoleType = 0, PoleHeight = 1, PoleEffort = 2;
-        public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5, TabDrawing = 6, TabShortcuts = 7;
-        private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho", "Atalhos" };
+        public const int TabProject = 0, TabCables = 1, TabPoles = 2, TabTraction = 3, TabCompany = 4, TabNames = 5, TabDrawing = 6, TabShortcuts = 7,
+            TabStamp = 8;
+        private static readonly string[] TabTitles = { "Projeto", "Cabos", "Postes", "Tração", "Empresa", "Nomes", "Desenho", "Atalhos", "Carimbo" };
+        private static readonly string[] Areas = { ProjectInfo.Urban, ProjectInfo.Rural, "" }; // Opções da área do projeto (aba Carimbo)
 
-        /// <summary>Abas da janela Configuração de Projeto: os dados deste projeto e os da empresa.</summary>
-        public static readonly int[] ProjectTabs = { TabProject, TabCompany };
+        /// <summary>Abas da janela Configuração de Projeto: os dados deste projeto, o carimbo das folhas e os da empresa.</summary>
+        public static readonly int[] ProjectTabs = { TabProject, TabStamp, TabCompany };
 
         /// <summary>Abas da janela Configurações: o plugin e o que ele põe no desenho (valem para todos os desenhos).</summary>
         public static readonly int[] SettingsTabs = { TabCables, TabPoles, TabTraction, TabNames, TabDrawing, TabShortcuts };
@@ -197,6 +201,11 @@ namespace FiberPlugin.UI
         private double[] _spans = new double[0];
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
+        // Aba Carimbo: o que vai na legenda das folhas do Gerar Folhas (fica no ProjectInfo) e as notas técnicas
+        private readonly LabeledInput _client, _clientDocument, _city, _zipCode, _consumerUnit, _workNumber, _content,
+            _drafter, _drafterEmail, _checker, _checkerEmail, _approver, _revision, _revisionReason;
+        private readonly ChoiceBar _area;
+        private readonly InputBox _notes;
         private readonly ChoiceBar _digits;
         private readonly Label _example;
         private readonly LabeledInput _textHeight, _boxSize, _arrowLength, _routeOffset, _roadLayer;
@@ -217,7 +226,32 @@ namespace FiberPlugin.UI
         public Dictionary<string, string> Shortcuts { get; private set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Aba Projeto: dados do projeto deste desenho e a escala 1:X digitada.</summary>
-        public ProjectInfo Project => _project.Info;
+        public ProjectInfo Project
+        {
+            get
+            {
+                ProjectInfo info = _project.Info.Clone();
+                info.Client = _client.Value;
+                info.ClientDocument = _clientDocument.Value;
+                info.City = _city.Value;
+                info.ZipCode = _zipCode.Value;
+                info.ConsumerUnit = _consumerUnit.Value;
+                info.WorkNumber = _workNumber.Value;
+                info.Area = Areas[Math.Max(0, _area.SelectedIndex)];
+                info.Content = _content.Value;
+                info.Drafter = _drafter.Value;
+                info.DrafterEmail = _drafterEmail.Value;
+                info.Checker = _checker.Value;
+                info.CheckerEmail = _checkerEmail.Value;
+                info.Approver = _approver.Value;
+                info.Revision = _revision.Value;
+                info.RevisionReason = _revisionReason.Value;
+                return info;
+            }
+        }
+
+        /// <summary>Aba Carimbo: as notas técnicas das folhas, uma por linha (vão para o notas.txt).</summary>
+        public List<string> Notes => SheetNotes.Parse(_notes.Input.Text);
         public int ScaleDenominator => _project.ScaleDenominator;
 
         /// <summary>Escala de cada elemento (aba Projeto, botão Por elemento).</summary>
@@ -374,6 +408,44 @@ namespace FiberPlugin.UI
                     foreach (var (field, _) in row)
                         _company[field].Value = company[field];
 
+            // ---------- Carimbo (legenda das folhas do Gerar Folhas) ----------
+            _client = new LabeledInput("Cliente", "");
+            _clientDocument = new LabeledInput("CPF/CNPJ do cliente", "");
+            _city = new LabeledInput("Município", "ex.: Porto Velho-RO");
+            _zipCode = new LabeledInput("CEP", "");
+            _consumerUnit = new LabeledInput("U.C.", "unidade consumidora");
+            _workNumber = new LabeledInput("Nº da obra", "");
+            _content = new LabeledInput("Conteúdo", ProjectInfo.DefaultContent);
+            _area = new ChoiceBar("Urbana", "Rural", "Sem marcar") { Dock = DockStyle.Top };
+            var areaField = new Panel { BackColor = Theme.Background };
+            areaField.Controls.Add(_area);
+            areaField.Controls.Add(FieldTitle("Área do projeto"));
+            _drafter = new LabeledInput("Desenhista", "");
+            _drafterEmail = new LabeledInput("E-mail do desenhista", "");
+            _checker = new LabeledInput("Verificador", "");
+            _checkerEmail = new LabeledInput("E-mail do verificador", "");
+            _approver = new LabeledInput("Aprovador", "");
+            _revision = new LabeledInput("Revisão", ProjectInfo.DefaultRevision);
+            _revisionReason = new LabeledInput("Motivo da alteração", "");
+            _notes = new InputBox("Uma nota por linha", searchIcon: false, multiline: true);
+            Control stampPage = FormPage(new (Control, float)[]
+            {
+                (new SectionLabel("Cliente e obra (deste desenho)"), 22),
+                (Row(new (Control, float)[] { (_client, 2), (_clientDocument, 1), (_workNumber, 1) }), 52),
+                (Row(new (Control, float)[] { (_city, 2), (_zipCode, 1), (_consumerUnit, 1) }), 52),
+                (Row(new (Control, float)[] { (_content, 2), (areaField, 2) }), 52),
+                (new SectionLabel("Equipe e revisão"), 28),
+                (Row(_drafter, _drafterEmail, _checker, _checkerEmail), 52),
+                (Row(new (Control, float)[] { (_approver, 1), (_revision, 1), (_revisionReason, 2) }), 52),
+                (new SectionLabel("Notas técnicas (todos os desenhos; a folha numera)"), 28),
+                (_notes, 96),
+                (Hint("Vão na legenda das folhas do Gerar Folhas (NBR 16752), com o percurso, o endereço da obra e a ART da aba Projeto e a " +
+                      "empresa e o responsável técnico da aba Empresa. As notas ficam em Documentos\\Fiber Plugin\\notas.txt; Restaurar " +
+                      "padrão volta as notas que vêm com o plugin."), 40)
+            });
+            FillStamp(project);
+            _notes.Input.Text = string.Join("\r\n", SheetNotes.Load());
+
             // ---------- Nomes ----------
             _polePrefix = new LabeledInput("Prefixo dos postes", "ex.: P-");
             _ctoPrefix = new LabeledInput("Prefixo das CTO", "ex.: CTO-");
@@ -470,7 +542,7 @@ namespace FiberPlugin.UI
                 "Só letras e números. Delete ou \"Tirar atalho\" deixa o comando sem atalho. A Situação avisa quando o atalho já é um " +
                 "comando ou um atalho do AutoCAD (acad.pgp) ou se repete; com conflito, o Salvar não libera.", null);
 
-            _pages = new Control[] { _project, cablesPage, polesPage, tractionPage, companyPage, namesPage, drawingPage, shortcutsPage };
+            _pages = new Control[] { _project, cablesPage, polesPage, tractionPage, companyPage, namesPage, drawingPage, shortcutsPage, stampPage };
             var pages = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(18, 4, 18, 0) };
             foreach (Control page in _pages)
             {
@@ -507,7 +579,10 @@ namespace FiberPlugin.UI
                 _poleSize, _electricalSize, _anchoringSize
             };
             inputs2.AddRange(_company.Values);
+            inputs2.AddRange(StampFields);
             foreach (LabeledInput input in inputs2) input.Box.Input.TextChanged += (s, e) => UpdateStatus();
+            _notes.Input.TextChanged += (s, e) => UpdateStatus();
+            _area.SelectedChanged += (s, e) => UpdateStatus();
             foreach (ColorField field in new[] { _cableColor, _backboneColor, _poleLabelColor, _boxLabelColor, _effortColor, _roadColor })
             {
                 field.ValueChanged += (s, e) => { UpdateStatus(); _cables.Invalidate(); };
@@ -546,6 +621,31 @@ namespace FiberPlugin.UI
         }
 
         // ---------- Preenchimento ----------
+
+        private IEnumerable<LabeledInput> StampFields => new[]
+        {
+            _client, _clientDocument, _city, _zipCode, _consumerUnit, _workNumber, _content,
+            _drafter, _drafterEmail, _checker, _checkerEmail, _approver, _revision, _revisionReason
+        };
+
+        private void FillStamp(ProjectInfo p)
+        {
+            _client.Value = p.Client;
+            _clientDocument.Value = p.ClientDocument;
+            _city.Value = p.City;
+            _zipCode.Value = p.ZipCode;
+            _consumerUnit.Value = p.ConsumerUnit;
+            _workNumber.Value = p.WorkNumber;
+            _content.Value = p.Content;
+            _area.SelectedIndex = Math.Max(0, Array.IndexOf(Areas, p.Area));
+            _drafter.Value = p.Drafter;
+            _drafterEmail.Value = p.DrafterEmail;
+            _checker.Value = p.Checker;
+            _checkerEmail.Value = p.CheckerEmail;
+            _approver.Value = p.Approver;
+            _revision.Value = p.Revision;
+            _revisionReason.Value = p.RevisionReason;
+        }
 
         private void FillCables(IEnumerable<CableModel> cables) =>
             _cables.ReplaceRows(cables.Select(c => new object?[]
@@ -616,6 +716,7 @@ namespace FiberPlugin.UI
                 case TabTraction: FillTraction(TractionTable.Default()); break;
                 case TabNames: FillNames(new UserSettings()); break;
                 case TabShortcuts: FillShortcuts(ShortcutSettings.Defaults); break;
+                case TabStamp: _notes.Input.Text = string.Join("\r\n", SheetNotes.Defaults); break;
                 default: FillDrawing(new UserSettings()); break;
             }
             UpdateStatus();
@@ -692,6 +793,10 @@ namespace FiberPlugin.UI
                 else if (CurrentTab == TabCompany)
                     _status.Set($"Empresa: {(Company.IsEmpty ? "não preenchida" : Company.LegalName)} · vale para todos os projetos " +
                                 "(memorial e Tabela A)", StatusKind.Ok);
+                else if (CurrentTab == TabStamp)
+                    _status.Set($"Legenda das folhas: {(_client.Value.Length > 0 ? "cliente " + _client.Value : "sem cliente")}" +
+                                (_workNumber.Value.Length > 0 ? $" · obra {_workNumber.Value}" : "") +
+                                (_revision.Value.Length > 0 ? $" · {_revision.Value}" : "") + $" · {Notes.Count} nota(s) técnica(s)", StatusKind.Ok);
                 else if (CurrentTab == TabShortcuts)
                     _status.Set($"{Shortcuts.Count(s => s.Value.Length > 0)} de {Shortcuts.Count} comandos com atalho, sem conflitos · " +
                                 "digite o atalho na linha de comando e tecle Enter", StatusKind.Ok);

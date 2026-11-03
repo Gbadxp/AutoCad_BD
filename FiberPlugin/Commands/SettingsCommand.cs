@@ -37,6 +37,7 @@ namespace FiberPlugin.Commands
             Editor ed = doc.Editor;
 
             ProjectInfo projectBefore = ProjectInfo.Load(db);
+            List<string> notesBefore = SheetNotes.Load();
             UtmSettings? zoneBefore = UtmZone.Get(db);
             int scaleBefore = DrawingScale.Get(db);
             ElementScales elementsBefore = DrawingScale.GetElements(db);
@@ -90,6 +91,7 @@ namespace FiberPlugin.Commands
                     }
                     if (f.Settings.Save() is string e5) return $"{UserSettings.FilePath}: {e5}";
                     savedSettings = f.Settings;
+                    if (!SheetNotes.Same(f.Notes, notesBefore) && SheetNotes.Save(f.Notes) is string e7) return e7;
                     return null;
                 };
                 confirmed = AcApp.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK;

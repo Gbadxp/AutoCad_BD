@@ -127,6 +127,7 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_MEMORIAL_ESFORCO", "Memorial de Esforço", "PDF só com o cálculo de esforço mecânico dos postes", "Memorial de Esforço", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_COORDENADAS_POSTES", "Coordenadas dos Postes", "PDF com os postes e as coordenadas UTM", "Coordenadas dos Postes", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_NORMA", "Norma NDU 009", "Abre o PDF da NDU 009 da Energisa, que vem com o plugin", "Norma NDU 009", ribbonMenu: "Documentos"),
+                new Tool("FIBRA_NORMA_FOLHAS", "Norma NBR 16752", "Abre o PDF da NBR 16752 (folhas de desenho) de Documentos\\Fiber Plugin\\Normas", "Norma NBR 16752", ribbonMenu: "Documentos"),
                 new Tool("FIBRA_PRODUCAO", "Produção do Dia", "Metros de cabo, CTO, CEO e postes feitos no dia, em todos os desenhos", "Produção do Dia", ribbonMenu: "Documentos")
             }),
             // Um botão só, "Configuração", com as duas: a de projeto (os dados deste projeto e da empresa: percurso, contrato,

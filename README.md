@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.89.msi`](Instalador/FiberPlugin-1.9.89.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.90.msi`](Instalador/FiberPlugin-1.9.90.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -211,6 +211,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Memorial de Esforço | `FIBRA_MEMORIAL_ESFORCO` | PDF só com o cálculo de esforço mecânico: identificação do projeto, parâmetros, dados mecânicos dos cabos, resumo, esforço resultante em cada poste e conclusão com a assinatura do responsável técnico. |
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
+| Norma NBR 16752 | `FIBRA_NORMA_FOLHAS` | Abre o PDF da NBR 16752:2020 (folhas de desenho), a norma que o Gerar Folhas segue. A norma é da ABNT (vendida por ela) e não vem com o plugin: quem tem a norma coloca o PDF (com `16752` no nome) em `Documentos\Fiber Plugin\Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, carimbo (logo, empresa, responsável técnico, assinatura), marcas de dobra, legenda e viewport, prontas para PDF; também apaga as folhas geradas (veja abaixo). |
 
@@ -223,8 +224,8 @@ voltar ao tamanho original).
 ### Projeto e Configurações
 O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com as duas:
 
-- **Configuração de Projeto** (`FIBRA_DADOS_PROJETO`): os dados deste projeto e os da empresa, nas abas **Projeto** e
-  **Empresa**.
+- **Configuração de Projeto** (`FIBRA_DADOS_PROJETO`): os dados deste projeto e os da empresa, nas abas **Projeto**,
+  **Carimbo** e **Empresa**.
 - **Configuração de Desenho** (`FIBRA_CONFIGURACOES`): o plugin e o que ele coloca no desenho, nas abas **Cabos**,
   **Postes**, **Tração**, **Nomes**, **Desenho** e **Atalhos**. Vale para todos os desenhos.
 
@@ -236,6 +237,13 @@ O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com a
 | Escala | Escala do desenho (1:500, 1:1000, 1:2000 ou outra): textos, setas de esforço e CTO/CEO novas saem no tamanho certo; ao trocar, oferece ajustar as anotações já desenhadas. **Por elemento...** abre a escala de cada elemento (veja Escala das anotações). |
 | Pasta de Dados | Abre `Documentos\Fiber Plugin`, com o logo e as figuras do memorial (`Dados\Memorial`). |
 | Atualizar Blocos | Salva a janela e roda o Atualizar Blocos: na primeira vez pergunta qual `BLOCOS.dwg` usar; daí em diante o plugin lê direto dele. Também troca no desenho aberto os blocos que mudaram e lista os blocos novos. **Trocar** escolhe outro arquivo; **Padrao** volta ao `BLOCOS.dwg` do plugin. |
+
+| Aba Carimbo (Configuração de Projeto) | Função |
+|---|---|
+| Cliente, CPF/CNPJ, nº da obra, município, CEP, U.C. | Vão na legenda das folhas do Gerar Folhas, com o percurso, o endereço da obra e a ART da aba Projeto. Ficam no DWG (e o último salvo em `projeto.txt`, como os da aba Projeto). |
+| Conteúdo, área do projeto | Conteúdo da folha (padrão `PROJETO DE REDE ÓPTICA`) e a caixa marcada na legenda: **Urbana**, **Rural** ou nenhuma. |
+| Desenhista, verificador (com e-mail), aprovador, revisão, motivo | Quadro de alterações da legenda (revisão padrão `REV. 00 - EMISSÃO INICIAL`). |
+| Notas técnicas | Uma por linha (a folha numera); valem para todos os desenhos (`Documentos\Fiber Plugin\notas.txt`). **Restaurar padrão** volta as notas que vêm com o plugin. |
 
 A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
 desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG). A Empresa fica na Configuração de Projeto; as
@@ -455,16 +463,26 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
    explica as cores e o que cada folha terá.
 5. As escolhas ficam gravadas no desenho para a próxima vez. Cada folha vira um layout (`FL-01`, `FL-02`...) com:
    - configuração de página **DWG To PDF**, papel do formato escolhido, plotagem 1:1;
-   - moldura (margem de 25 mm à esquerda e 10 mm nas demais) e, embaixo, o nome do desenho e o **carimbo** no canto
-     direito (NBR 16752, 175 x 34 mm): logo, empresa, projeto, responsável técnico com o CREA, espaço com linha para a
-     **assinatura**, data, escala, formato, número da folha e ART. Empresa, responsável e CREA vêm da Configuração de
-     Projeto, aba Empresa; projeto (o percurso da rede, ou o nome do desenho) e ART, da aba Projeto; a logo é a do memorial
-     (`Dados\Memorial\logo.png`);
-   - **marcas de dobra** nas bordas do papel, pela NBR 13142 (a cópia dobrada fica do tamanho A4 com o carimbo à vista):
-     a partir da direita, A0 185 + 185 + 185 + 185 + 119,5 + 119,5 (sobra 210), A1 185 + 185 + 130 + 130, A2 185 + 96 + 96 + 96,
-     A3 185 + 105; dobras horizontais de 297 em 297 mm a partir de baixo; no A0, A1 e A2, as pontas da dobra do canto
-     superior esquerdo (de 105 mm no alto até 297 mm na borda esquerda). A4 não tem dobra;
-   - **marcas de corte** em L (10 x 5 mm) nos quatro cantos do papel, como nas folhas-modelo da NBR 16752;
+   - folha pela **NBR 16752:2020** (folhas de desenho): quadro com margem de 20 mm à esquerda e 10 mm nas demais, linha
+     de 1,0 mm (A0 e A1) ou 0,7 mm (A2 a A4); **malha de referência** na margem (campos de 50 mm a partir do meio, números
+     em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita), com o formato no campo de baixo à
+     direita; **marcas de centro** nos quatro lados e **marcas de corte** em L (10 x 5 mm) nos cantos;
+   - **legenda** (carimbo) de 180 mm no canto de baixo à direita, no modelo de prancha da empresa: **alterações**
+     (aprovação, verificação e desenho com o e-mail, revisão e motivo), **responsável técnico** com o CREA (e a ART), espaço
+     com linha para a **assinatura** (ou a imagem `Dados\Memorial\assinatura.png`, se existir), **coordenadas UTM** do
+     centro da folha com o fuso (ex.: `FUSO 20M`), **conteúdo**, **área do projeto** (rural ou urbana), escala, data,
+     projeto (o percurso da rede, ou o nome do desenho), **cliente**, CPF/CNPJ, endereço, município, CEP, **U.C.**,
+     **logo** com o nome da empresa, **nº da obra** e o número da folha. Os dados vêm da Configuração de Projeto (abas
+     Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`);
+   - à esquerda da legenda, as **notas técnicas** (as da aba Carimbo, numeradas) e o quadro **OBS.**; em folha sem espaço
+     para elas, as notas vão para o pé da coluna da legenda dos símbolos (no A4 deitado não cabem e saem de fora, com aviso);
+   - na margem esquerda, em pé, os avisos da **Lei 5.194/66** (alterações só pelo autor do projeto) e da **propriedade dos
+     desenhos**, fora das marcas de dobra;
+   - **marcas de dobramento** tracejadas na margem (figura 21 da NBR 16752: a cópia dobrada fica do tamanho A4 com a
+     legenda à vista): a partir da direita, A0 190 + 109,5 + 109,5 + 190 + 190 + 190 (sobra 210), A1 190 + 125,5 + 125,5 +
+     190 (sobra 210), A2 192 + 192 (sobra 210), A3 190 + 105 (sobra 125); dobras horizontais de 297 em 297 mm a partir de
+     baixo; no A0, A1 e A2, as pontas da dobra do canto superior esquerdo (de 105 mm no alto até 297 mm na borda
+     esquerda). A4 não tem dobra;
    - coluna à direita com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
      (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009;
    - viewport travado na escala exata, mostrando o pedaço correspondente.

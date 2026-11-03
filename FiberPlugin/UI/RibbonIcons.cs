@@ -91,6 +91,7 @@ namespace FiberPlugin.UI
             ["FIBRA_MEMORIAL_ESFORCO"] = PaintEffortMemorial,
             ["FIBRA_COORDENADAS_POSTES"] = PaintPoleCoordinates,
             ["FIBRA_NORMA"] = PaintNorm,
+            ["FIBRA_NORMA_FOLHAS"] = PaintNorm,
             ["FIBRA_PRODUCAO"] = PaintProduction,
             ["FIBRA_CONFIGURACOES"] = PaintSettings,
             ["FIBRA_GRUPO_CONFIGURAÇÃO"] = PaintSettings,
