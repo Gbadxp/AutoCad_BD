@@ -5,26 +5,32 @@ using FiberPlugin.Core;
 namespace FiberPlugin.UI
 {
     /// <summary>
-    /// Janela do Gerar Folhas. À esquerda as escolhas, cada uma com a explicação do que ela faz: área do projeto (marcada
-    /// no desenho, a da rede ou o desenho todo), tamanho e orientação da folha, escala, sobreposição e prefixo dos nomes.
-    /// À direita a prévia da divisão (as folhas que serão criadas, com o nome, e os pedaços vazios que ficam de fora), o
-    /// resumo e o que cada folha terá. Confere enquanto digita.
+    /// Janela do Gerar Folhas. À esquerda as escolhas: área do projeto (marcada no desenho, a da rede ou o desenho todo),
+    /// tamanho e orientação da folha, escala, sobreposição e prefixo dos nomes; cada uma tem um "?" que mostra o que ela faz
+    /// (em destaque quando há um aviso). À direita a prévia da divisão (as folhas que serão criadas, com o nome, e os
+    /// pedaços vazios que ficam de fora) e o resumo. Confere enquanto digita.
     /// </summary>
     internal class SheetsForm : Form
     {
-        private const int RowHeight = 36;
-        private const int LabelWidth = 96;
-        private const int FieldWidth = 136;
         private const int MaxSheets = 300;   // Mais que isso é escala ou área errada
         private const int ManySheets = 60;   // Acima disso ainda gera, com aviso
         private const long MaxGridCells = 3000; // Grade (com os pedaços vazios) grande demais nem é planejada
+
+        private const string SheetContents =
+            "O que cada folha terá:\n" +
+            "•  Moldura (25 mm à esquerda para encadernar) e faixa com o nome do desenho, o número da folha (01/06), a escala e o formato.\n" +
+            "•  Coluna com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3).\n" +
+            "•  Viewport travado na escala, mostrando o pedaço da prévia com o mesmo nome.\n" +
+            "•  Já configurada para DWG To PDF: para gerar o PDF, use o comando PUBLICAR e escolha as folhas.\n" +
+            "•  No Model, os retângulos e nomes das folhas ficam na layer FIBRA_FOLHAS, que não imprime.";
 
         private readonly IReadOnlyList<Rect> _content;
         private readonly Rect? _network, _whole;
         private readonly int _drawingScale;
         private readonly Func<string, int> _existingSheets;
         private readonly ThemedButton _pick, _useNetwork, _useWhole;
-        private readonly Label _areaText, _formatHint, _scaleHint, _overlapHint, _prefixHint;
+        private readonly Label _areaText;
+        private readonly HelpButton _areaHelp, _sheetHelp, _scaleHelp, _overlapHelp, _prefixHelp, _previewHelp;
         private readonly ChoiceBar _format, _orientation;
         private readonly LabeledInput _scale, _overlap, _prefix;
         private readonly SheetPreview _preview;
@@ -56,8 +62,11 @@ namespace FiberPlugin.UI
             _existingSheets = existingSheets;
 
             Theme.ApplyForm(this);
+            // Os tamanhos daqui são multiplicados pela escala da tela (S): no AutoCAD a escala automática do Windows Forms não
+            // acompanhava a fonte (em 125% os textos cresciam e as linhas, não)
+            AutoScaleMode = AutoScaleMode.None;
             Text = "Fiber Plugin - Gerar Folhas";
-            ClientSize = new Size(980, 610);
+            ClientSize = new Size(S(980), S(440));
 
             var header = new HeaderPanel
             {
@@ -67,59 +76,62 @@ namespace FiberPlugin.UI
             };
 
             // ---------- Área do projeto ----------
-            _pick = new ThemedButton("Marcar no desenho", false) { Margin = new Padding(0, 4, 6, 4) };
-            _useNetwork = new ThemedButton("Área da rede", false) { Margin = new Padding(0, 4, 6, 4), Enabled = network != null };
-            _useWhole = new ThemedButton("Desenho todo", false) { Margin = new Padding(0, 4, 0, 4), Enabled = _whole != null };
+            _pick = new ThemedButton("Marcar no desenho", false) { Margin = new Padding(0, S(4), S(6), S(4)) };
+            _useNetwork = new ThemedButton("Área da rede", false) { Margin = new Padding(0, S(4), S(6), S(4)), Enabled = network != null };
+            _useWhole = new ThemedButton("Desenho todo", false) { Margin = new Padding(0, S(4), 0, S(4)), Enabled = _whole != null };
             var areaButtons = new FlowLayoutPanel { WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
             areaButtons.Controls.AddRange(new Control[] { _pick, _useNetwork, _useWhole });
             _areaText = new Label { AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true, Margin = Padding.Empty };
-            Label areaHint = FormLayout.Hint(
-                "A parte do desenho que vira folhas. Marcar no desenho: clique os dois cantos. Área da rede: onde há postes, " +
-                "cabos e caixas do plugin. A área é dividida numa grade; pedaço sem nada desenhado não vira folha.");
+            _areaHelp = new HelpButton("Área do projeto")
+            {
+                HelpText = "A parte do desenho que vira folhas. Ela é dividida numa grade de folhas do tamanho e da escala escolhidos; " +
+                           "pedaço da grade sem nada desenhado não vira folha.\n\n" +
+                           "•  Marcar no desenho: a janela some e você clica os dois cantos.\n" +
+                           "•  Área da rede: onde há postes, cabos e caixas do plugin, com uma folga.\n" +
+                           "•  Desenho todo: tudo o que tem no Model.\n\n" +
+                           "Na próxima vez, a janela volta com a área usada."
+            };
 
             // ---------- Folha ----------
             _format = new ChoiceBar(SheetFormat.All.Select(f => f.Name).ToArray());
-            foreach (Control button in _format.Controls) button.Width = 56; // "A0" a "A4": botões estreitos, os cinco numa linha
+            foreach (Control button in _format.Controls) button.Width = S(56); // "A0" a "A4": botões estreitos, os cinco numa linha
             _orientation = new ChoiceBar("Automática", "Paisagem", "Retrato");
-            TableLayoutPanel sheetGrid = FormLayout.OptionGrid(LabelWidth, RowHeight, ("Tamanho", _format), ("Orientação", _orientation));
-            _formatHint = FormLayout.Hint("");
+            TableLayoutPanel sheetGrid = FormLayout.OptionGrid(S(96), S(36), ("Tamanho", _format), ("Orientação", _orientation));
+            _sheetHelp = new HelpButton("Folha");
 
-            // ---------- Escala, sobreposição e nomes: campo e, ao lado, o que ele faz ----------
+            // ---------- Escala, sobreposição e nomes ----------
             _scale = new LabeledInput("Escala (1:X)", "ex.: 1000");
-            _overlap = new LabeledInput("Sobreposição (%)", "ex.: 5");
-            _prefix = new LabeledInput("Prefixo dos nomes", "ex.: FL");
-            _scaleHint = FormLayout.Hint("");
-            _overlapHint = FormLayout.Hint("");
-            _prefixHint = FormLayout.Hint("");
+            _overlap = new LabeledInput("Sobreposição %", "ex.: 5");
+            _prefix = new LabeledInput("Prefixo", "ex.: FL");
+            _scaleHelp = new HelpButton("Escala");
+            _overlapHelp = new HelpButton("Sobreposição");
+            _prefixHelp = new HelpButton("Prefixo dos nomes");
 
             var left = Column(
-                (new SectionLabel("Área do projeto"), 26), (areaButtons, 36), (_areaText, 22), (areaHint, 48),
-                (new SectionLabel("Folha"), 30), (sheetGrid, 2 * RowHeight), (_formatHint, 48),
-                (new SectionLabel("Escala, sobreposição e nomes"), 30),
-                (FieldRow(_scale, _scaleHint), 58), (FieldRow(_overlap, _overlapHint), 58), (FieldRow(_prefix, _prefixHint), 58));
+                (Section("Área do projeto", _areaHelp), 30), (areaButtons, 36), (_areaText, 24),
+                (Section("Folha", _sheetHelp), 32), (sheetGrid, 72),
+                (Section("Escala, sobreposição e nomes", null), 32),
+                (Fields((_scale, _scaleHelp), (_overlap, _overlapHelp), (_prefix, _prefixHelp)), 56));
 
-            // ---------- Prévia e o que cada folha terá ----------
-            _preview = new SheetPreview { Margin = new Padding(0, 2, 0, 2) };
+            // ---------- Prévia ----------
+            _preview = new SheetPreview { Margin = new Padding(0, S(2), 0, S(2)) };
             _status = new StatusLabel { Margin = Padding.Empty };
-            Label contents = FormLayout.Hint(
-                "•  Moldura (25 mm à esquerda para encadernar) e faixa com o nome do desenho, o número da folha (01/06), a escala e o formato.\n" +
-                "•  Coluna com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3).\n" +
-                "•  Viewport travado na escala, mostrando o pedaço da prévia com o mesmo nome.\n" +
-                "•  Já configurada para DWG To PDF: para gerar o PDF, use o comando PUBLICAR e escolha as folhas.\n" +
-                "•  No Model, os retângulos e nomes das folhas ficam na layer FIBRA_FOLHAS, que não imprime.");
-            var right = Column(
-                (new SectionLabel("Prévia das folhas"), 26), (_preview, 0), (_status, 36),
-                (new SectionLabel("O que cada folha terá"), 28), (contents, 118));
-            right.Padding = new Padding(16, 0, 0, 0);
+            _previewHelp = new HelpButton("Prévia das folhas")
+            {
+                HelpText = "Cada retângulo azul é uma folha (um layout), com o nome dela. Os tracejados são pedaços da grade sem nada " +
+                           "desenhado: não viram folha. A linha tracejada clara é a área escolhida.\n\n" + SheetContents
+            };
+            var right = Column((Section("Prévia das folhas", _previewHelp), 30), (_preview, 0), (_status, 36));
+            right.Padding = new Padding(S(16), 0, 0, 0);
 
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(18, 6, 18, 8), BackColor = Theme.Background };
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(S(18), S(6), S(18), S(8)), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             body.Controls.Add(left, 0, 0);
             body.Controls.Add(right, 1, 0);
 
-            var footer = new FooterPanel { Hint = "As escolhas ficam gravadas neste desenho para a próxima vez" };
+            var footer = new FooterPanel { Hint = "Clique no ? para ver o que cada opção faz  ·  as escolhas ficam gravadas neste desenho" };
             _ok = new ThemedButton("Substituir folhas", true); // Largura do texto mais longo; o texto muda com o prefixo
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             footer.AddButton(_ok);
@@ -166,6 +178,9 @@ namespace FiberPlugin.UI
             UpdateAll();
         }
 
+        /// <summary>Pixels de 96 dpi na escala da tela.</summary>
+        private int S(int pixels) => Theme.Scale(this, pixels);
+
         private void UseArea(Rect area, string source)
         {
             _area = area;
@@ -173,7 +188,7 @@ namespace FiberPlugin.UI
             UpdateAll();
         }
 
-        /// <summary>Confere tudo, refaz a divisão e atualiza as explicações, a prévia e o resumo.</summary>
+        /// <summary>Confere tudo, refaz a divisão e atualiza as explicações dos "?", a prévia e o resumo.</summary>
         private void UpdateAll()
         {
             Result = null;
@@ -240,42 +255,48 @@ namespace FiberPlugin.UI
             int count = plan!.Tiles.Count;
             string summary = $"{count} folha{(count == 1 ? "" : "s")} {format.Name} {(plan.Landscape ? "paisagem" : "retrato")} em 1:{plan.Scale}" +
                              $"  ·  grade {plan.Columns} × {plan.Rows}" +
-                             (plan.SkippedEmpty > 0 ? $"  ·  {plan.SkippedEmpty} pedaço{(plan.SkippedEmpty == 1 ? " vazio fica" : "s vazios ficam")} de fora" : "");
+                             (plan.SkippedEmpty > 0 ? $"  ·  {plan.SkippedEmpty} pedaço{(plan.SkippedEmpty == 1 ? " vazio fica" : "s vazios ficam")} de fora" : "") +
+                             (existing > 0 ? $"  ·  substitui {existing} folha{(existing == 1 ? "" : "s")} {prefix}-..." : "");
             if (count > ManySheets) _status.Set(summary + "  ·  são muitas folhas: confira a escala", StatusKind.Hint);
             else _status.Set(summary, StatusKind.Ok);
         }
 
-        /// <summary>As explicações ao lado de cada escolha, com os números do que foi escolhido.</summary>
+        /// <summary>As explicações dos "?", com os números do que foi escolhido; o "?" fica em destaque quando há aviso.</summary>
         private void Explain(SheetFormat format, int orientation, int? scale, double? overlap, string prefix, int existing, SheetPlan? plan)
         {
             bool landscape = orientation == SheetSettings.Landscape || (orientation == SheetSettings.Automatic && (plan?.Landscape ?? true));
             Rect viewport = format.ViewportArea(landscape);
             string paper = $"{format.Name} = {format.LongSide:0} × {format.ShortSide:0} mm.";
-            string automatic = orientation == SheetSettings.Automatic
-                ? (plan != null ? $" Automática: ficou {(plan.Landscape ? "paisagem" : "retrato")}, que dá menos folhas." : " Automática: o plugin testa as duas e fica com a que dá menos folhas.")
+            string covers = scale is int s
+                ? $" Em {(landscape ? "paisagem" : "retrato")}, cada folha mostra {viewport.Width * s / 1000:N0} × {viewport.Height * s / 1000:N0} m do " +
+                  $"desenho em 1:{s}; o resto da folha é a moldura, a faixa de baixo e a coluna da legenda."
                 : "";
-            _formatHint.Text = scale is int s
-                ? $"{paper} Em {(landscape ? "paisagem" : "retrato")}, cada folha mostra {viewport.Width * s / 1000:N0} × {viewport.Height * s / 1000:N0} m " +
-                  $"do desenho em 1:{s} (o resto é moldura, faixa e legenda).{automatic}"
-                : paper + automatic;
+            string automatic = plan != null && orientation == SheetSettings.Automatic ? $" (agora ficou {(plan.Landscape ? "paisagem" : "retrato")})" : "";
+            _sheetHelp.HelpText = paper + covers + "\n\n" +
+                                  $"•  Automática: o plugin testa paisagem e retrato e fica com a que dá menos folhas{automatic}.\n" +
+                                  "•  Paisagem ou Retrato: todas as folhas nessa orientação.";
 
+            string scaleText = "Escala da impressão: em 1:1000, 1 mm no papel é 1 m do desenho. Pode escrever 1000, 1:1000 ou 1.000.\n\n";
             if (scale is not int sc)
-                _scaleHint.Text = $"Escala da impressão (a do desenho é 1:{_drawingScale}), de 1:{DrawingScale.Min} a 1:{DrawingScale.Max}.";
+                _scaleHelp.HelpText = scaleText + $"A do desenho é 1:{_drawingScale} (Configuração de Projeto). Vale de 1:{DrawingScale.Min} a 1:{DrawingScale.Max}.";
             else if (sc == _drawingScale)
-                _scaleHint.Text = $"Escala da impressão. É a do desenho (Configuração de Projeto): textos e símbolos saem no tamanho certo na folha.";
+                _scaleHelp.HelpText = scaleText + "É a escala do desenho (Configuração de Projeto): textos e símbolos saem no tamanho certo na folha.";
             else
-                _scaleHint.Text = $"O desenho está em 1:{_drawingScale}: em 1:{sc}, textos e símbolos saem " +
-                                  (sc > _drawingScale ? $"{sc / (double)_drawingScale:0.#} vezes menores" : $"{_drawingScale / (double)sc:0.#} vezes maiores") +
-                                  " na folha. Para acertar, mude a escala em Configuração de Projeto.";
-            _scaleHint.ForeColor = scale != null && scale != _drawingScale ? Theme.Text : Theme.Muted;
+                _scaleHelp.HelpText = scaleText + $"Atenção: o desenho está em 1:{_drawingScale}. Em 1:{sc}, textos e símbolos saem " +
+                                      (sc > _drawingScale ? $"{sc / (double)_drawingScale:0.#} vezes menores" : $"{_drawingScale / (double)sc:0.#} vezes maiores") +
+                                      " na folha. Para acertar, mude a escala em Configuração de Projeto.";
+            _scaleHelp.Warning = scale != null && scale != _drawingScale;
 
             string meters = scale is int m && overlap is double ov ? $" ({viewport.Width * m / 1000 * ov / 100:N0} m nesta folha)" : "";
-            _overlapHint.Text = $"Quanto cada folha repete da vizinha nas bordas{meters}, para nada ficar cortado entre uma folha e outra. De 0 a {SheetSettings.MaxOverlapPercent:0}%.";
+            _overlapHelp.HelpText = $"Quanto cada folha repete da vizinha nas bordas{meters}, para nada ficar cortado entre uma folha e outra. " +
+                                    $"De 0 a {SheetSettings.MaxOverlapPercent:0}%; o padrão é 5%.";
 
             string name = prefix.Length > 0 ? prefix : "FL";
-            _prefixHint.Text = $"As folhas se chamam {name}-01, {name}-02... (uma aba de layout cada)." +
-                               (existing > 0 ? $" Já existem {existing} folha{(existing == 1 ? "" : "s")} {name}-...: serão apagadas e criadas de novo; para manter, use outro prefixo." : "");
-            _prefixHint.ForeColor = existing > 0 ? Theme.Text : Theme.Muted;
+            _prefixHelp.HelpText = $"As folhas se chamam {name}-01, {name}-02... (uma aba de layout cada); no Model, o quadro das folhas usa os " +
+                                   "mesmos nomes." +
+                                   (existing > 0 ? $"\n\nAtenção: já existem {existing} folha{(existing == 1 ? "" : "s")} {name}-... neste desenho. Elas serão " +
+                                                   "apagadas e criadas de novo; para manter as atuais, use outro prefixo." : "");
+            _prefixHelp.Warning = existing > 0;
         }
 
         /// <summary>Folhas demais: diz quantas e sugere a primeira escala comum que dá um número razoável de folhas.</summary>
@@ -319,33 +340,62 @@ namespace FiberPlugin.UI
 
         // ---------- Montagem ----------
 
-        /// <summary>Coluna de linhas de altura fixa; a de altura 0 fica com a sobra.</summary>
-        private static TableLayoutPanel Column(params (Control Control, float Height)[] rows)
+        /// <summary>Coluna de linhas de altura fixa (em pixels de 96 dpi); a de altura 0 fica com a sobra.</summary>
+        private TableLayoutPanel Column(params (Control Control, int Height)[] rows)
         {
             var column = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Theme.Background };
             column.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in rows)
             {
-                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, height) : new RowStyle(SizeType.Percent, 100));
+                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, S(height)) : new RowStyle(SizeType.Percent, 100));
                 control.Dock = DockStyle.Fill;
                 column.Controls.Add(control, 0, column.RowCount++);
             }
             return column;
         }
 
-        /// <summary>Campo à esquerda e, ao lado, a explicação dele.</summary>
-        private static TableLayoutPanel FieldRow(LabeledInput field, Label hint)
+        /// <summary>Título de seção com o "?" logo depois dele.</summary>
+        private Control Section(string text, HelpButton? help)
         {
-            var row = new TableLayoutPanel { ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, FieldWidth));
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var row = new FlowLayoutPanel { WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Theme.Background };
+            row.Controls.Add(new Label
+            {
+                Text = text.ToUpperInvariant(),
+                Font = Theme.Section,
+                ForeColor = Theme.Muted,
+                AutoSize = true,
+                Margin = new Padding(0, S(11), S(6), 0)
+            });
+            if (help != null)
+            {
+                help.Size = new Size(S(20), S(20));
+                help.Margin = new Padding(0, S(7), 0, 0);
+                row.Controls.Add(help);
+            }
+            return row;
+        }
+
+        /// <summary>Campos lado a lado, cada um com o "?" à direita da caixa de texto.</summary>
+        private TableLayoutPanel Fields(params (LabeledInput Field, HelpButton Help)[] fields)
+        {
+            var row = new TableLayoutPanel { ColumnCount = 2 * fields.Length, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
             row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            field.Dock = DockStyle.Fill;
-            field.Margin = new Padding(0, 2, 10, 2);
-            hint.Dock = DockStyle.Fill;
-            hint.Margin = new Padding(0, 4, 0, 0);
-            row.Controls.Add(field, 0, 0);
-            row.Controls.Add(hint, 1, 0);
+            int help = S(22);
+            // O LabeledInput tem tamanhos fixos (título de 20 e caixa de 28, abaixo de 2 de margem): o "?" no meio da caixa
+            int helpTop = 2 + 20 + (28 - help) / 2;
+            for (int i = 0; i < fields.Length; i++)
+            {
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / fields.Length));
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(i == fields.Length - 1 ? 24 : 32)));
+                var (field, button) = fields[i];
+                field.Dock = DockStyle.Fill;
+                field.Margin = new Padding(0, 2, S(4), 2);
+                button.Size = new Size(help, help);
+                button.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+                button.Margin = new Padding(0, Math.Max(0, helpTop), 0, 0);
+                row.Controls.Add(field, 2 * i, 0);
+                row.Controls.Add(button, 2 * i + 1, 0);
+            }
             return row;
         }
     }

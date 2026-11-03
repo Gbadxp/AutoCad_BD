@@ -597,8 +597,8 @@ namespace FiberPlugin.UI
             }
         }
 
-        /// <summary>Cores do menu de opções, iguais às das listas do tema.</summary>
-        private sealed class ThemeMenuColors : ProfessionalColorTable
+        /// <summary>Cores do menu de opções, iguais às das listas do tema (também as do balão do HelpButton).</summary>
+        internal sealed class ThemeMenuColors : ProfessionalColorTable
         {
             public override Color ToolStripDropDownBackground => Theme.Surface;
             public override Color MenuBorder => Theme.Border;
@@ -790,6 +790,113 @@ namespace FiberPlugin.UI
             Theme.DrawRounded(g, border, r, radius);
 
             Theme.DrawIconAndText(g, this, S(12), CommandName, Title, Theme.BodyBold, Description);
+        }
+    }
+
+    /// <summary>
+    /// Botão "?" redondo: o clique (ou Enter/Espaço) mostra a explicação da opção num balão, que fecha ao clicar fora ou
+    /// com Esc. Com <see cref="Warning"/>, o "?" fica em destaque: a explicação tem um aviso.
+    /// </summary>
+    internal class HelpButton : Control
+    {
+        private bool _hover;
+        private bool _warning;
+
+        public string Title { get; set; }
+        public string HelpText { get; set; } = "";
+
+        public bool Warning
+        {
+            get => _warning;
+            set
+            {
+                if (_warning == value) return;
+                _warning = value;
+                Invalidate();
+            }
+        }
+
+        public HelpButton(string title)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw | ControlStyles.Selectable | ControlStyles.StandardClick, true);
+            Title = title;
+            TabStop = true;
+            Cursor = Cursors.Hand;
+            Size = new Size(22, 22);
+            AccessibleName = "O que é: " + title;
+            AccessibleRole = AccessibleRole.PushButton;
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+
+        protected override void OnClick(EventArgs e)
+        {
+            base.OnClick(e);
+            HelpPopup.Show(this, Title, HelpText);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.KeyCode is not (Keys.Enter or Keys.Space)) return;
+            OnClick(EventArgs.Empty);
+            e.Handled = true;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Parent?.BackColor ?? Theme.Background);
+
+            int side = Math.Min(Width, Height) - 2;
+            var circle = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
+            Color fill = _warning ? Theme.Accent : _hover ? Theme.SurfaceHover : Theme.Surface;
+            Color border = Focused || _hover || _warning ? Theme.Accent : Theme.Border;
+            using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, circle);
+            using (var pen = new Pen(border)) g.DrawEllipse(pen, circle);
+            TextRenderer.DrawText(g, "?", Theme.BodyBold, circle, _warning ? Theme.OnPrimary : Theme.Text,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+        }
+    }
+
+    /// <summary>Balão com o título e a explicação, logo abaixo do controle que o abriu (some ao clicar fora ou com Esc).</summary>
+    internal static class HelpPopup
+    {
+        private const TextFormatFlags Wrap = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix;
+
+        public static void Show(Control anchor, string title, string text)
+        {
+            Panel panel = Content(anchor, title, text);
+            var host = new ToolStripControlHost(panel) { AutoSize = false, Size = panel.Size, Margin = Padding.Empty, Padding = Padding.Empty };
+            var popup = new ToolStripDropDown
+            {
+                Padding = new Padding(1),
+                BackColor = Theme.Surface,
+                Renderer = new ToolStripProfessionalRenderer(new LabeledCombo.ThemeMenuColors())
+            };
+            popup.Items.Add(host);
+            popup.Closed += (s, e) => anchor.BeginInvoke(new Action(popup.Dispose));
+            popup.Show(anchor, new Point(0, anchor.Height + Theme.Scale(anchor, 2)));
+        }
+
+        /// <summary>O miolo do balão: título e explicação, com a altura do texto quebrado na largura do balão.</summary>
+        public static Panel Content(Control anchor, string title, string text)
+        {
+            int pad = Theme.Scale(anchor, 12), gap = Theme.Scale(anchor, 6), inner = Theme.Scale(anchor, 360);
+            Size titleSize = TextRenderer.MeasureText(title, Theme.BodyBold, new Size(inner, 0), Wrap);
+            Size textSize = TextRenderer.MeasureText(text, Theme.Body, new Size(inner, 0), Wrap);
+            var panel = new Panel { Size = new Size(inner + 2 * pad, pad + titleSize.Height + gap + textSize.Height + pad), BackColor = Theme.Surface };
+            panel.Paint += (s, e) =>
+            {
+                TextRenderer.DrawText(e.Graphics, title, Theme.BodyBold, new Rectangle(pad, pad, inner, titleSize.Height), Theme.TextStrong, Wrap);
+                TextRenderer.DrawText(e.Graphics, text, Theme.Body, new Rectangle(pad, pad + titleSize.Height + gap, inner, textSize.Height), Theme.Text, Wrap);
+            };
+            return panel;
         }
     }
 }
