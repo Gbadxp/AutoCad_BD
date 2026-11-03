@@ -40,8 +40,11 @@ namespace FiberPlugin.Core
         public const double MarginLeft = 25;
         public const double Margin = 10;
 
-        // Faixa na base da moldura com número da folha, escala e formato
-        public const double InfoBandHeight = 12;
+        // Faixa na base da moldura: o carimbo (SheetFrame) à direita e, à esquerda dele, o nome do desenho. O carimbo tem
+        // 175 mm de largura para ficar à vista na cópia dobrada em A4 (NBR 13142: o último painel tem 185 mm, menos a
+        // margem de 10 mm)
+        public const double TitleBlockHeight = 34;
+        public const double TitleBlockWidth = 175;
 
         public SheetFormat(string name, double width, double height)
         {
@@ -67,18 +70,25 @@ namespace FiberPlugin.Core
         /// <summary>Largura da coluna de norte e legenda, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
         public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
 
-        /// <summary>Área do viewport: a moldura menos a faixa de informações e a coluna da legenda, em mm no papel.</summary>
+        /// <summary>Área do viewport: a moldura menos a faixa do carimbo e a coluna da legenda, em mm no papel.</summary>
         public Rect ViewportArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MinX, frame.MinY + InfoBandHeight, frame.MaxX - LegendWidth(landscape), frame.MaxY);
+            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight, frame.MaxX - LegendWidth(landscape), frame.MaxY);
         }
 
         /// <summary>Coluna do norte e da legenda, em mm no papel.</summary>
         public Rect LegendArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + InfoBandHeight, frame.MaxX, frame.MaxY);
+            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight, frame.MaxX, frame.MaxY);
+        }
+
+        /// <summary>Carimbo, no canto de baixo à direita da moldura (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
+        public Rect TitleBlock(bool landscape)
+        {
+            Rect frame = Frame(landscape);
+            return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + TitleBlockHeight);
         }
     }
 

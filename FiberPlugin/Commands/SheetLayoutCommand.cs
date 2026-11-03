@@ -12,9 +12,10 @@ using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Divide uma área do desenho em folhas (layouts) do tamanho e escala escolhidos, cada uma com
-    /// moldura, faixa de informações e viewport travado mostrando um pedaço do projeto.
-    /// As folhas já saem configuradas para DWG To PDF, prontas para o PUBLICAR do AutoCAD.
+    /// Divide uma área do desenho em folhas (layouts) do tamanho e escala escolhidos, cada uma com moldura, carimbo
+    /// (SheetFrame: logo, empresa, responsável técnico, assinatura...), marcas de dobra e de corte, e viewport travado
+    /// mostrando um pedaço do projeto. As folhas já saem configuradas para DWG To PDF, prontas para o PUBLICAR do AutoCAD.
+    /// A janela também apaga as folhas de um prefixo (botão Apagar folhas).
     /// </summary>
     public class SheetLayoutCommand
     {
@@ -22,7 +23,6 @@ namespace FiberPlugin.Commands
         private const string SheetIndexLayer = "FIBRA_FOLHAS";       // Quadro de articulação no Model (não imprime)
         private const string FrameLayer = "FIBRA_MOLDURA";           // Moldura e textos da folha
         private const string ViewportLayer = "FIBRA_VIEWPORTS";      // Borda do viewport (não imprime)
-        private const double PaperTextHeight = 3.5;                  // mm no papel
 
         [CommandMethod("FIBRA_GERAR_FOLHAS")]
         public void GenerateSheets()
@@ -57,7 +57,13 @@ namespace FiberPlugin.Commands
                        prefix => LayoutsWithPrefix(db, prefix).Count))
             {
                 form.PickInDrawing = () => Pick(ed, form);
-                if (AcApp.ShowModalDialog(form) != System.Windows.Forms.DialogResult.OK || form.Result == null || form.Plan == null) return;
+                bool confirmed = AcApp.ShowModalDialog(form) == System.Windows.Forms.DialogResult.OK;
+                if (confirmed && form.DeletePrefix is string deletePrefix)
+                {
+                    DeleteSheets(db, ed, deletePrefix);
+                    return;
+                }
+                if (!confirmed || form.Result == null || form.Plan == null) return;
                 options = form.Result;
                 plan = form.Plan;
             }
@@ -88,6 +94,23 @@ namespace FiberPlugin.Commands
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
+            // Carimbo: empresa e responsável técnico da aba Empresa, projeto e ART da aba Projeto, a logo do memorial
+            CompanyInfo company = CompanyInfo.Read();
+            ProjectInfo project = ProjectInfo.Load(db);
+            (ObjectId Id, double Aspect)? logo = LogoDefinition(db, warnings);
+            var stamp = new SheetStamp
+            {
+                Company = company.LegalName,
+                Engineer = company.Representative,
+                Crea = company.Crea,
+                Project = project.Route.Length > 0 ? project.Route : title,
+                Art = project.ArtNumber,
+                Date = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                LogoAspect = logo?.Aspect ?? 0
+            };
+            if (company.IsEmpty || company.Representative.Length == 0)
+                warnings.Add("Empresa ou responsável técnico em branco no carimbo: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
+
             // Não deixa o AutoCAD criar o viewport padrão nas folhas novas
             object? previousLcv = TrySetSystemVariable("LAYOUTCREATEVIEWPORT", (short)0);
             try
@@ -97,7 +120,7 @@ namespace FiberPlugin.Commands
                     string name = $"{options.Prefix}-{(i + 1).ToString("D" + digits, CultureInfo.InvariantCulture)}";
                     try
                     {
-                        string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], i + 1, title, legend);
+                        string? warning = CreateSheet(db, lm, name, plan, plan.Tiles[i], SheetFrame.Build(plan, i + 1, title, stamp), logo?.Id, legend);
                         if (warning != null) warnings.Add(warning);
                         names.Add(name);
                     }
@@ -219,9 +242,72 @@ namespace FiberPlugin.Commands
             }
         }
 
+        /// <summary>Botão Apagar folhas da janela: as folhas do prefixo e o quadro delas no Model.</summary>
+        private static void DeleteSheets(Database db, Editor ed, string prefix)
+        {
+            List<string> names = LayoutsWithPrefix(db, prefix);
+            DeleteLayouts(ed, LayoutManager.Current, names);
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                EraseSheetIndex(tr, CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite), prefix);
+                tr.Commit();
+            }
+            int deleted = names.Count - LayoutsWithPrefix(db, prefix).Count;
+            ed.WriteMessage($"\n[SUCESSO]: {deleted} folha(s) {prefix}-... apagada(s), junto com o quadro delas no Model.");
+            ed.Regen();
+        }
+
+        /// <summary>
+        /// Logo do carimbo: a mesma do memorial (Dados\Memorial\logo.png). Uma definição de imagem por desenho, reaproveitada
+        /// a cada geração, e a proporção da imagem. Null sem o arquivo (o quadro da logo fica vazio).
+        /// </summary>
+        private static (ObjectId Id, double Aspect)? LogoDefinition(Database db, HashSet<string> warnings)
+        {
+            string? folder = PluginPaths.DataFile(MemorialDocument.AssetsFolder);
+            string? file = folder == null ? null : Path.Combine(folder, "logo.png");
+            if (file == null || !File.Exists(file))
+            {
+                warnings.Add("Sem a logo no carimbo: coloque a imagem em Dados\\Memorial\\logo.png (botão Pasta de Dados da Configuração de Projeto).");
+                return null;
+            }
+            try
+            {
+                using (Transaction tr = db.TransactionManager.StartTransaction())
+                {
+                    ObjectId dictionaryId = RasterImageDef.GetImageDictionary(db);
+                    if (dictionaryId.IsNull) dictionaryId = RasterImageDef.CreateImageDictionary(db);
+                    var dictionary = (DBDictionary)tr.GetObject(dictionaryId, OpenMode.ForWrite);
+                    RasterImageDef? definition = dictionary.Cast<DBDictionaryEntry>()
+                        .Select(entry => tr.GetObject(entry.Value, OpenMode.ForRead) as RasterImageDef)
+                        .FirstOrDefault(d => d != null && string.Equals(d.SourceFileName, file, StringComparison.OrdinalIgnoreCase));
+                    if (definition == null)
+                    {
+                        definition = new RasterImageDef { SourceFileName = file };
+                        definition.Load();
+                        dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                        tr.AddNewlyCreatedDBObject(definition, true);
+                    }
+                    else if (!definition.IsLoaded)
+                    {
+                        definition.UpgradeOpen();
+                        definition.Load();
+                    }
+                    Vector2d size = definition.Size;
+                    ObjectId id = definition.ObjectId;
+                    tr.Commit();
+                    return size.X > 0 && size.Y > 0 ? (id, size.X / size.Y) : null;
+                }
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception ex)
+            {
+                warnings.Add($"A logo ({file}) não pôde ser lida ({ex.ErrorStatus}): o carimbo saiu sem ela.");
+                return null;
+            }
+        }
+
         /// <returns>Aviso sobre a configuração de impressão, ou null se tudo certo.</returns>
-        private static string? CreateSheet(Database db, LayoutManager lm, string name, SheetPlan plan, SheetTile tile, int number, string title,
-            SheetLegend legend)
+        private static string? CreateSheet(Database db, LayoutManager lm, string name, SheetPlan plan, SheetTile tile, SheetPaper paper,
+            ObjectId? logo, SheetLegend legend)
         {
             ObjectId layoutId = lm.CreateLayout(name);
             lm.CurrentLayout = name; // O viewport só pode ser ligado com a folha ativa
@@ -244,7 +330,7 @@ namespace FiberPlugin.Commands
                 CadHelpers.EnsureLayer(tr, db, FrameLayer, 7);
                 CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
 
-                DrawFrame(tr, paperSpace, plan, number, title);
+                DrawFrame(tr, paperSpace, paper, logo);
                 legend.Draw(tr, db, paperSpace, plan.Format.LegendArea(plan.Landscape), FrameLayer);
 
                 Rect area = plan.Format.ViewportArea(plan.Landscape);
@@ -268,35 +354,49 @@ namespace FiberPlugin.Commands
             return warning;
         }
 
-        /// <summary>Moldura, faixa de informações e textos, em mm no papel.</summary>
-        private static void DrawFrame(Transaction tr, BlockTableRecord paperSpace, SheetPlan plan, int number, string title)
+        /// <summary>Moldura, carimbo, marcas de dobra e de corte (montados pelo SheetFrame), em mm no papel.</summary>
+        private static void DrawFrame(Transaction tr, BlockTableRecord paperSpace, SheetPaper paper, ObjectId? logo)
         {
-            Rect frame = plan.Format.Frame(plan.Landscape);
-            double bandTop = frame.MinY + SheetFormat.InfoBandHeight;
-
-            Polyline border = Rectangle(frame);
-            border.ConstantWidth = 0.5;
-            AddPaper(tr, paperSpace, border);
-
-            AddPaper(tr, paperSpace, new Line(new Point3d(frame.MinX, bandTop, 0), new Point3d(frame.MaxX, bandTop, 0)));
-
-            double textY = frame.MinY + SheetFormat.InfoBandHeight / 2.0;
-            string info = $"FOLHA {number:D2}/{plan.Tiles.Count:D2}     ESCALA 1:{plan.Scale}     {plan.Format.Name}";
-
-            AddPaper(tr, paperSpace, new MText
+            foreach (var (rect, width) in paper.Boxes)
             {
-                Contents = CadHelpers.MTextLiteral(title),
-                Location = new Point3d(frame.MinX + 4, textY, 0),
-                Attachment = AttachmentPoint.MiddleLeft,
-                TextHeight = PaperTextHeight
-            });
-            AddPaper(tr, paperSpace, new MText
+                Polyline box = Rectangle(rect);
+                box.ConstantWidth = width;
+                AddPaper(tr, paperSpace, box);
+            }
+            foreach (PaperLine l in paper.Lines)
+                AddPaper(tr, paperSpace, new Line(new Point3d(l.X1, l.Y1, 0), new Point3d(l.X2, l.Y2, 0)));
+            foreach (Rect r in paper.Fills)
+                AddPaper(tr, paperSpace, new Solid(new Point3d(r.MinX, r.MinY, 0), new Point3d(r.MaxX, r.MinY, 0),
+                                                   new Point3d(r.MinX, r.MaxY, 0), new Point3d(r.MaxX, r.MaxY, 0)));
+            foreach (PaperText t in paper.Texts)
             {
-                Contents = info,
-                Location = new Point3d(frame.MaxX - 4, textY, 0),
-                Attachment = AttachmentPoint.MiddleRight,
-                TextHeight = PaperTextHeight
-            });
+                AddPaper(tr, paperSpace, new MText
+                {
+                    Contents = CadHelpers.MTextLiteral(t.Text),
+                    Location = new Point3d(t.X, t.Y, 0),
+                    Attachment = t.Anchor switch
+                    {
+                        PaperAnchor.BottomLeft => AttachmentPoint.BottomLeft,
+                        PaperAnchor.MiddleLeft => AttachmentPoint.MiddleLeft,
+                        _ => AttachmentPoint.TopLeft
+                    },
+                    TextHeight = t.Height,
+                    Width = t.Width
+                });
+            }
+
+            if (logo is not ObjectId logoId || paper.Logo is not Rect area) return;
+            var definition = (RasterImageDef)tr.GetObject(logoId, OpenMode.ForWrite);
+            var image = new RasterImage
+            {
+                ImageDefId = logoId,
+                Orientation = new CoordinateSystem3d(new Point3d(area.MinX, area.MinY, 0), new Vector3d(area.Width, 0, 0), new Vector3d(0, area.Height, 0)),
+                ShowImage = true,
+                ImageTransparency = true // Fundo transparente do PNG
+            };
+            AddPaper(tr, paperSpace, image);
+            RasterImage.EnableReactors(true);
+            image.AssociateRasterDef(definition);
         }
 
         private static void AddPaper(Transaction tr, BlockTableRecord paperSpace, Entity ent)
@@ -371,11 +471,7 @@ namespace FiberPlugin.Commands
                 CadHelpers.EnsureNonPlottingLayer(tr, db, SheetIndexLayer, 8);
                 BlockTableRecord modelSpace = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForWrite);
 
-                // Remove o quadro anterior das folhas com o mesmo prefixo (coleta antes de apagar)
-                CadHelpers.EraseUnlocked(tr, modelSpace.Cast<ObjectId>()
-                    .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent &&
-                                 string.Equals(XDataTags.GetSheetIndexPrefix(ent), prefix, StringComparison.OrdinalIgnoreCase))
-                    .ToList());
+                EraseSheetIndex(tr, modelSpace, prefix);
 
                 for (int i = 0; i < plan.Tiles.Count; i++)
                 {
@@ -402,6 +498,15 @@ namespace FiberPlugin.Commands
 
                 tr.Commit();
             }
+        }
+
+        /// <summary>Apaga do Model o quadro de articulação das folhas com o prefixo (coleta antes de apagar).</summary>
+        private static void EraseSheetIndex(Transaction tr, BlockTableRecord modelSpace, string prefix)
+        {
+            CadHelpers.EraseUnlocked(tr, modelSpace.Cast<ObjectId>()
+                .Where(id => tr.GetObject(id, OpenMode.ForRead) is Entity ent &&
+                             string.Equals(XDataTags.GetSheetIndexPrefix(ent), prefix, StringComparison.OrdinalIgnoreCase))
+                .ToList());
         }
 
         /// <summary>Altera uma variável de sistema e devolve o valor anterior (null se ela não existir).</summary>

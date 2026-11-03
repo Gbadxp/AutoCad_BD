@@ -8,7 +8,8 @@ namespace FiberPlugin.UI
     /// Janela do Gerar Folhas. À esquerda as escolhas: área do projeto (marcada no desenho, a da rede ou o desenho todo),
     /// tamanho e orientação da folha, escala, sobreposição e prefixo dos nomes; cada uma tem um "?" que mostra o que ela faz
     /// (em destaque quando há um aviso). À direita a prévia da divisão (as folhas que serão criadas, com o nome, e os
-    /// pedaços vazios que ficam de fora) e o resumo. Confere enquanto digita.
+    /// pedaços vazios que ficam de fora) e o resumo. Confere enquanto digita. Embaixo, gerar as folhas (apagando antes as
+    /// do mesmo prefixo) ou só apagar as que já existem com o prefixo.
     /// </summary>
     internal class SheetsForm : Form
     {
@@ -18,7 +19,10 @@ namespace FiberPlugin.UI
 
         private const string SheetContents =
             "O que cada folha terá:\n" +
-            "•  Moldura (25 mm à esquerda para encadernar) e faixa com o nome do desenho, o número da folha (01/06), a escala e o formato.\n" +
+            "•  Moldura (25 mm à esquerda para encadernar) e, embaixo, o nome do desenho e o carimbo (NBR 16752): logo, empresa, " +
+            "projeto, responsável técnico com o CREA, espaço para a assinatura, data, escala, formato, número da folha (01/06) e ART. " +
+            "Empresa e responsável vêm da Configuração de Projeto (aba Empresa); a logo, de Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
+            "•  Marcas de dobra nas bordas (NBR 13142: a cópia dobrada fica do tamanho A4, com o carimbo à vista) e marcas de corte nos cantos.\n" +
             "•  Coluna com a seta do norte e a legenda dos símbolos usados no desenho (NDU 009, item 16.3).\n" +
             "•  Viewport travado na escala, mostrando o pedaço da prévia com o mesmo nome.\n" +
             "•  Já configurada para DWG To PDF: para gerar o PDF, use o comando PUBLICAR e escolha as folhas.\n" +
@@ -35,12 +39,17 @@ namespace FiberPlugin.UI
         private readonly LabeledInput _scale, _overlap, _prefix;
         private readonly SheetPreview _preview;
         private readonly StatusLabel _status;
-        private readonly ThemedButton _ok;
+        private readonly ThemedButton _ok, _delete;
         private Rect? _area;
         private string _areaSource;
+        private string _prefixText = "";
+        private int _existing; // Folhas que já existem com o prefixo digitado
 
         /// <summary>Marca os dois cantos da área no desenho (com a janela escondida); null se cancelar.</summary>
         public Func<Rect?>? PickInDrawing { get; set; }
+
+        /// <summary>Botão Apagar folhas: o prefixo das folhas a apagar (null = gerar, ou cancelou).</summary>
+        public string? DeletePrefix { get; private set; }
 
         /// <summary>O que foi escolhido (null enquanto faltar algo ou houver erro).</summary>
         public SheetSettings? Result { get; private set; }
@@ -132,10 +141,12 @@ namespace FiberPlugin.UI
             body.Controls.Add(right, 1, 0);
 
             var footer = new FooterPanel { Hint = "Clique no ? para ver o que cada opção faz  ·  as escolhas ficam gravadas neste desenho" };
-            _ok = new ThemedButton("Substituir folhas", true); // Largura do texto mais longo; o texto muda com o prefixo
+            _ok = new ThemedButton("Apagar e gerar novas", true); // Largura do texto mais longo; o texto muda com o prefixo
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
+            _delete = new ThemedButton("Apagar folhas", false);
             footer.AddButton(_ok);
             footer.AddButton(cancel);
+            footer.AddButton(_delete);
 
             Controls.Add(body);
             Controls.Add(header);
@@ -166,6 +177,16 @@ namespace FiberPlugin.UI
             _ok.Click += (s, e) =>
             {
                 if (Result == null) return;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            _delete.Click += (s, e) =>
+            {
+                if (_existing == 0) return;
+                string sheets = _existing == 1 ? $"a folha {_prefixText}-..." : $"as {_existing} folhas {_prefixText}-...";
+                if (MessageBox.Show(this, $"Apagar {sheets} deste desenho, junto com o quadro delas no Model?", "Fiber Plugin - Apagar folhas",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                DeletePrefix = _prefixText;
                 DialogResult = DialogResult.OK;
                 Close();
             };
@@ -203,6 +224,9 @@ namespace FiberPlugin.UI
             double? overlap = DataFiles.TryParseNumber(_overlap.Value, out double o) && o >= 0 && o <= SheetSettings.MaxOverlapPercent ? o : (double?)null;
             string prefix = _prefix.Value.Trim();
             int existing = prefix.Length > 0 ? _existingSheets(prefix) : 0;
+            _prefixText = prefix;
+            _existing = existing;
+            _delete.Enabled = existing > 0; // Apagar não depende do resto estar certo
 
             string? error = null;
             bool incomplete = false;
@@ -243,7 +267,7 @@ namespace FiberPlugin.UI
             bool ok = error == null && plan != null;
             _preview.SetPlan(_area, _content, ok || plan?.Tiles.Count == 0 ? plan : null, prefix);
             _ok.Enabled = ok;
-            _ok.Text = existing > 0 ? "Substituir folhas" : "Gerar folhas";
+            _ok.Text = existing > 0 ? "Apagar e gerar novas" : "Gerar folhas";
             if (!ok)
             {
                 _status.Set(error ?? "", incomplete ? StatusKind.Hint : StatusKind.Error);
@@ -269,7 +293,7 @@ namespace FiberPlugin.UI
             string paper = $"{format.Name} = {format.LongSide:0} × {format.ShortSide:0} mm.";
             string covers = scale is int s
                 ? $" Em {(landscape ? "paisagem" : "retrato")}, cada folha mostra {viewport.Width * s / 1000:N0} × {viewport.Height * s / 1000:N0} m do " +
-                  $"desenho em 1:{s}; o resto da folha é a moldura, a faixa de baixo e a coluna da legenda."
+                  $"desenho em 1:{s}; o resto da folha é a moldura, o carimbo embaixo e a coluna da legenda."
                 : "";
             string automatic = plan != null && orientation == SheetSettings.Automatic ? $" (agora ficou {(plan.Landscape ? "paisagem" : "retrato")})" : "";
             _sheetHelp.HelpText = paper + covers + "\n\n" +
@@ -294,8 +318,9 @@ namespace FiberPlugin.UI
             string name = prefix.Length > 0 ? prefix : "FL";
             _prefixHelp.HelpText = $"As folhas se chamam {name}-01, {name}-02... (uma aba de layout cada); no Model, o quadro das folhas usa os " +
                                    "mesmos nomes." +
-                                   (existing > 0 ? $"\n\nAtenção: já existem {existing} folha{(existing == 1 ? "" : "s")} {name}-... neste desenho. Elas serão " +
-                                                   "apagadas e criadas de novo; para manter as atuais, use outro prefixo." : "");
+                                   (existing > 0 ? $"\n\nAtenção: já existem {existing} folha{(existing == 1 ? "" : "s")} {name}-... neste desenho. " +
+                                                   "\"Apagar e gerar novas\" apaga e cria de novo; \"Apagar folhas\" só apaga. Para manter as " +
+                                                   "atuais, use outro prefixo." : "");
             _prefixHelp.Warning = existing > 0;
         }
 

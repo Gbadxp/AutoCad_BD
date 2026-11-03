@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.88.msi`](Instalador/FiberPlugin-1.9.88.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.89.msi`](Instalador/FiberPlugin-1.9.89.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -212,7 +212,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Coordenadas dos Postes | `FIBRA_COORDENADAS_POSTES` | PDF com todos os postes em ordem de número: estrutura, ID Energisa, zona e coordenadas E e N (UTM SIRGAS 2000). Pede a Zona UTM se o desenho não tiver. |
 | Norma NDU 009 | `FIBRA_NORMA` | Abre o PDF da NDU 009 da Energisa (versão 8.1, dezembro/2026), que vem junto com o plugin na pasta `Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
-| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, legenda e viewport, prontas para PDF (veja abaixo). |
+| Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, carimbo (logo, empresa, responsável técnico, assinatura), marcas de dobra, legenda e viewport, prontas para PDF; também apaga as folhas geradas (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
@@ -448,21 +448,31 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
 3. **Escala** (padrão: a do desenho, em Configuração de Projeto; aceita `1000`, `1:1000` ou `1.000`). Se for outra, o **?**
    avisa quanto os textos e símbolos saem maiores ou menores na folha. **Sobreposição** entre folhas vizinhas (padrão 5%,
    de 0 a 50%; o **?** mostra em metros) e **prefixo dos nomes** (padrão `FL`; se já existem folhas com ele, o resumo avisa
-   que elas serão substituídas e o botão vira **Substituir folhas**).
+   que elas serão substituídas e o botão vira **Apagar e gerar novas**).
 4. A **prévia** mostra o desenho com a grade: as folhas que serão criadas (azuis, com o nome) e os pedaços sem nenhum
    elemento do desenho, que ficam de fora (tracejados). Embaixo, o resumo: quantas folhas, a orientação, a grade e os
    pedaços vazios. Escala ou área que dariam folhas demais (mais de 300) são recusadas, com a sugestão de uma escala. O **?** da prévia
    explica as cores e o que cada folha terá.
 5. As escolhas ficam gravadas no desenho para a próxima vez. Cada folha vira um layout (`FL-01`, `FL-02`...) com:
    - configuração de página **DWG To PDF**, papel do formato escolhido, plotagem 1:1;
-   - moldura (margem de 25 mm à esquerda e 10 mm nas demais) e faixa com número da folha, escala e formato;
+   - moldura (margem de 25 mm à esquerda e 10 mm nas demais) e, embaixo, o nome do desenho e o **carimbo** no canto
+     direito (NBR 16752, 175 x 34 mm): logo, empresa, projeto, responsável técnico com o CREA, espaço com linha para a
+     **assinatura**, data, escala, formato, número da folha e ART. Empresa, responsável e CREA vêm da Configuração de
+     Projeto, aba Empresa; projeto (o percurso da rede, ou o nome do desenho) e ART, da aba Projeto; a logo é a do memorial
+     (`Dados\Memorial\logo.png`);
+   - **marcas de dobra** nas bordas do papel, pela NBR 13142 (a cópia dobrada fica do tamanho A4 com o carimbo à vista):
+     a partir da direita, A0 185 + 185 + 185 + 185 + 119,5 + 119,5 (sobra 210), A1 185 + 185 + 130 + 130, A2 185 + 96 + 96 + 96,
+     A3 185 + 105; dobras horizontais de 297 em 297 mm a partir de baixo; no A0, A1 e A2, as pontas da dobra do canto
+     superior esquerdo (de 105 mm no alto até 297 mm na borda esquerda). A4 não tem dobra;
+   - **marcas de corte** em L (10 x 5 mm) nos quatro cantos do papel, como nas folhas-modelo da NBR 16752;
    - coluna à direita com a **seta do norte** e a **legenda** em português dos símbolos usados no desenho
      (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da NDU 009;
    - viewport travado na escala exata, mostrando o pedaço correspondente.
 6. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
 
 Para gerar o PDF, use o comando **PUBLICAR** (PUBLISH) do AutoCAD e selecione as folhas.
-Rodar de novo com o mesmo prefixo substitui as folhas anteriores. O desenho deve estar em metros.
+Com folhas do mesmo prefixo no desenho, **Apagar e gerar novas** apaga e cria de novo, e **Apagar folhas** só apaga (as
+folhas e o quadro delas no Model, depois de confirmar). O desenho deve estar em metros.
 
 ## Escala das anotações
 
