@@ -162,7 +162,7 @@ namespace FiberPlugin.UI
 
         /// <summary>Aba aberta (TabProject, TabCables...).</summary>
         private int CurrentTab => _tabs.SelectedIndex >= 0 ? _visible[_tabs.SelectedIndex] : -1;
-        private const int ShortcutTitle = 0, ShortcutCommand = 1, ShortcutAlias = 2, ShortcutState = 3;
+        private const int ShortcutAlias = 2, ShortcutState = 3; // Colunas da aba Atalhos (antes delas, o nome e o comando)
         private static readonly string[] LinetypeLabels = LayerStyle.Linetypes.Select(l => l.Label).ToArray();
         private static readonly string[] WeightLabels =
             new[] { LayerStyle.DefaultWeightLabel }.Concat(LayerStyle.Weights.Select(w => LayerStyle.WeightLabel(w))).ToArray();
