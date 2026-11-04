@@ -8,7 +8,10 @@ namespace FiberPlugin.Core
         public string Company { get; set; } = "";   // Razão social (Configuração de Projeto, aba Empresa)
         public string Engineer { get; set; } = "";  // Responsável técnico (o representante da aba Empresa)
         public string Crea { get; set; } = "";
+        public string EngineerEmail { get; set; } = "";
         public string Art { get; set; } = "";
+        public string Designer { get; set; } = "";  // Projetista (aba Carimbo)
+        public string DesignerEmail { get; set; } = "";
         public string Title { get; set; } = "";     // Percurso da rede ou, sem ele, o nome do desenho
         public string Content { get; set; } = "";   // Conteúdo (ex.: PROJETO DE REDE ÓPTICA)
         public string Area { get; set; } = "";      // ProjectInfo.Rural, ProjectInfo.Urban ou vazio
@@ -93,8 +96,8 @@ namespace FiberPlugin.Core
     /// <item>quadro com margem de 20 mm à esquerda e 10 mm nas outras, na largura de linha da tabela 4;</item>
     /// <item>malha de referência (letras e números na faixa de 5 mm em volta do quadro), marcas de centro e de corte;</item>
     /// <item>faixa do carimbo embaixo (SheetFormat.Band): a legenda de 180 mm deitada no canto inferior direito, com logo e
-    /// empresa, projeto, endereço, município, CEP, responsável técnico com CREA, ART e assinatura, conteúdo, área rural ou
-    /// urbana, escala, data e folha; colado nela, o quadro do norte e dos símbolos; à esquerda, a articulação das folhas,
+    /// empresa, projeto, endereço, município, CEP, responsável técnico com CREA, ART, e-mail e assinatura, conteúdo, área
+    /// rural ou urbana, projetista com o e-mail, escala, data e folha; colado nela, o quadro do norte e dos símbolos; à esquerda, a articulação das folhas,
     /// com o desenho atrás (um viewport), a folha atual hachurada e o formato ("FOLHA A2") no canto;</item>
     /// <item>na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos;</item>
     /// <item>marcas de dobramento da figura 21 (cópia dobrada em A4 com a legenda à vista).</item>
@@ -165,8 +168,8 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Legenda deitada, em dois blocos de sete linhas lado a lado: identificação (logo e empresa, projeto, endereço,
-        /// município e CEP) e o técnico (responsável técnico com a assinatura, conteúdo e área, escala, data e a folha, no
-        /// canto de baixo à direita).
+        /// município e CEP) e o técnico (responsável técnico com a assinatura, conteúdo e área, projetista, escala, data e a
+        /// folha, no canto de baixo à direita).
         /// </summary>
         private static void Legend(SheetPaper paper, Rect block, SheetPlan plan, int number, SheetStamp stamp)
         {
@@ -209,25 +212,27 @@ namespace FiberPlugin.Core
         }
 
         /// <summary>
-        /// Responsável técnico (nome, CREA e ART) com o espaço da assinatura ao lado; conteúdo e área do projeto; escala e
-        /// data, com o número da folha em letra grande no canto.
+        /// Responsável técnico (nome, CREA, ART e e-mail) com o espaço da assinatura ao lado; conteúdo e área do projeto; o
+        /// projetista com o e-mail; escala e data, com o número da folha em letra grande no canto.
         /// </summary>
         private static void Technical(SheetPaper paper, Rect r, SheetPlan plan, int number, SheetStamp stamp)
         {
             var g = new Cells(r.MinX, r.MaxY);
-            double w = r.Width, split = Math.Round(w * 0.6);
+            double w = r.Width, split = Math.Round(w * 0.6), scale = Math.Round(split / 2);
             g.VLine(paper, split, 0, 7);
             g.HLine(paper, 0, w, 3);
             g.HLine(paper, 0, w, 5);
             g.HLine(paper, 0, split, 6);
+            g.VLine(paper, scale, 6, 7);
 
-            // Responsável técnico: título do quadro, nome, CREA e ART, uma linha embaixo da outra
+            // Responsável técnico: título do quadro, nome, CREA, ART e e-mail, uma linha embaixo da outra (sem o dado, fica
+            // o rótulo, para preencher à mão)
             double room = split - 2 * Pad;
             paper.Texts.Add(Text("RESPONSÁVEL TÉCNICO:", r.MinX + Pad, g.Row(0) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
             if (stamp.Engineer.Length > 0)
-                paper.Texts.Add(Text(stamp.Engineer, r.MinX + Pad, g.Row(0) - 5.2, Fit(stamp.Engineer, TextHeight, room, 4, 1, MinHeight), 0, PaperAnchor.TopLeft));
-            foreach (var (text, y) in new[] { ("Nº CREA: " + stamp.Crea, 10.6), ("ART: " + stamp.Art, 15.4) })
-                paper.Texts.Add(Text(text, r.MinX + Pad, g.Row(0) - y, Fit(text, 1.8, room, 4, 1, MinHeight), 0, PaperAnchor.TopLeft));
+                paper.Texts.Add(Text(stamp.Engineer, r.MinX + Pad, g.Row(0) - 4.4, Fit(stamp.Engineer, TextHeight, room, 4, 1, MinHeight), 0, PaperAnchor.TopLeft));
+            foreach (var (text, y) in new[] { ("Nº CREA: " + stamp.Crea, 8.6), ("ART: " + stamp.Art, 12.4), ("E-MAIL: " + stamp.EngineerEmail, 16.2) })
+                paper.Texts.Add(Text(text, r.MinX + Pad, g.Row(0) - y, Fit(text, 1.8, room, 4, 1, 1.2), 0, PaperAnchor.TopLeft));
 
             // Assinatura: a imagem (se houver) ou o espaço com a linha para assinar
             paper.Texts.Add(Text("ASS.:", r.MinX + split + Pad, g.Row(0) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
@@ -246,8 +251,13 @@ namespace FiberPlugin.Core
             CheckBox(paper, r.MinX + split + 4, g.Row(3) - 7.2, "RURAL", stamp.Area == ProjectInfo.Rural);
             CheckBox(paper, r.MinX + split + 4, g.Row(3) - 11.4, "URBANO", stamp.Area == ProjectInfo.Urban);
 
-            g.Field(paper, 0, split, 5, "ESCALA: 1:" + plan.Scale.ToString(CultureInfo.InvariantCulture));
-            g.Field(paper, 0, split, 6, "DATA: " + stamp.Date);
+            // Projetista: o nome em cima e o e-mail embaixo, na mesma linha da legenda
+            string designer = "PROJETISTA: " + stamp.Designer, email = "E-MAIL: " + stamp.DesignerEmail;
+            paper.Texts.Add(Text(designer, r.MinX + Pad, g.Row(5) - 0.9, Fit(designer, 1.8, room, 3, 1, 1.2), 0, PaperAnchor.TopLeft));
+            paper.Texts.Add(Text(email, r.MinX + Pad, g.Row(5) - 4.0, Fit(email, SmallHeight, room, 3, 1, 1.2), 0, PaperAnchor.TopLeft));
+
+            g.Field(paper, 0, scale, 6, "ESCALA: 1:" + plan.Scale.ToString(CultureInfo.InvariantCulture));
+            g.Field(paper, scale, split - scale, 6, "DATA: " + stamp.Date);
             paper.Texts.Add(Text("FOLHA:", r.MinX + split + Pad, g.Row(5) - Pad, SmallHeight, 0, PaperAnchor.TopLeft));
             g.Center(paper, Sheet(number, plan.Tiles.Count), split, w - split, 5, 7, 5, top: 2);
         }

@@ -7,7 +7,7 @@ namespace FiberPlugin.Core
     /// <summary>
     /// Dados do projeto usados nos documentos (Memorial Descritivo, Memorial de Esforço e Coordenadas dos Postes) e no
     /// carimbo das folhas do Gerar Folhas: percurso, endereço da obra, contrato de uso mútuo, ART, início e prazo da
-    /// obra; município, CEP, conteúdo e área (aba Carimbo). Ficam gravados no DWG e também em
+    /// obra; município, CEP, conteúdo, área e o projetista com o e-mail (aba Carimbo). Ficam gravados no DWG e também em
     /// Documentos\Fiber Plugin\projeto.txt (os últimos salvos, fora do repositório): o campo que o desenho não tiver
     /// vem do arquivo, para não precisar digitar de novo a cada desenho.
     /// </summary>
@@ -20,12 +20,13 @@ namespace FiberPlugin.Core
 
         // Mesma ordem do registro no DWG (gravado assim desde a 1.9.14; os do carimbo, no fim, desde a 1.9.90). Os null são
         // campos que saíram da legenda e ficam vazios no registro (e fora do projeto.txt): cliente, CPF/CNPJ do cliente, U.C.
-        // e nº da obra (até a 1.9.93). A 1.9.90 também gravava, nas posições 14 a 20, o quadro de alterações (desenhista,
-        // verificador, aprovador, revisão): um campo novo deve entrar depois da posição 20, para não ler o que ficou lá
+        // e nº da obra (até a 1.9.93) e, nas posições 14 a 20, o quadro de alterações da 1.9.90 (desenhista, verificador,
+        // aprovador, revisão), que não é lido. O projetista entrou depois, na 1.9.97
         private static readonly string?[] Labels =
         {
             "Percurso", "Endereço da obra", "Contrato de uso mútuo", "ART", "Início previsto", "Prazo de execução",
-            null, null, "Município", "CEP", null, null, "Área do projeto", "Conteúdo"
+            null, null, "Município", "CEP", null, null, "Área do projeto", "Conteúdo",
+            null, null, null, null, null, null, null, "Projetista", "E-mail do projetista"
         };
 
         public string Route { get; set; } = "";
@@ -40,6 +41,8 @@ namespace FiberPlugin.Core
         public string ZipCode { get; set; } = "";
         public string Area { get; set; } = "";            // Rural, Urbana ou vazio
         public string Content { get; set; } = "";         // Conteúdo (ex.: PROJETO DE REDE ÓPTICA)
+        public string Designer { get; set; } = "";        // Projetista (quem desenhou o projeto)
+        public string DesignerEmail { get; set; } = "";
 
         /// <summary>
         /// Zona UTM: a do desenho ou, sem ela, a do último projeto salvo (só sugestão; quem grava no desenho é a
@@ -58,7 +61,8 @@ namespace FiberPlugin.Core
         private string[] Values => new[]
         {
             Route, WorkAddress, ContractNumber, ArtNumber, StartDate, Deadline,
-            "", "", City, ZipCode, "", "", Area, Content
+            "", "", City, ZipCode, "", "", Area, Content,
+            "", "", "", "", "", "", "", Designer, DesignerEmail
         };
 
         /// <summary>Mesmos textos e mesma zona (para saber se algo mudou na aba Projeto).</summary>
@@ -69,7 +73,7 @@ namespace FiberPlugin.Core
         private static ProjectInfo From(string[] v) => new ProjectInfo
         {
             Route = v[0], WorkAddress = v[1], ContractNumber = v[2], ArtNumber = v[3], StartDate = v[4], Deadline = v[5],
-            City = v[8], ZipCode = v[9], Area = v[12], Content = v[13]
+            City = v[8], ZipCode = v[9], Area = v[12], Content = v[13], Designer = v[21], DesignerEmail = v[22]
         };
 
         /// <summary>Uma cópia, para mudar só alguns campos e gravar sem perder os outros.</summary>

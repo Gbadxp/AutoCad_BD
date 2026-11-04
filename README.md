@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.96.msi`](Instalador/FiberPlugin-1.9.96.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.97.msi`](Instalador/FiberPlugin-1.9.97.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -242,6 +242,7 @@ O botão **Configuração** (painel **Ajustes** da aba Fibra) abre a lista com a
 |---|---|
 | Município, CEP | Vão na legenda das folhas do Gerar Folhas, com o percurso, o endereço da obra e a ART da aba Projeto. Ficam no DWG (e o último salvo em `projeto.txt`, como os da aba Projeto). |
 | Conteúdo, área do projeto | Conteúdo da folha (padrão `PROJETO DE REDE ÓPTICA`) e a caixa marcada na legenda: **Urbana**, **Rural** ou nenhuma. |
+| Projetista, e-mail do projetista | Quem desenhou o projeto, com o e-mail embaixo, na legenda. Vazio, fica o rótulo com o espaço para preencher à mão. O e-mail do responsável técnico fica na aba Empresa (**E-mail do representante**). |
 
 A aba Projeto só grava se algo mudou nela. As outras abas têm os dados do plugin e o que ele coloca sozinho no
 desenho, sem planilhas, e valem para todos os projetos (não ficam no DWG). A Empresa fica na Configuração de Projeto; as
@@ -252,7 +253,7 @@ demais, na Configuração de Desenho:
 | Cabos | Cadastro de cabos: acrescente, edite ou remova, e escolha para cada um a **cor** (paleta com as 255 cores do AutoCAD; sem cor própria, usa a cor padrão dos cabos), o **tipo de linha** (contínua, tracejada, traço e ponto, oculta...) e a **espessura** (0,00 a 2,11 mm). Isso vai para a layer do cabo; ao salvar, as layers dos cabos já lançados no desenho aberto mudam junto. A espessura aparece na tela com o botão "Mostrar espessura" (LWDISPLAY). Trocar o nome curto de um cabo já lançado faz o desenho perder o vínculo com o cadastro. |
 | Postes | Modelos oferecidos no Inserir Postes (DT/CC, altura e esforço em daN). Modelo repetido fica em vermelho e não deixa salvar. Quando uma versão nova traz modelos novos, eles entram na lista de quem já tem a sua na primeira abertura, sem tirar nem mudar os que a pessoa cadastrou. |
 | Tração | Tabela 08 da NDU 009: tração em kgf por faixa de fibras e vão (15 a 120 m). Usada quando os Parâmetros de Cálculo estão em "Tabela 08". |
-| Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A. |
+| Empresa | Razão social, CNPJ, endereço, contatos, representante legal (com CREA, e-mail, RG e CPF) e concessionária, usados no Memorial Descritivo e na Tabela A; o representante, com o CREA e o e-mail, é o responsável técnico do carimbo das folhas. |
 | Nomes | Prefixos dos postes, CTO e CEO (`P-`, `CTO-`, `CEO-`) e quantos dígitos tem o número (P-7, P-07, P-007...). Ao salvar, pergunta se atualiza os nomes já desenhados (texto e atributo do bloco). |
 | Desenho | Altura dos textos e seta de esforço (em mm no papel na escala 1:1000), **tamanho dos blocos** (poste, CTO/CEO, itens elétricos e amarração; veja Escala das anotações), afastamento do cabo no roteamento automático (1,8 m), cores das layers (cabos sem cor própria, backbone (azul), textos dos postes, textos das CTO/CEO e setas de esforço) e a **layer das ruas**: nome (`RUAS`; não pode ser a 0 nem a Defpoints, que são do AutoCAD), cor, tipo de linha e espessura. Ao mudar a altura dos textos, pergunta se ajusta os textos já desenhados. |
 | Atalhos | Atalho de cada comando (veja abaixo): mude, apague ou volte ao padrão. A coluna **Situação** avisa, enquanto você digita, quando o atalho já é um comando do AutoCAD ou de outro aplicativo, um comando LISP, um atalho do `acad.pgp` ou se repete com outro comando do plugin; com conflito, o Salvar não libera. Os atalhos novos valem na hora. |
@@ -467,8 +468,9 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
      (a de baixo para na linha do quadro quando dá no carimbo) e **marcas de corte** em L (10 x 5 mm) nos cantos;
    - **legenda** (carimbo) de 180 x 49 mm deitada no canto de baixo à direita, em dois blocos lado a lado: **logo** com o
      nome da empresa, projeto (o percurso da rede, ou o nome do desenho), endereço, município e CEP; **responsável
-     técnico** com o CREA e a ART, espaço com linha para a **assinatura** (ou a imagem `Dados\Memorial\assinatura.png`, se
-     existir), **conteúdo**, **área do projeto** (rural ou urbana), escala, data e o número da folha. Os dados vêm da
+     técnico** com o CREA, a ART e o e-mail, espaço com linha para a **assinatura** (ou a imagem
+     `Dados\Memorial\assinatura.png`, se existir), **conteúdo**, **área do projeto** (rural ou urbana), **projetista** com o
+     e-mail, escala, data e o número da folha. Os dados vêm da
      Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo é a do memorial (`Dados\Memorial\logo.png`);
    - colado na legenda, embaixo, o quadro com a **seta do norte** e a **legenda** em português dos símbolos usados no
      desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone e seta de esforço), como pede o item 16.3 da

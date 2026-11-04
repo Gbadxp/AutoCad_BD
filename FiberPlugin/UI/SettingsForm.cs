@@ -179,7 +179,7 @@ namespace FiberPlugin.UI
             }),
             ("Representante legal", new[]
             {
-                new[] { ("Representante", 1f), ("Qualificação", 1f), ("CREA", 1f) },
+                new[] { ("Representante", 1f), ("Qualificação", 1f), ("CREA", 1f), ("E-mail do representante", 1f) },
                 new[] { ("RG", 1f), ("CPF", 1f), ("Endereço do representante", 1f) }
             }),
             ("Concessionária", new[]
@@ -202,7 +202,7 @@ namespace FiberPlugin.UI
         private readonly Dictionary<string, LabeledInput> _company = new Dictionary<string, LabeledInput>();
         private readonly LabeledInput _polePrefix, _ctoPrefix, _ceoPrefix;
         // Aba Carimbo: o que vai na legenda das folhas do Gerar Folhas (fica no ProjectInfo)
-        private readonly LabeledInput _city, _zipCode, _content;
+        private readonly LabeledInput _city, _zipCode, _content, _designer, _designerEmail;
         private readonly ChoiceBar _area;
         private readonly ChoiceBar _digits;
         private readonly Label _example;
@@ -233,6 +233,8 @@ namespace FiberPlugin.UI
                 info.ZipCode = _zipCode.Value;
                 info.Area = Areas[Math.Max(0, _area.SelectedIndex)];
                 info.Content = _content.Value;
+                info.Designer = _designer.Value;
+                info.DesignerEmail = _designerEmail.Value;
                 return info;
             }
         }
@@ -400,13 +402,18 @@ namespace FiberPlugin.UI
             var areaField = new Panel { BackColor = Theme.Background };
             areaField.Controls.Add(_area);
             areaField.Controls.Add(FieldTitle("Área do projeto"));
+            _designer = new LabeledInput("Projetista", "quem desenhou o projeto");
+            _designerEmail = new LabeledInput("E-mail do projetista", "");
             Control stampPage = FormPage(new (Control, float)[]
             {
                 (new SectionLabel("Obra (deste desenho)"), 22),
                 (Row(new (Control, float)[] { (_city, 2), (_zipCode, 1), (new Panel { BackColor = Theme.Background }, 1) }), 52),
                 (Row(new (Control, float)[] { (_content, 2), (areaField, 2) }), 52),
+                (new SectionLabel("Projetista"), 28),
+                (Row(new (Control, float)[] { (_designer, 2), (_designerEmail, 2) }), 52),
                 (Hint("Vão na legenda das folhas do Gerar Folhas (NBR 16752), com o percurso, o endereço da obra e a ART da aba Projeto e a " +
-                      "empresa, o responsável técnico e o CREA da aba Empresa. A articulação das folhas e o formato saem da divisão."), 40)
+                      "empresa, o responsável técnico, o CREA e o e-mail dele da aba Empresa. Campo vazio fica em branco na legenda, " +
+                      "para preencher à mão. A articulação das folhas e o formato saem da divisão."), 40)
             });
             FillStamp(project);
 
@@ -585,13 +592,15 @@ namespace FiberPlugin.UI
 
         // ---------- Preenchimento ----------
 
-        private IEnumerable<LabeledInput> StampFields => new[] { _city, _zipCode, _content };
+        private IEnumerable<LabeledInput> StampFields => new[] { _city, _zipCode, _content, _designer, _designerEmail };
 
         private void FillStamp(ProjectInfo p)
         {
             _city.Value = p.City;
             _zipCode.Value = p.ZipCode;
             _content.Value = p.Content;
+            _designer.Value = p.Designer;
+            _designerEmail.Value = p.DesignerEmail;
             _area.SelectedIndex = Math.Max(0, Array.IndexOf(Areas, p.Area));
         }
 
@@ -743,6 +752,7 @@ namespace FiberPlugin.UI
                 else if (CurrentTab == TabStamp)
                     _status.Set($"Legenda das folhas: {(_content.Value.Length > 0 ? _content.Value : "sem conteúdo")}" +
                                 (_city.Value.Length > 0 ? $" · {_city.Value}" : "") +
+                                (_designer.Value.Length > 0 ? $" · projetista {_designer.Value}" : "") +
                                 (Areas[Math.Max(0, _area.SelectedIndex)] is string area && area.Length > 0 ? $" · área {area.ToLower(DataFiles.Br)}" : ""), StatusKind.Ok);
                 else if (CurrentTab == TabShortcuts)
                     _status.Set($"{Shortcuts.Count(s => s.Value.Length > 0)} de {Shortcuts.Count} comandos com atalho, sem conflitos · " +

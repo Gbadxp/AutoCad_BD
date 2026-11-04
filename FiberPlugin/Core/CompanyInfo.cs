@@ -22,7 +22,7 @@ namespace FiberPlugin.Core
                 "Razão social", "Nome na plaqueta", "CNPJ", "Endereço", "Cidade", "CEP",
                 "Telefone", "Telefone de emergência", "E-mail", "Tipo de companhia"
             }),
-            ("Representante legal", new[] { "Representante", "Qualificação", "CREA", "RG", "CPF", "Endereço do representante" }),
+            ("Representante legal", new[] { "Representante", "Qualificação", "CREA", "E-mail do representante", "RG", "CPF", "Endereço do representante" }),
             ("Concessionária", new[] { "Concessionária", "Departamento", "Aos cuidados de" })
         };
 
@@ -51,6 +51,7 @@ namespace FiberPlugin.Core
         public string Cpf => this["CPF"];
         public string RepresentativeAddress => this["Endereço do representante"];
         public string Crea => this["CREA"];
+        public string RepresentativeEmail => this["E-mail do representante"]; // Vai no carimbo das folhas (responsável técnico)
         public string Utility => this["Concessionária"];
         public string Department => this["Departamento"];
         public string Attention => this["Aos cuidados de"];       // Aos cuidados de

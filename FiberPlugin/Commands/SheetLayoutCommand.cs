@@ -96,8 +96,8 @@ namespace FiberPlugin.Commands
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
 
-            // Legenda (carimbo): empresa e responsável técnico da aba Empresa; projeto, ART, endereço, município, CEP, conteúdo
-            // e área das abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
+            // Legenda (carimbo): empresa e responsável técnico (CREA e e-mail) da aba Empresa; projeto, ART, endereço, município,
+            // CEP, conteúdo, área e projetista das abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
             CompanyInfo company = CompanyInfo.Read();
             ProjectInfo project = ProjectInfo.Load(db);
             var images = new Dictionary<PaperImage, ObjectId>();
@@ -113,7 +113,10 @@ namespace FiberPlugin.Commands
                 Company = company.LegalName,
                 Engineer = (engineer && company.Representative.Length > 0 ? "ENG. " : "") + company.Representative.ToUpper(DataFiles.Br),
                 Crea = company.Crea,
+                EngineerEmail = company.RepresentativeEmail,
                 Art = project.ArtNumber,
+                Designer = project.Designer.ToUpper(DataFiles.Br),
+                DesignerEmail = project.DesignerEmail,
                 Title = project.Route.Length > 0 ? project.Route : title,
                 Content = project.Content,
                 Area = project.Area,

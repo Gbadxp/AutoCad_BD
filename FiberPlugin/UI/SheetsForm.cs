@@ -21,7 +21,8 @@ namespace FiberPlugin.UI
             "O que cada folha terá (NBR 16752):\n" +
             "•  Quadro com margem de 20 mm à esquerda, malha de referência (letras e números na margem), marcas de centro e de corte.\n" +
             "•  Legenda (carimbo) de 180 mm deitada no canto de baixo à direita: logo e empresa, projeto, endereço, município, CEP, " +
-            "responsável técnico com o CREA, a ART e a assinatura, conteúdo, área rural ou urbana, escala, data e folha (01/06). Os dados vêm " +
+            "responsável técnico com o CREA, a ART, o e-mail e a assinatura, conteúdo, área rural ou urbana, projetista com o e-mail, " +
+            "escala, data e folha (01/06). Os dados vêm " +
             "da Configuração de Projeto (abas Projeto, Carimbo e Empresa); a logo, de Dados\\Memorial\\logo.png, a mesma do memorial.\n" +
             "•  Colado na legenda, o quadro com a seta do norte e os símbolos usados no desenho (NDU 009, item 16.3), todos.\n" +
             "•  À esquerda, a articulação das folhas: o desenho todo, pequeno, com a divisão por cima, o número de cada folha, a folha " +
