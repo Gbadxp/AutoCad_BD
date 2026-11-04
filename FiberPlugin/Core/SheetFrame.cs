@@ -17,6 +17,9 @@ namespace FiberPlugin.Core
         public string City { get; set; } = "";
         public string ZipCode { get; set; } = "";
 
+        /// <summary>Quantos símbolos vão no quadro do norte e dos símbolos (os que o desenho tem: SheetLegend).</summary>
+        public int Symbols { get; set; }
+
         /// <summary>Largura / altura da logo e da assinatura; 0 = sem a imagem.</summary>
         public double LogoAspect { get; set; }
         public double SignatureAspect { get; set; }
@@ -71,8 +74,17 @@ namespace FiberPlugin.Core
         /// <summary>Onde vão a logo e a assinatura, já na proporção de cada uma.</summary>
         public List<(Rect Rect, PaperImage Image)> Images { get; } = new List<(Rect, PaperImage)>();
 
-        /// <summary>Onde vão o norte e a legenda dos símbolos: o alto da coluna da direita.</summary>
-        public Rect LegendArea { get; set; }
+        /// <summary>Onde vai a seta do norte (no quadro dos símbolos, ao lado da legenda).</summary>
+        public Rect NorthArea { get; set; }
+
+        /// <summary>O lugar de cada símbolo (símbolo e nome), na ordem: coluna por coluna, de cima para baixo.</summary>
+        public List<Rect> SymbolCells { get; } = new List<Rect>();
+
+        /// <summary>
+        /// Viewport da articulação das folhas: o retângulo no papel e o pedaço do desenho (metros) que ele mostra, atrás do
+        /// mapa das folhas; null sem folhas.
+        /// </summary>
+        public (Rect Paper, Rect Model)? Overview { get; set; }
     }
 
     /// <summary>
@@ -80,11 +92,10 @@ namespace FiberPlugin.Core
     /// <list type="bullet">
     /// <item>quadro com margem de 20 mm à esquerda e 10 mm nas outras, na largura de linha da tabela 4;</item>
     /// <item>malha de referência (letras e números na faixa de 5 mm em volta do quadro), marcas de centro e de corte;</item>
-    /// <item>legenda de 180 mm deitada no canto inferior direito (com o norte e os símbolos na coluna da direita, acima):
-    /// logo e empresa, projeto, endereço, município, CEP, responsável técnico com CREA, ART e assinatura, conteúdo, área
-    /// rural ou urbana, escala, data e folha;</item>
-    /// <item>à esquerda da legenda (no A4 em pé, em cima dela), a articulação das folhas, com a folha atual hachurada e o
-    /// formato ("FOLHA A2") no canto;</item>
+    /// <item>faixa do carimbo embaixo (SheetFormat.Band): a legenda de 180 mm deitada no canto inferior direito, com logo e
+    /// empresa, projeto, endereço, município, CEP, responsável técnico com CREA, ART e assinatura, conteúdo, área rural ou
+    /// urbana, escala, data e folha; colado nela, o quadro do norte e dos símbolos; à esquerda, a articulação das folhas,
+    /// com o desenho atrás (um viewport), a folha atual hachurada e o formato ("FOLHA A2") no canto;</item>
     /// <item>na margem esquerda, os avisos da Lei 5.194/66 e da propriedade dos desenhos;</item>
     /// <item>marcas de dobramento da figura 21 (cópia dobrada em A4 com a legenda à vista).</item>
     /// </list>
@@ -98,6 +109,7 @@ namespace FiberPlugin.Core
         private const double FormatHeight = 3.0; // mm: "FOLHA A2", no canto da articulação
         private const double NumberHeight = 2.5; // mm: números das folhas na articulação (menos, se a folha for pequena)
         private const double HatchSpacing = 1.2; // mm: entre as linhas da hachura da folha atual
+        private const double MapLineWidth = 0.3; // mm: contorno das folhas na articulação, por cima do desenho
         private const double Pad = 1.2;          // mm: da borda do quadro ao texto
 
         private const double GridBand = 5, GridField = 50, GridText = 3.5; // Malha de referência (NBR 16752, 4.4)
@@ -114,27 +126,28 @@ namespace FiberPlugin.Core
             bool landscape = plan.Landscape;
             double width = format.PaperWidth(landscape), height = format.PaperHeight(landscape);
             Rect frame = format.Frame(landscape);
-            Rect block = format.TitleBlock(landscape);
-            Rect articulation = format.ArticulationArea(landscape);
+            SheetBand band = format.Band(landscape, stamp.Symbols);
 
             paper.Boxes.Add((frame, format.FrameLineWidth));
-            paper.LegendArea = format.LegendArea(landscape);
 
-            // O carimbo numa faixa embaixo e, à esquerda dele (se couber), o nome do desenho
-            double band = frame.MinY + format.TitleBlockHeight(landscape);
-            paper.Lines.Add(new PaperLine(frame.MinX, band, frame.MaxX, band));
-            var left = new Rect(frame.MinX, frame.MinY, Math.Min(block.MinX, articulation.MinX), band);
-            if (left.Width >= 30)
+            // O carimbo numa faixa embaixo e, na sobra à esquerda (se couber), o nome do desenho
+            double bandTop = frame.MinY + band.Height;
+            paper.Lines.Add(new PaperLine(frame.MinX, bandTop, frame.MaxX, bandTop));
+            Rect free = band.Free;
+            if (free.Width >= 30)
             {
-                double textWidth = left.Width - 8;
-                paper.Texts.Add(Text(title, left.MinX + 4, left.MaxY - 4, Fit(title, TitleHeight, textWidth, left.Height - 8, 3, 2.5), textWidth, PaperAnchor.TopLeft));
+                double textWidth = free.Width - 8;
+                paper.Texts.Add(Text(title, free.MinX + 4, free.MaxY - 4, Fit(title, TitleHeight, textWidth, free.Height - 8, 3, 2.5), textWidth, PaperAnchor.TopLeft));
             }
-            Legend(paper, block, plan, number, stamp);
-            Articulation(paper, articulation, plan, number);
+            Legend(paper, band.TitleBlock, plan, number, stamp);
+            Symbols(paper, band.Symbols, stamp.Symbols);
+            Articulation(paper, band.Articulation, plan, number);
 
+            // Onde começa o que fica na linha de baixo do quadro (a articulação ou, se ela foi para cima, a legenda)
+            double occupied = band.Articulation.MinY < frame.MinY + 1e-6 ? band.Articulation.MinX : band.TitleBlock.MinX;
             var (_, horizontalFolds, corner) = Folds(width, height);
             ReferenceGrid(paper, format, landscape, frame);
-            CenterMarks(paper, frame, left.MaxX, paper.LegendArea);
+            CenterMarks(paper, frame, occupied);
             MarginNotices(paper, frame, horizontalFolds, corner);
             FoldMarks(paper, width, height, frame);
             TrimMarks(paper, width, height);
@@ -239,11 +252,36 @@ namespace FiberPlugin.Core
             g.Center(paper, Sheet(number, plan.Tiles.Count), split, w - split, 5, 7, 5, top: 2);
         }
 
+        // ---------- Norte e símbolos ----------
+
+        /// <summary>
+        /// Quadro do norte e dos símbolos, colado na legenda: a seta do norte numa coluna (NorthArea, que o SheetLegend desenha)
+        /// e, ao lado, "LEGENDA:" e o lugar de cada símbolo (SymbolCells), coluna por coluna, de cima para baixo.
+        /// </summary>
+        private static void Symbols(SheetPaper paper, Rect r, int symbols)
+        {
+            paper.Boxes.Add((r, 0.35));
+            paper.NorthArea = new Rect(r.MinX, r.MinY, r.MinX + SheetFormat.NorthWidth, r.MaxY);
+            int count = Math.Max(0, Math.Min(SheetFormat.MaxSymbols, symbols));
+            if (count == 0) return;
+
+            double x = paper.NorthArea.MaxX, top = r.MaxY - SheetFormat.SymbolHeader;
+            paper.Lines.Add(new PaperLine(x, r.MinY, x, r.MaxY));
+            paper.Texts.Add(Text("LEGENDA:", x + Pad, r.MaxY - Pad, TextHeight, 0, PaperAnchor.TopLeft));
+            int rows = SheetFormat.SymbolRows(r.Height);
+            for (int i = 0; i < count; i++)
+            {
+                double left = x + i / rows * SheetFormat.SymbolColumn, cellTop = top - i % rows * SheetFormat.SymbolRow;
+                paper.SymbolCells.Add(new Rect(left, cellTop - SheetFormat.SymbolRow, left + SheetFormat.SymbolColumn, cellTop));
+            }
+        }
+
         // ---------- Articulação das folhas ----------
 
         /// <summary>
-        /// Articulação das folhas: o mapa das folhas da divisão, cada uma no lugar dela na grade (na proporção do viewport) e
-        /// com o número dela, com a folha atual hachurada; o formato ("FOLHA A2") no canto de baixo à esquerda.
+        /// Articulação das folhas: o desenho (num viewport, <see cref="SheetPaper.Overview"/>) com o mapa das folhas por cima,
+        /// cada uma no lugar dela e com o número dela, e a folha atual hachurada; o formato ("FOLHA A2") no canto de baixo à
+        /// esquerda. No mapa cada folha tem o tamanho do passo da grade (sem a sobreposição), e as vizinhas se encostam.
         /// </summary>
         private static void Articulation(SheetPaper paper, Rect r, SheetPlan plan, int number)
         {
@@ -253,11 +291,10 @@ namespace FiberPlugin.Core
             paper.Texts.Add(Text(format, r.MinX + Pad + 0.5, r.MinY + Pad + 0.5, FormatHeight, 0, PaperAnchor.BottomLeft));
             if (plan.Tiles.Count == 0) return;
 
-            // Só a parte da grade que tem folhas (os pedaços vazios das pontas ficam de fora)
-            int minRow = plan.Tiles.Min(t => t.Row), minColumn = plan.Tiles.Min(t => t.Column);
-            int rows = plan.Tiles.Max(t => t.Row) - minRow + 1, columns = plan.Tiles.Max(t => t.Column) - minColumn + 1;
-            Rect viewport = plan.Format.ViewportArea(plan.Landscape);
-            double aspect = viewport.Width / viewport.Height;
+            // Cada folha no desenho (metros): o passo da grade em volta do centro dela
+            Rect[] cells = plan.Tiles.Select(t => Around(t.ModelArea, plan.StepX > 0 ? plan.StepX : t.ModelArea.Width,
+                                                         plan.StepY > 0 ? plan.StepY : t.ModelArea.Height)).ToArray();
+            var all = new Rect(cells.Min(c => c.MinX), cells.Min(c => c.MinY), cells.Max(c => c.MaxX), cells.Max(c => c.MaxY));
 
             // O mapa vai acima do "FOLHA A2" (na largura toda) ou à direita dele (na altura toda): onde as folhas ficarem maiores
             double below = r.MaxY - TextHeight * (1 + Descent) - 2 * Pad;
@@ -266,19 +303,22 @@ namespace FiberPlugin.Core
                 new Rect(r.MinX + 2 * Pad, r.MinY + FormatHeight * (1 + Descent) + 2 * Pad + 1, r.MaxX - 2 * Pad, below),
                 new Rect(r.MinX + format.Length * CharWidth * FormatHeight + 3 * Pad, r.MinY + 2 * Pad, r.MaxX - 2 * Pad, below)
             };
-            double Cell(Rect room) => Math.Min(room.Width / columns, room.Height / rows * aspect);
-            Rect best = rooms.OrderByDescending(Cell).First();
-            double cellW = Cell(best), cellH = cellW / aspect;
-            double left = best.CenterX - columns * cellW / 2, top = best.CenterY + rows * cellH / 2;
+            double Scale(Rect room) => Math.Min(room.Width / all.Width, room.Height / all.Height); // mm no papel por metro
+            Rect best = rooms.OrderByDescending(Scale).First();
+            double s = Scale(best);
+
+            // O viewport ocupa o espaço todo do mapa, centralizado nas folhas: mostra também o desenho em volta delas
+            paper.Overview = (best, Around(new Rect(all.CenterX, all.CenterY, all.CenterX, all.CenterY), best.Width / s, best.Height / s));
+            Rect OnPaper(Rect m) => new Rect(best.CenterX + (m.MinX - all.CenterX) * s, best.CenterY + (m.MinY - all.CenterY) * s,
+                                             best.CenterX + (m.MaxX - all.CenterX) * s, best.CenterY + (m.MaxY - all.CenterY) * s);
 
             string digits = plan.Tiles.Count >= 100 ? "D3" : "D2";
+            double cellW = plan.StepX > 0 ? plan.StepX * s : OnPaper(cells[0]).Width, cellH = plan.StepY > 0 ? plan.StepY * s : OnPaper(cells[0]).Height;
             double numberHeight = Math.Floor(Math.Min(NumberHeight, Math.Min(cellH * 0.5, (cellW - 0.6) / (digits.Length * CharWidth))) * 10) / 10;
             for (int i = 0; i < plan.Tiles.Count; i++)
             {
-                SheetTile tile = plan.Tiles[i];
-                double x = left + (tile.Column - minColumn) * cellW, y = top - (tile.Row - minRow + 1) * cellH;
-                var cell = new Rect(x, y, x + cellW, y + cellH);
-                paper.Boxes.Add((cell, 0));
+                Rect cell = OnPaper(cells[i]);
+                paper.Boxes.Add((cell, MapLineWidth));
                 // A folha atual hachurada; pequena demais para a hachura aparecer, pintada (e sem o número)
                 bool filled = i == number - 1 && Math.Min(cellW, cellH) < 3 * HatchSpacing;
                 if (filled) paper.Fills.Add(cell);
@@ -288,6 +328,10 @@ namespace FiberPlugin.Core
                     paper.Texts.Add(Text((i + 1).ToString(digits, CultureInfo.InvariantCulture), cell.CenterX, cell.CenterY, numberHeight, 0, PaperAnchor.MiddleCenter));
             }
         }
+
+        /// <summary>Retângulo de largura e altura dadas em volta do centro de <paramref name="r"/>.</summary>
+        private static Rect Around(Rect r, double width, double height) =>
+            new Rect(r.CenterX - width / 2, r.CenterY - height / 2, r.CenterX + width / 2, r.CenterY + height / 2);
 
         /// <summary>Hachura a 45°, de linhas finas, recortada no retângulo.</summary>
         private static void Hatch(SheetPaper paper, Rect r)
@@ -503,19 +547,18 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Marcas de centro (4.3): nas pontas dos eixos de simetria, da malha até 10 mm para dentro do quadro, em 0,7 mm. Onde o
-        /// carimbo (de <paramref name="carimboLeft"/> à direita) ou a coluna do norte e dos símbolos encostam no quadro, a
-        /// marca para na linha do quadro, para não passar por cima dos textos.
+        /// carimbo encosta no quadro (de <paramref name="carimboLeft"/> à direita), a marca de baixo para na linha do quadro,
+        /// para não passar por cima dos textos.
         /// </summary>
-        private static void CenterMarks(SheetPaper paper, Rect frame, double carimboLeft, Rect legendColumn)
+        private static void CenterMarks(SheetPaper paper, Rect frame, double carimboLeft)
         {
             const double weight = 0.7;
             double cx = frame.CenterX, cy = frame.CenterY;
             double bottom = cx > carimboLeft ? 0 : CenterMarkInside;
-            double right = cy > legendColumn.MinY && cy < legendColumn.MaxY ? 0 : CenterMarkInside;
             paper.Lines.Add(new PaperLine(cx, frame.MaxY + GridBand, cx, frame.MaxY - CenterMarkInside, weight));
             paper.Lines.Add(new PaperLine(cx, frame.MinY - GridBand, cx, frame.MinY + bottom, weight));
             paper.Lines.Add(new PaperLine(frame.MinX - GridBand, cy, frame.MinX + CenterMarkInside, cy, weight));
-            paper.Lines.Add(new PaperLine(frame.MaxX + GridBand, cy, frame.MaxX - right, cy, weight));
+            paper.Lines.Add(new PaperLine(frame.MaxX + GridBand, cy, frame.MaxX - CenterMarkInside, cy, weight));
         }
 
         /// <summary>

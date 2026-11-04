@@ -31,9 +31,14 @@ namespace FiberPlugin.Commands
             Database db = doc.Database;
             Editor ed = doc.Editor;
 
+            // Numa folha, o AutoCAD não deixa apagar a folha que está aberta, e a área é marcada no Model: avisa numa janela
+            // (só na linha de comando passava despercebido)
             if (LayoutManager.Current.CurrentLayout != "Model")
             {
-                ed.WriteMessage("\n[AVISO]: Vá para a aba Model para marcar a área do projeto.");
+                const string notice = "Para gerar ou apagar as folhas, vá para a aba Model e use o Gerar Folhas de novo.";
+                ed.WriteMessage($"\n[AVISO]: {notice}");
+                System.Windows.Forms.MessageBox.Show(notice, "Fiber Plugin - Gerar Folhas",
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
                 return;
             }
 
@@ -116,6 +121,7 @@ namespace FiberPlugin.Commands
                 Address = project.WorkAddress,
                 City = project.City,
                 ZipCode = project.ZipCode,
+                Symbols = legend.Count,
                 LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
                 SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
             };
@@ -366,27 +372,34 @@ namespace FiberPlugin.Commands
                 CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
 
                 DrawFrame(tr, paperSpace, paper, images);
-                legend.Draw(tr, db, paperSpace, paper.LegendArea, FrameLayer);
+                legend.Draw(tr, db, paperSpace, paper.NorthArea, paper.SymbolCells, FrameLayer);
 
-                Rect area = plan.Format.ViewportArea(plan.Landscape);
-                Viewport vp = CadHelpers.Append(tr, paperSpace, new Viewport
-                {
-                    CenterPoint = new Point3d(area.CenterX, area.CenterY, 0),
-                    Width = area.Width,
-                    Height = area.Height,
-                    Layer = ViewportLayer
-                });
-
-                vp.ViewDirection = Vector3d.ZAxis;
-                vp.ViewTarget = Point3d.Origin;
-                vp.ViewCenter = new Point2d(tile.ModelArea.CenterX, tile.ModelArea.CenterY);
-                vp.CustomScale = 1.0 / plan.MetersPerMm; // mm de papel por metro de desenho
-                vp.On = true;
-                vp.Locked = true;
+                AddViewport(tr, paperSpace, plan.Format.ViewportArea(plan.Landscape), tile.ModelArea);
+                // Articulação: o desenho todo, pequeno, atrás do mapa das folhas
+                if (paper.Overview is (Rect onPaper, Rect shown)) AddViewport(tr, paperSpace, onPaper, shown);
 
                 tr.Commit();
             }
             return warning;
+        }
+
+        /// <summary>Viewport travado em <paramref name="onPaper"/> (mm) mostrando <paramref name="shown"/> (metros), na mesma proporção.</summary>
+        private static void AddViewport(Transaction tr, BlockTableRecord paperSpace, Rect onPaper, Rect shown)
+        {
+            Viewport vp = CadHelpers.Append(tr, paperSpace, new Viewport
+            {
+                CenterPoint = new Point3d(onPaper.CenterX, onPaper.CenterY, 0),
+                Width = onPaper.Width,
+                Height = onPaper.Height,
+                Layer = ViewportLayer
+            });
+
+            vp.ViewDirection = Vector3d.ZAxis;
+            vp.ViewTarget = Point3d.Origin;
+            vp.ViewCenter = new Point2d(shown.CenterX, shown.CenterY);
+            vp.CustomScale = onPaper.Width / shown.Width; // mm de papel por metro de desenho
+            vp.On = true;
+            vp.Locked = true;
         }
 
         /// <summary>Quadro, legenda, malha, notas, avisos e marcas (montados pelo SheetFrame), em mm no papel.</summary>

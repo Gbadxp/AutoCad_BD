@@ -40,16 +40,21 @@ namespace FiberPlugin.Core
         public const double MarginLeft = 20;
         public const double Margin = 10;
 
-        // Carimbo (SheetFrame) deitado no canto inferior direito do quadro, numa faixa embaixo: a legenda, com os 180 mm de
-        // comprimento que a NBR 16752 (5.3) pede em todos os formatos (sete linhas de 7 mm), e à esquerda dela a articulação
-        // das folhas (até 120 mm). Os 180 mm mais a margem de 10 mm são o painel da frente da cópia dobrada em A4 (190 mm,
-        // figura 21). Sem espaço ao lado (A4 em pé), a articulação vai em cima da legenda. O norte e os símbolos ficam na coluna
-        // estreita da direita, acima da faixa
+        // Faixa do carimbo (SheetFrame), embaixo do quadro na largura toda: no canto de baixo à direita a legenda, com os 180 mm
+        // de comprimento que a NBR 16752 (5.3) pede em todos os formatos (sete linhas de 7 mm); colado nela o quadro do norte e
+        // dos símbolos; à esquerda, a articulação das folhas (até 120 mm). Os 180 mm mais a margem de 10 mm são o painel da
+        // frente da cópia dobrada em A4 (190 mm, figura 21). O que não cabe ao lado da legenda (A4 e A3 em pé) vai numa faixa
+        // em cima dela
         public const double TitleBlockWidth = 180;
         public const double LegendRow = 7;   // Altura de uma linha da legenda
         public const double LegendHeight = 7 * LegendRow;
         private const double ArticulationMaxWidth = 120, ArticulationMinWidth = 60;
-        private const double ArticulationOnTopHeight = 5 * LegendRow;
+
+        // Quadro dos símbolos: o norte numa coluna de 24 mm e, ao lado, colunas de 38 mm com linhas de 6 mm embaixo do título.
+        // A altura da faixa é a que cabe a legenda mais cheia (14 blocos, cabo, backbone e esforço: SheetLegend), para a divisão
+        // das folhas não mudar com os símbolos do desenho; a largura do quadro é a dos símbolos que o desenho tem
+        public const int MaxSymbols = 17;
+        public const double NorthWidth = 24, SymbolColumn = 38, SymbolRow = 6, SymbolHeader = 6;
 
         public SheetFormat(string name, double width, double height)
         {
@@ -85,31 +90,14 @@ namespace FiberPlugin.Core
             _ => (6, 4)
         };
 
-        /// <summary>Largura da coluna de norte e símbolos, à direita do viewport (45 a 65 mm, conforme a folha).</summary>
-        public double LegendWidth(bool landscape) => Math.Max(45, Math.Min(65, Math.Round(PaperWidth(landscape) * 0.14)));
+        /// <summary>Altura da faixa do carimbo (a mesma com qualquer quantidade de símbolos).</summary>
+        public double TitleBlockHeight(bool landscape) => Band(landscape, MaxSymbols).Height;
 
-        /// <summary>Largura da articulação das folhas, à esquerda da legenda; 0 = não cabe ao lado (vai em cima da legenda).</summary>
-        public double ArticulationWidth(bool landscape)
-        {
-            double room = Frame(landscape).Width - TitleBlockWidth;
-            return room >= ArticulationMinWidth ? Math.Min(ArticulationMaxWidth, room) : 0;
-        }
-
-        /// <summary>Altura da faixa do carimbo: a da legenda, ou a da legenda mais a articulação em cima dela.</summary>
-        public double TitleBlockHeight(bool landscape) => LegendHeight + (ArticulationWidth(landscape) > 0 ? 0 : ArticulationOnTopHeight);
-
-        /// <summary>Área do viewport: o quadro menos a faixa do carimbo e a coluna da direita, em mm no papel.</summary>
+        /// <summary>Área do viewport: o quadro menos a faixa do carimbo, em mm no papel.</summary>
         public Rect ViewportArea(bool landscape)
         {
             Rect frame = Frame(landscape);
-            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight(landscape), frame.MaxX - LegendWidth(landscape), frame.MaxY);
-        }
-
-        /// <summary>Norte e símbolos, na coluna da direita (acima da faixa do carimbo), em mm no papel.</summary>
-        public Rect LegendArea(bool landscape)
-        {
-            Rect frame = Frame(landscape);
-            return new Rect(frame.MaxX - LegendWidth(landscape), frame.MinY + TitleBlockHeight(landscape), frame.MaxX, frame.MaxY);
+            return new Rect(frame.MinX, frame.MinY + TitleBlockHeight(landscape), frame.MaxX, frame.MaxY);
         }
 
         /// <summary>Legenda (180 mm), no canto de baixo à direita do quadro (em A4 em pé ocupa a largura toda), em mm no papel.</summary>
@@ -119,15 +107,65 @@ namespace FiberPlugin.Core
             return new Rect(Math.Max(frame.MinX, frame.MaxX - TitleBlockWidth), frame.MinY, frame.MaxX, frame.MinY + LegendHeight);
         }
 
-        /// <summary>Articulação das folhas: à esquerda da legenda ou, sem espaço, em cima dela, em mm no papel.</summary>
-        public Rect ArticulationArea(bool landscape)
+        /// <summary>
+        /// Onde vai cada parte da faixa do carimbo, em mm no papel:
+        /// <list type="bullet">
+        /// <item>cabendo, tudo ao lado da legenda: articulação, norte e símbolos, legenda;</item>
+        /// <item>senão, a articulação ao lado da legenda e, numa faixa em cima, o norte e os símbolos à direita (A4 deitado e A3 em pé);</item>
+        /// <item>sem espaço nem para a articulação ao lado (A4 em pé), só a legenda embaixo e, em cima, articulação, norte e símbolos.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="symbols">Quantos símbolos o desenho tem (a largura do quadro dos símbolos).</param>
+        public SheetBand Band(bool landscape, int symbols)
         {
-            Rect legend = TitleBlock(landscape);
-            double width = ArticulationWidth(landscape);
-            return width > 0
-                ? new Rect(legend.MinX - width, legend.MinY, legend.MinX, legend.MaxY)
-                : new Rect(legend.MinX, legend.MaxY, legend.MaxX, legend.MaxY + ArticulationOnTopHeight);
+            Rect frame = Frame(landscape);
+            Rect block = TitleBlock(landscape);
+            int count = Math.Max(0, Math.Min(MaxSymbols, symbols));
+            double room = block.MinX - frame.MinX, top = block.MaxY;
+
+            if (room >= SymbolsWidth(LegendHeight, MaxSymbols) + ArticulationMinWidth)
+            {
+                var symbolBox = new Rect(block.MinX - SymbolsWidth(LegendHeight, count), frame.MinY, block.MinX, top);
+                var articulation = new Rect(symbolBox.MinX - Math.Min(ArticulationMaxWidth, symbolBox.MinX - frame.MinX), frame.MinY, symbolBox.MinX, top);
+                return new SheetBand(block, articulation, symbolBox, new Rect(frame.MinX, frame.MinY, articulation.MinX, top), LegendHeight);
+            }
+
+            // Faixa de cima, na largura do quadro: a menor altura (de 7 em 7 mm) em que cabem os símbolos (e a articulação, se
+            // ela também for para cima)
+            bool beside = room >= ArticulationMinWidth;
+            double upper = 3 * LegendRow;
+            while (SymbolsWidth(upper, MaxSymbols) + (beside ? 0 : ArticulationMinWidth) > frame.Width) upper += LegendRow;
+            var symbols2 = new Rect(frame.MaxX - SymbolsWidth(upper, count), top, frame.MaxX, top + upper);
+            if (beside)
+            {
+                var articulation = new Rect(block.MinX - Math.Min(ArticulationMaxWidth, room), frame.MinY, block.MinX, top);
+                return new SheetBand(block, articulation, symbols2, new Rect(frame.MinX, top, symbols2.MinX, top + upper), LegendHeight + upper);
+            }
+            var above = new Rect(symbols2.MinX - Math.Min(ArticulationMaxWidth, symbols2.MinX - frame.MinX), top, symbols2.MinX, top + upper);
+            return new SheetBand(block, above, symbols2, new Rect(frame.MinX, top, above.MinX, top + upper), LegendHeight + upper);
         }
+
+        /// <summary>Linhas de símbolos que cabem num quadro dessa altura, embaixo do título.</summary>
+        public static int SymbolRows(double height) => Math.Max(1, (int)Math.Floor((height - SymbolHeader - 1) / SymbolRow));
+
+        /// <summary>Largura do quadro do norte e dos símbolos: o norte e as colunas que os símbolos precisam nessa altura.</summary>
+        public static double SymbolsWidth(double height, int symbols) =>
+            NorthWidth + (symbols > 0 ? (int)Math.Ceiling(symbols / (double)SymbolRows(height)) * SymbolColumn : 0);
+    }
+
+    /// <summary>As partes da faixa do carimbo (SheetFormat.Band), em mm no papel.</summary>
+    public readonly struct SheetBand
+    {
+        public SheetBand(Rect titleBlock, Rect articulation, Rect symbols, Rect free, double height)
+        {
+            TitleBlock = titleBlock; Articulation = articulation; Symbols = symbols; Free = free; Height = height;
+        }
+
+        public Rect TitleBlock { get; }    // A legenda de 180 mm
+        public Rect Articulation { get; }  // Articulação das folhas
+        public Rect Symbols { get; }       // Norte e símbolos
+        public Rect Free { get; }          // A sobra à esquerda (para o nome do desenho); largura 0 = sem sobra
+        public double Height { get; }      // Da linha de baixo do quadro até o alto da faixa
     }
 
     /// <summary>Um pedaço da área, que vira uma folha (layout com viewport).</summary>
@@ -145,6 +183,11 @@ namespace FiberPlugin.Core
         public int Scale { get; set; }
         public int Columns { get; set; }
         public int Rows { get; set; }
+
+        /// <summary>Distância entre os centros de folhas vizinhas (metros): o tamanho de cada folha sem a sobreposição.</summary>
+        public double StepX { get; set; }
+        public double StepY { get; set; }
+
         public List<SheetTile> Tiles { get; } = new List<SheetTile>();
 
         /// <summary>Pedaços da grade sem nenhum elemento do desenho: não viram folha.</summary>
@@ -158,14 +201,14 @@ namespace FiberPlugin.Core
 
     /// <summary>
     /// Divide uma área do desenho em folhas. Cada folha cobre a área útil do viewport na escala pedida,
-    /// com sobreposição entre folhas vizinhas. A grade é centralizada na área, e folhas sem nenhum
-    /// elemento do desenho são descartadas.
+    /// com sobreposição entre folhas vizinhas. A grade cobre o desenho que está dentro da área, centralizada nele, e folhas
+    /// sem nenhum elemento do desenho são descartadas.
     /// </summary>
     public static class SheetPlanner
     {
         /// <param name="area">Área escolhida pelo usuário (metros).</param>
         /// <param name="overlap">Sobreposição entre folhas vizinhas (0,05 = 5%).</param>
-        /// <param name="content">Extensões dos elementos do desenho, para descartar folhas vazias.</param>
+        /// <param name="content">Extensões dos elementos do desenho, para centralizar a grade e descartar folhas vazias.</param>
         public static SheetPlan Plan(Rect area, SheetFormat format, bool landscape, int scale, double overlap, IReadOnlyList<Rect> content)
         {
             var plan = new SheetPlan { Format = format, Landscape = landscape, Scale = scale };
@@ -175,15 +218,19 @@ namespace FiberPlugin.Core
             double coverH = vp.Height * plan.MetersPerMm;
             double stepX = coverW * (1 - overlap);
             double stepY = coverH * (1 - overlap);
+            plan.StepX = stepX;
+            plan.StepY = stepY;
 
-            plan.Columns = Count(area.Width, coverW, stepX);
-            plan.Rows = Count(area.Height, coverH, stepY);
+            // A grade cobre o desenho que está dentro da área (a área inteira, se ela não tiver nada), centralizada nele: uma
+            // área marcada com folga de um lado não deixa o desenho encostado num canto das folhas
+            Rect drawn = Drawn(area, content) ?? area;
+            plan.Columns = Count(drawn.Width, coverW, stepX);
+            plan.Rows = Count(drawn.Height, coverH, stepY);
 
-            // Centraliza a grade na área escolhida
             double totalW = coverW + (plan.Columns - 1) * stepX;
             double totalH = coverH + (plan.Rows - 1) * stepY;
-            double startX = area.MinX - (totalW - area.Width) / 2.0;
-            double startTop = area.MaxY + (totalH - area.Height) / 2.0;
+            double startX = drawn.MinX - (totalW - drawn.Width) / 2.0;
+            double startTop = drawn.MaxY + (totalH - drawn.Height) / 2.0;
 
             // Ordem de leitura: de cima para baixo, da esquerda para a direita
             for (int row = 0; row < plan.Rows; row++)
@@ -221,6 +268,21 @@ namespace FiberPlugin.Core
             Rect vp = format.ViewportArea(landscape);
             double coverW = vp.Width * scale / 1000.0, coverH = vp.Height * scale / 1000.0;
             return (long)Count(area.Width, coverW, coverW * (1 - overlap)) * Count(area.Height, coverH, coverH * (1 - overlap));
+        }
+
+        /// <summary>Extensão do que o desenho tem dentro da área (cada elemento cortado na área); null se não tiver nada.</summary>
+        private static Rect? Drawn(Rect area, IReadOnlyList<Rect> content)
+        {
+            double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+            foreach (Rect c in content)
+            {
+                if (!c.Intersects(area)) continue;
+                minX = Math.Min(minX, Math.Max(c.MinX, area.MinX));
+                minY = Math.Min(minY, Math.Max(c.MinY, area.MinY));
+                maxX = Math.Max(maxX, Math.Min(c.MaxX, area.MaxX));
+                maxY = Math.Max(maxY, Math.Min(c.MaxY, area.MaxY));
+            }
+            return minX <= maxX && minY <= maxY ? new Rect(minX, minY, maxX, maxY) : (Rect?)null;
         }
 
         private static int Count(double length, double cover, double step)

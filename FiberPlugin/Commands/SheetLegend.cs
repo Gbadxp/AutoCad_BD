@@ -5,21 +5,23 @@ using FiberPlugin.Core;
 namespace FiberPlugin.Commands
 {
     /// <summary>
-    /// Coluna de norte e legenda das folhas do Gerar Folhas (NDU 009, item 16.3): seta do norte e os símbolos que
-    /// existem no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone, seta de esforço), em português.
+    /// Norte e legenda das folhas do Gerar Folhas (NDU 009, item 16.3), no quadro ao lado do carimbo: seta do norte e os
+    /// símbolos que existem no desenho (postes DT/CC, CTO, CEO, equipamentos, cabo projetado, backbone, seta de esforço), em
+    /// português. O lugar de cada um vem do SheetFrame (SymbolCells).
     /// </summary>
     internal sealed class SheetLegend
     {
-        private const int MaxEntries = 14;
-        private const double RowHeight = 10;     // mm; menor (até MinRowHeight) para caberem todos os símbolos na coluna
-        private const double MinRowHeight = 5;
-        private const double SymbolSize = 7;     // mm, maior lado do símbolo
-        private const double LabelHeight = 2.3;  // mm
+        private const int MaxEntries = SheetFormat.MaxSymbols - 3; // Blocos; os outros três são cabo, backbone e esforço
+        private const double SymbolSize = 4.6;   // mm, maior lado do símbolo (numa linha de 6 mm)
+        private const double LabelHeight = 1.8;  // mm; o nome quebra em duas linhas se precisar
 
         private readonly List<(string Label, ObjectId BlockId)> _blocks = new List<(string, ObjectId)>();
         private bool _cable;
         private bool _backbone;
         private bool _effort;
+
+        /// <summary>Quantos símbolos a legenda tem.</summary>
+        public int Count => _blocks.Count + (_cable ? 1 : 0) + (_backbone ? 1 : 0) + (_effort ? 1 : 0);
 
         /// <summary>Símbolos usados no Model, na ordem: postes, caixas, demais blocos.</summary>
         public static SheetLegend Collect(Transaction tr, BlockTableRecord modelSpace)
@@ -67,8 +69,11 @@ namespace FiberPlugin.Commands
             return legend;
         }
 
-        /// <summary>Desenha a coluna em <paramref name="area"/> (mm no papel), com as entidades na layer da moldura.</summary>
-        public void Draw(Transaction tr, Database db, BlockTableRecord paperSpace, Rect area, string layer)
+        /// <summary>
+        /// Desenha a seta do norte em <paramref name="north"/> e cada símbolo, com o nome ao lado, no lugar dele em
+        /// <paramref name="cells"/> (mm no papel), com as entidades na layer da moldura.
+        /// </summary>
+        public void Draw(Transaction tr, Database db, BlockTableRecord paperSpace, Rect north, IReadOnlyList<Rect> cells, string layer)
         {
             T Add<T>(T ent) where T : Entity
             {
@@ -78,68 +83,63 @@ namespace FiberPlugin.Commands
             MText Text(string contents, Point3d at, double height, AttachmentPoint attachment, double width = 0) =>
                 Add(new MText { Contents = contents, Location = at, TextHeight = height, Attachment = attachment, Width = width });
 
-            double cx = (area.MinX + area.MaxX) / 2, top = area.MaxY;
-            Add(new Line(new Point3d(area.MinX, area.MinY, 0), new Point3d(area.MinX, area.MaxY, 0)));
-
-            // Norte: seta com a metade esquerda cheia e o "N" em cima (o viewport não é girado: norte para cima)
-            Text("N", new Point3d(cx, top - 4, 0), 4.5, AttachmentPoint.TopCenter);
-            Point3d tip = new Point3d(cx, top - 11, 0), left = new Point3d(cx - 5, top - 29, 0),
-                    notch = new Point3d(cx, top - 24, 0), right = new Point3d(cx + 5, top - 29, 0);
+            // Norte: o "N" em cima e a seta com a metade esquerda cheia (o viewport não é girado: norte para cima), do
+            // tamanho que couber na altura do quadro
+            double cx = north.CenterX, top = north.MaxY;
+            double letter = Math.Min(4.5, north.Height * 0.12);
+            Text("N", new Point3d(cx, top - 2, 0), letter, AttachmentPoint.TopCenter);
+            double tipY = top - 2 - letter - 2.5, length = Math.Max(6, Math.Min(18, tipY - north.MinY - 3)), half = length * 5 / 18;
+            Point3d tip = new Point3d(cx, tipY, 0), left = new Point3d(cx - half, tipY - length, 0),
+                    notch = new Point3d(cx, tipY - length * 13 / 18, 0), right = new Point3d(cx + half, tipY - length, 0);
             var outline = new Polyline { Closed = true };
             foreach (Point3d p in new[] { tip, right, notch, left }) outline.AddVertexAt(outline.NumberOfVertices, new Point2d(p.X, p.Y), 0, 0, 0);
             Add(outline);
             Add(new Solid(tip, left, notch));
-            Add(new Line(new Point3d(area.MinX, top - 34, 0), new Point3d(area.MaxX, top - 34, 0)));
 
-            // Legenda: as linhas encolhem (com o símbolo e a letra) para caberem todos os símbolos na altura da coluna
-            Text("LEGENDA", new Point3d(area.MinX + 4, top - 38, 0), 3, AttachmentPoint.TopLeft);
-            double firstTop = top - 38 - 3 - 2;
-            int count = _blocks.Count + (_cable ? 1 : 0) + (_backbone ? 1 : 0) + (_effort ? 1 : 0);
-            double row = count == 0 ? RowHeight : Math.Max(MinRowHeight, Math.Min(RowHeight, (firstTop - area.MinY - 1) / count));
-            double symbol = Math.Min(SymbolSize, row * 0.7);
-            double labelHeight = Math.Max(1.6, Math.Min(LabelHeight, row * 0.23));
-            double y = firstTop - row / 2;
-            double symbolX = area.MinX + 4 + symbol / 2;
-            double labelX = area.MinX + 4 + symbol + 3;
-            double labelWidth = area.MaxX - labelX - 2;
-
+            // Os símbolos, na ordem: blocos, cabo, backbone e esforço; cada um no lugar que o SheetFrame deu
+            var entries = new List<(string Label, Action<Point3d, double> DrawSymbol)>();
             foreach (var (label, blockId) in _blocks)
             {
-                if (y - row / 2 < area.MinY - 0.01) break;
-                var (scale, centerOffset) = BlockInsertHelpers.FitSymbol(db, blockId, symbol);
-                CadHelpers.InsertBlock(tr, paperSpace, blockId, new Point3d(symbolX, y, 0) - centerOffset, 0, layer, _ => "", scale);
-                Text(label, new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= row;
+                entries.Add((label, (at, size) =>
+                {
+                    var (scale, centerOffset) = BlockInsertHelpers.FitSymbol(db, blockId, size);
+                    CadHelpers.InsertBlock(tr, paperSpace, blockId, at - centerOffset, 0, layer, _ => "", scale);
+                }));
             }
-
             // Cabo e backbone nas cores das Configurações (a cor própria de um cabo na planilha não entra aqui)
-            if (_cable && y - row / 2 >= area.MinY - 0.01)
+            if (_cable)
+                entries.Add(("Cabo óptico projetado", (at, size) =>
+                    Add(new Line(new Point3d(at.X - size / 2, at.Y, 0), new Point3d(at.X + size / 2, at.Y, 0))).ColorIndex = UserSettings.Current.CableColor));
+            if (_backbone)
             {
-                Add(new Line(new Point3d(symbolX - symbol / 2, y, 0), new Point3d(symbolX + symbol / 2, y, 0))).ColorIndex =
-                    UserSettings.Current.CableColor;
-                Text("Cabo óptico projetado", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= row;
+                entries.Add(("Cabo óptico tronco (backbone)", (at, size) =>
+                {
+                    var line = new Polyline();
+                    line.AddVertexAt(0, new Point2d(at.X - size / 2, at.Y), 0, 0, 0);
+                    line.AddVertexAt(1, new Point2d(at.X + size / 2, at.Y), 0, 0, 0);
+                    line.ConstantWidth = CableDrawing.BackboneWidth; // Depois dos vértices; em mm, como no desenho em 1:1000
+                    Add(line).ColorIndex = UserSettings.Current.BackboneColor;
+                }));
+            }
+            if (_effort)
+            {
+                entries.Add(("Esforço no poste (kgf e ângulo)", (at, size) =>
+                {
+                    var arrow = new Polyline();
+                    arrow.AddVertexAt(0, new Point2d(at.X - size / 2, at.Y), 0, 0, 0);
+                    arrow.AddVertexAt(1, new Point2d(at.X + size / 2 - size * 0.28, at.Y), 0, size * 0.2, 0);
+                    arrow.AddVertexAt(2, new Point2d(at.X + size / 2, at.Y), 0, 0, 0);
+                    Add(arrow).ColorIndex = 4;
+                }));
             }
 
-            if (_backbone && y - row / 2 >= area.MinY - 0.01)
+            for (int i = 0; i < entries.Count && i < cells.Count; i++)
             {
-                var line = new Polyline();
-                line.AddVertexAt(0, new Point2d(symbolX - symbol / 2, y), 0, 0, 0);
-                line.AddVertexAt(1, new Point2d(symbolX + symbol / 2, y), 0, 0, 0);
-                line.ConstantWidth = CableDrawing.BackboneWidth; // Depois dos vértices; em mm, como no desenho em 1:1000
-                Add(line).ColorIndex = UserSettings.Current.BackboneColor;
-                Text("Cabo óptico tronco (backbone)", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
-                y -= row;
-            }
-
-            if (_effort && y - row / 2 >= area.MinY - 0.01)
-            {
-                var arrow = new Polyline();
-                arrow.AddVertexAt(0, new Point2d(symbolX - symbol / 2, y), 0, 0, 0);
-                arrow.AddVertexAt(1, new Point2d(symbolX + symbol / 2 - symbol * 0.28, y), 0, symbol * 0.2, 0);
-                arrow.AddVertexAt(2, new Point2d(symbolX + symbol / 2, y), 0, 0, 0);
-                Add(arrow).ColorIndex = 4;
-                Text("Esforço no poste (kgf e ângulo)", new Point3d(labelX, y, 0), labelHeight, AttachmentPoint.MiddleLeft, labelWidth);
+                Rect cell = cells[i];
+                double size = Math.Min(SymbolSize, cell.Height * 0.8), y = cell.CenterY;
+                double labelX = cell.MinX + 2 + size + 2;
+                entries[i].DrawSymbol(new Point3d(cell.MinX + 2 + size / 2, y, 0), size);
+                Text(entries[i].Label, new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, cell.MaxX - labelX - 1);
             }
         }
     }
