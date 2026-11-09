@@ -94,12 +94,14 @@ namespace FiberPlugin.Commands
 
                     // No modo Cabo a seta que já está no poste fica: ela pode ser do total (ex.: derivação) e o cabo
                     // selecionado sozinho não diz se o poste precisa dela
+                    int lockedBefore = markers.Locked;
                     PoleLoad load = markers.Place(stop.Point, result, pole, clearWhenNotNeeded: !onlySelected);
                     if (load.Exceeded) exceeded++;
                     if (load.NeedsReplacement) replace++;
 
                     string label = pole != null ? $"Poste {pole.Number}" : $"Ponto sem poste ({stop.Point.X:F1}; {stop.Point.Y:F1})";
-                    string arrow = !result.NeedsArrow ? result.WithoutArrowReason!
+                    string arrow = markers.Locked > lockedBefore ? "seta anterior em layer travada: ficou como estava"
+                        : !result.NeedsArrow ? result.WithoutArrowReason!
                         : pole == null ? "sem seta: marcado \"SEM POSTE\" no desenho (insira o poste)"
                         : $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°";
                     string? status = load.Text(pole);
@@ -114,6 +116,9 @@ namespace FiberPlugin.Commands
                                 "que a NDU 009 dispensa (Anexo B 2.2.18 e item 16.3 h).");
                 if (markers.Cleared > 0)
                     ed.WriteMessage($"\n[INFO]: {markers.Cleared} seta(s) de cálculo anterior apagada(s) de pontos que não precisam dela.");
+                if (markers.Locked > 0)
+                    ed.WriteMessage($"\n[AVISO]: {markers.Locked} ponto(s) com a seta anterior em layer travada ficaram como estavam: " +
+                                    "destrave a layer e rode de novo.");
                 if (withoutPole > 0)
                     ed.WriteMessage($"\n[AVISO]: {withoutPole} ponto(s) em que o cabo termina ou faz ângulo sem poste a até {FiberSettings.PoleLinkRadius:F0} m: " +
                                     $"a seta é do poste, então ali ficou o aviso \"SEM POSTE\" (layer {EffortMarkers.NoPoleLayer}, não imprime). " +

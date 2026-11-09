@@ -136,7 +136,7 @@ namespace FiberPlugin.Core
                     models.Add(new PoleData { Type = type, HeightM = height, EffortDaN = effort });
                 }
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 error = $"Não foi possível ler '{path}' ({ex.Message}); usando os modelos padrão do plugin.";
                 return Defaults();

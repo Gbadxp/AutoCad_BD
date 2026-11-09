@@ -61,7 +61,7 @@ namespace FiberPlugin.Commands
             {
                 workbook.Save(path);
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 ed.WriteMessage($"\n[ERRO]: Não foi possível salvar ({ex.Message}). Se a planilha estiver aberta no Excel, feche-a e tente de novo.");
                 return;

@@ -89,7 +89,7 @@ namespace FiberPlugin.Core
                     else rows.Add(row);
                 }
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 error = $"Não foi possível ler '{path}' ({ex.Message}); usando a Tabela 08 que vem com o plugin.";
                 return Default();

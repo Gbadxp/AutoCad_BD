@@ -60,6 +60,12 @@ namespace FiberPlugin.Commands
                     var markers = new EffortMarkers(tr, db, modelSpace, arrowId, poles);
                     PoleLoad load = markers.Place(polePoint, result, pole);
                     tr.Commit();
+                    if (markers.Locked > 0)
+                    {
+                        ed.WriteMessage("\n[AVISO]: A seta de esforço que já está neste ponto fica em layer travada e não foi trocada: " +
+                                        "destrave a layer e clique no poste de novo.");
+                        continue;
+                    }
 
                     string arrow = !result.NeedsArrow
                         ? result.WithoutArrowReason + (markers.Cleared > 0 ? " (a seta anterior foi apagada)" : "") + ": a NDU 009 dispensa (Anexo B 2.2.18)"

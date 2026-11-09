@@ -78,6 +78,12 @@ namespace FiberPlugin.Core
         /// <summary>Pontas e ângulos de cabo sem poste, marcados com o aviso "SEM POSTE" no lugar da seta.</summary>
         public int WithoutPole { get; private set; }
 
+        /// <summary>
+        /// Pontos em que a seta de um cálculo anterior está em layer travada: ficam como estavam (a seta antiga não pode
+        /// ser apagada, e uma nova ficaria em cima dela).
+        /// </summary>
+        public int Locked { get; private set; }
+
         /// <summary>Layer do aviso "SEM POSTE" (vermelha, não imprime).</summary>
         public const string NoPoleLayer = "FIBRA_ESFORCO_SEM_POSTE";
 
@@ -177,7 +183,8 @@ namespace FiberPlugin.Core
         /// <summary>
         /// Coloca a seta no ponto quando a norma pede (EffortResult.NeedsArrow). Quando não pede, só apaga a seta que já
         /// estava ali, de um cálculo anterior. O esforço é devolvido nos dois casos, para as mensagens do comando.
-        /// A seta anterior do mesmo poste sai mesmo fora do centro dele (ex.: Esforço de 1 Cabo, no ponto clicado).
+        /// A seta anterior do mesmo poste sai mesmo fora do centro dele (ex.: Esforço de 1 Cabo, no ponto clicado). Com a
+        /// seta anterior em layer travada, o ponto fica como estava (conta em <see cref="Locked"/>).
         /// </summary>
         /// <param name="pole">Ponto de onde sai a seta (centro do poste vinculado, ou o ponto do cabo).</param>
         /// <param name="linkedPole">Poste a que o cálculo pertence; fica gravado na seta para o relatório.</param>
@@ -187,10 +194,15 @@ namespace FiberPlugin.Core
         {
             string handle = linkedPole?.Id.Handle.ToString() ?? "";
             PoleLoad load = PoleLoad.For(linkedPole, result.Kgf, _attachHeight);
+            if ((result.NeedsArrow || clearWhenNotNeeded) && HasLocked(pole, handle))
+            {
+                Locked++;
+                return load;
+            }
             if (!result.NeedsArrow)
             {
                 Skipped++;
-                if (clearWhenNotNeeded) Clear(pole, handle);
+                if (clearWhenNotNeeded && RemoveAt(pole, handle)) Cleared++;
                 return load;
             }
             RemoveAt(pole, handle);
@@ -432,7 +444,23 @@ namespace FiberPlugin.Core
         /// <param name="poleHandle">Handle do poste (null ou "" = só a do ponto).</param>
         public void Clear(Point3d point, string? poleHandle)
         {
-            if (RemoveAt(point, poleHandle)) Cleared++;
+            if (HasLocked(point, poleHandle)) Locked++;
+            else if (RemoveAt(point, poleHandle)) Cleared++;
+        }
+
+        /// <summary>A seta (ou texto dela) já desenhada é deste ponto ou deste poste.</summary>
+        private bool IsAt(int index, Point3d pole, string? poleHandle) =>
+            !string.IsNullOrEmpty(poleHandle) && string.Equals(_existing[index].PoleHandle, poleHandle, StringComparison.OrdinalIgnoreCase) ||
+            _existing[index].Pole.DistanceTo(pole) <= SamePointTolerance;
+
+        /// <summary>Alguma parte da seta que já estava no ponto (ou no poste) está em layer travada: não dá para apagar.</summary>
+        private bool HasLocked(Point3d pole, string? poleHandle)
+        {
+            for (int i = 0; i < _existing.Count; i++)
+            {
+                if (IsAt(i, pole, poleHandle) && CadHelpers.IsOnLockedLayer(_tr, _existing[i].Id)) return true;
+            }
+            return false;
         }
 
         /// <summary>Apaga a seta e os textos que já estavam no ponto ou que pertencem ao poste. True se havia algum.</summary>
@@ -441,9 +469,7 @@ namespace FiberPlugin.Core
             bool removed = false;
             for (int i = _existing.Count - 1; i >= 0; i--)
             {
-                bool samePole = !string.IsNullOrEmpty(poleHandle) &&
-                                string.Equals(_existing[i].PoleHandle, poleHandle, StringComparison.OrdinalIgnoreCase);
-                if (!samePole && _existing[i].Pole.DistanceTo(pole) > SamePointTolerance) continue;
+                if (!IsAt(i, pole, poleHandle)) continue;
 
                 var ent = (Entity)_tr.GetObject(_existing[i].Id, OpenMode.ForWrite);
                 if (!ent.IsErased) ent.Erase();

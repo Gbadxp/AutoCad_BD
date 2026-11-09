@@ -143,7 +143,8 @@ namespace FiberPlugin.Commands
             }
             finally
             {
-                try { File.Delete(html); } catch (IOException) { }
+                try { File.Delete(html); }
+                catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { /* Fica na pasta temporária */ }
             }
 
             if (error != null)

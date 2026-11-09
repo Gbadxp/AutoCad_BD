@@ -99,18 +99,25 @@ namespace FiberPlugin.Core
                 {
                     _customLibraryLoaded = true;
                     try { _customLibrary = File.Exists(SettingsFile) ? File.ReadAllText(SettingsFile).Trim() : null; }
-                    catch (IOException) { _customLibrary = null; }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { _customLibrary = null; }
                     if (_customLibrary?.Length == 0) _customLibrary = null;
                 }
                 return _customLibrary;
             }
             set
             {
-                Directory.CreateDirectory(UserRoot);
-                if (value == null) File.Delete(SettingsFile);
-                else File.WriteAllText(SettingsFile, value);
                 _customLibrary = value;
                 _customLibraryLoaded = true;
+                try
+                {
+                    Directory.CreateDirectory(UserRoot);
+                    if (value == null) File.Delete(SettingsFile);
+                    else File.WriteAllText(SettingsFile, value);
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    // Pasta sem permissão de gravação: a escolha vale até fechar o AutoCAD
+                }
             }
         }
 

@@ -141,6 +141,12 @@ namespace FiberPlugin.Core
             }
         }
 
+        /// <summary>O texto de identificação do bloco está em layer travada: não dá para mudar nem levar junto com o bloco.</summary>
+        /// <param name="index">Textos já levantados (IndexLabels); null = procura no espaço.</param>
+        public static bool IsLabelLocked(Transaction tr, BlockTableRecord space, BlockReference owner,
+            Dictionary<string, List<ObjectId>>? index = null) =>
+            LabelsOf(tr, space, owner, index).Any(label => CadHelpers.IsOnLockedLayer(tr, label.ObjectId));
+
         /// <param name="below">True: centralizado abaixo do bloco (CTO/CEO). False: à direita, no alto (postes).</param>
         private static void PlaceText(Transaction tr, Database db, BlockTableRecord space, BlockReference owner, string contents,
             string layer, bool below, Dictionary<string, List<ObjectId>>? index)

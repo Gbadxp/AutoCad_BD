@@ -129,7 +129,7 @@ namespace FiberPlugin.Commands
                     arrow.AddVertexAt(0, new Point2d(at.X - size / 2, at.Y), 0, 0, 0);
                     arrow.AddVertexAt(1, new Point2d(at.X + size / 2 - size * 0.28, at.Y), 0, size * 0.2, 0);
                     arrow.AddVertexAt(2, new Point2d(at.X + size / 2, at.Y), 0, 0, 0);
-                    Add(arrow).ColorIndex = 4;
+                    Add(arrow).ColorIndex = UserSettings.Current.EffortColor; // A cor das setas no desenho (Configurações)
                 }));
             }
 
@@ -139,7 +139,8 @@ namespace FiberPlugin.Commands
                 double size = Math.Min(SymbolSize, cell.Height * 0.8), y = cell.CenterY;
                 double labelX = cell.MinX + 2 + size + 2;
                 entries[i].DrawSymbol(new Point3d(cell.MinX + 2 + size / 2, y, 0), size);
-                Text(entries[i].Label, new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, cell.MaxX - labelX - 1);
+                // O nome pode ser o de um bloco do usuário: texto puro, sem virar código de formatação do MText
+                Text(CadHelpers.MTextLiteral(entries[i].Label), new Point3d(labelX, y, 0), LabelHeight, AttachmentPoint.MiddleLeft, cell.MaxX - labelX - 1);
             }
         }
     }

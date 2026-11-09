@@ -110,7 +110,7 @@ namespace FiberPlugin.Models
             {
                 return Parse(path, warnings);
             }
-            catch (IOException ex)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 error = $"Não foi possível ler '{path}' ({ex.Message}); usando os cabos padrão do plugin.";
                 return Defaults();

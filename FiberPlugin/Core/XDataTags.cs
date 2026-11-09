@@ -200,7 +200,7 @@ namespace FiberPlugin.Core
             values[0] = new TypedValue((int)DxfCode.ExtendedDataRegAppName, FiberSettings.AppName);
             values[1] = Text(kind);
             data.CopyTo(values, 2);
-            ent.XData = new ResultBuffer(values);
+            using (var buffer = new ResultBuffer(values)) ent.XData = buffer; // A entidade fica com uma cópia
         }
 
         /// <summary>Dados depois do tipo, se a entidade for do tipo pedido e tiver pelo menos <paramref name="count"/> valores.</summary>

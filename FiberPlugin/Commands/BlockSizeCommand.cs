@@ -85,7 +85,8 @@ namespace FiberPlugin.Commands
         /// <summary>
         /// Multiplica o tamanho do bloco por <paramref name="ratio"/> sem tirá-lo do lugar, e o texto de identificação
         /// acompanha. CTO/CEO crescem em volta do centro do símbolo (o ponto base fica no canto); os demais blocos, em volta
-        /// do ponto de inserção, que guarda a coordenada do poste/item. False se o bloco está em layer travada.
+        /// do ponto de inserção, que guarda a coordenada do poste/item. False, sem mudar nada, se o bloco ou o texto dele está
+        /// em layer travada.
         /// </summary>
         /// <param name="labels">Textos já levantados (PoleLabels.IndexLabels), para mudar muitos blocos de uma vez.</param>
         internal static bool Scale(Transaction tr, BlockReference br, double ratio, Dictionary<string, List<ObjectId>>? labels = null)
@@ -96,6 +97,9 @@ namespace FiberPlugin.Commands
                 ? before.Value.MinPoint + (before.Value.MaxPoint - before.Value.MinPoint) / 2.0
                 : br.Position;
 
+            // Texto em layer travada não pode acompanhar: o bloco também fica como estava
+            var space = (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead);
+            if (PoleLabels.IsLabelLocked(tr, space, br, labels)) return false;
             try
             {
                 br.UpgradeOpen();
@@ -106,7 +110,7 @@ namespace FiberPlugin.Commands
             }
 
             br.TransformBy(Matrix3d.Scaling(ratio, center));
-            PoleLabels.Follow(tr, (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead), br, before.Value, labels);
+            PoleLabels.Follow(tr, space, br, before.Value, labels);
             return true;
         }
 

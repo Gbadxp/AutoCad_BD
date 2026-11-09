@@ -60,7 +60,7 @@ namespace FiberPlugin.Commands
                 tr.Commit();
             }
 
-            if (result.Poles == 0 && result.WithoutCable.Count == 0)
+            if (result.Poles == 0 && result.WithoutCable.Count == 0 && result.Locked.Count == 0)
             {
                 ed.WriteMessage("\n[AVISO]: Nenhum poste na seleção.");
                 return;
@@ -75,15 +75,24 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[AVISO]: Sem cabo chegando (vértice a até {FiberSettings.PoleMatchTolerance:0.#} m do poste): " +
                                 string.Join(", ", result.WithoutCable) + ". Lance o cabo passando por eles ou use Enter para inserir à mão.");
             }
+            if (result.Locked.Count > 0)
+            {
+                ed.WriteMessage("\n[AVISO]: Postes com amarração em layer travada, que ficaram como estavam: " +
+                                string.Join(", ", result.Locked) + ". Destrave a layer e rode de novo.");
+            }
         }
 
-        /// <summary>Quantos postes foram amarrados, quantas amarrações entraram e saíram, e os postes sem cabo.</summary>
+        /// <summary>
+        /// Quantos postes foram amarrados, quantas amarrações entraram e saíram, os postes sem cabo e os que ficaram como
+        /// estavam porque a amarração deles está em layer travada.
+        /// </summary>
         public sealed class AnchoringResult
         {
             public int Poles { get; set; }
             public int Inserted { get; set; }
             public int Replaced { get; set; }
             public List<string> WithoutCable { get; } = new List<string>();
+            public List<string> Locked { get; } = new List<string>();
         }
 
         /// <summary>
@@ -135,13 +144,19 @@ namespace FiberPlugin.Commands
                 // Refaz as amarrações deste poste: apaga as que já estavam em volta dele (inclusive as viradas ao
                 // contrário), só as que têm este poste como o mais perto, para não levar as de um poste vizinho
                 double radius = placements.Max(p => Math.Sqrt(Math.Pow(p.X - pole.Position.X, 2) + Math.Pow(p.Y - pole.Position.Y, 2))) + length;
-                foreach (var (id, nearestPole) in existing)
+                List<ObjectId> old = existing
+                    .Where(e => e.Pole == pole.Id && !e.Id.IsErased &&
+                                ((BlockReference)tr.GetObject(e.Id, OpenMode.ForRead)).Position.DistanceTo(pole.Position) <= radius)
+                    .Select(e => e.Id).ToList();
+                // Amarração em layer travada não pode ser apagada: o poste fica como estava (a nova ficaria em cima dela)
+                if (old.Any(id => CadHelpers.IsOnLockedLayer(tr, id)))
                 {
-                    if (nearestPole != pole.Id) continue;
-                    var old = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
-                    if (old.IsErased || old.Position.DistanceTo(pole.Position) > radius) continue;
-                    old.UpgradeOpen();
-                    old.Erase();
+                    result.Locked.Add(pole.Number);
+                    continue;
+                }
+                foreach (ObjectId id in old)
+                {
+                    tr.GetObject(id, OpenMode.ForWrite).Erase();
                     result.Replaced++;
                 }
 

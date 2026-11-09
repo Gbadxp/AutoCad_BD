@@ -48,7 +48,8 @@ namespace FiberPlugin.Commands
             {
                 features = Kml.Read(path);
             }
-            catch (System.Exception ex) when (ex is IOException || ex is InvalidDataException || ex is System.Xml.XmlException)
+            catch (System.Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidDataException ||
+                                              ex is System.Xml.XmlException)
             {
                 ed.WriteMessage($"\n[ERRO]: Não foi possível ler {Path.GetFileName(path)} ({ex.Message}).");
                 return;

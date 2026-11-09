@@ -66,8 +66,17 @@ namespace FiberPlugin.Commands
                 if (dictionaryId.IsNull) dictionaryId = RasterImageDef.CreateImageDictionary(db);
                 var dictionary = (DBDictionary)tr.GetObject(dictionaryId, OpenMode.ForWrite);
                 var definition = new RasterImageDef { SourceFileName = file };
-                definition.Load();
-                ObjectId definitionId = dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                ObjectId definitionId;
+                try
+                {
+                    definition.Load();
+                    definitionId = dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                }
+                catch
+                {
+                    definition.Dispose(); // Ainda fora do desenho: sem descartar, o AutoCAD pode cair mais tarde
+                    throw;
+                }
                 tr.AddNewlyCreatedDBObject(definition, true);
 
                 var image = new RasterImage

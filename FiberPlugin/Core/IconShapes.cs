@@ -56,7 +56,9 @@ namespace FiberPlugin.Core
         {
             if (href.IndexOf("earth.google.com", StringComparison.OrdinalIgnoreCase) < 0) return null;
             Match m = Regex.Match(href, @"[?&]id=(\d+)");
-            return m.Success && EarthIds.TryGetValue(int.Parse(m.Groups[1].Value), out string? shape) ? shape : null;
+            // TryParse: um id comprido demais num KML malfeito não pode derrubar a importação
+            return m.Success && int.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.None,
+                       System.Globalization.CultureInfo.InvariantCulture, out int id) && EarthIds.TryGetValue(id, out string? shape) ? shape : null;
         }
 
         private static string? FromName(string href)

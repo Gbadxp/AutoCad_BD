@@ -321,8 +321,16 @@ namespace FiberPlugin.Commands
                     if (definition == null)
                     {
                         definition = new RasterImageDef { SourceFileName = file };
-                        definition.Load();
-                        dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                        try
+                        {
+                            definition.Load();
+                            dictionary.SetAt(RasterImageDef.SuggestName(dictionary, file), definition);
+                        }
+                        catch
+                        {
+                            definition.Dispose(); // Ainda fora do desenho: sem descartar, o AutoCAD pode cair mais tarde
+                            throw;
+                        }
                         tr.AddNewlyCreatedDBObject(definition, true);
                     }
                     else if (!definition.IsLoaded)
@@ -354,36 +362,54 @@ namespace FiberPlugin.Commands
             Dictionary<PaperImage, ObjectId> images, SheetLegend legend)
         {
             ObjectId layoutId = lm.CreateLayout(name);
-            lm.CurrentLayout = name; // O viewport só pode ser ligado com a folha ativa
-
-            string? warning;
-            using (Transaction tr = db.TransactionManager.StartTransaction())
+            try
             {
-                var layout = (Layout)tr.GetObject(layoutId, OpenMode.ForWrite);
-                warning = ConfigurePlot(layout, plan);
+                lm.CurrentLayout = name; // O viewport só pode ser ligado com a folha ativa
 
-                var paperSpace = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForWrite);
-
-                // Remove viewports criados automaticamente (o primeiro é a própria folha e fica)
-                ObjectIdCollection viewports = layout.GetViewports();
-                for (int i = 1; i < viewports.Count; i++)
+                string? warning;
+                using (Transaction tr = db.TransactionManager.StartTransaction())
                 {
-                    tr.GetObject(viewports[i], OpenMode.ForWrite).Erase();
+                    var layout = (Layout)tr.GetObject(layoutId, OpenMode.ForWrite);
+                    warning = ConfigurePlot(layout, plan);
+
+                    var paperSpace = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForWrite);
+
+                    // Remove viewports criados automaticamente (o primeiro é a própria folha e fica)
+                    ObjectIdCollection viewports = layout.GetViewports();
+                    for (int i = 1; i < viewports.Count; i++)
+                    {
+                        tr.GetObject(viewports[i], OpenMode.ForWrite).Erase();
+                    }
+
+                    CadHelpers.EnsureLayer(tr, db, FrameLayer, 7);
+                    CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
+
+                    DrawFrame(tr, paperSpace, paper, images);
+                    legend.Draw(tr, db, paperSpace, paper.NorthArea, paper.SymbolCells, FrameLayer);
+
+                    AddViewport(tr, paperSpace, plan.Format.ViewportArea(plan.Landscape), tile.ModelArea);
+                    // Articulação: o desenho todo, pequeno, atrás do mapa das folhas
+                    if (paper.Overview is (Rect onPaper, Rect shown)) AddViewport(tr, paperSpace, onPaper, shown);
+
+                    tr.Commit();
                 }
-
-                CadHelpers.EnsureLayer(tr, db, FrameLayer, 7);
-                CadHelpers.EnsureNonPlottingLayer(tr, db, ViewportLayer, 8);
-
-                DrawFrame(tr, paperSpace, paper, images);
-                legend.Draw(tr, db, paperSpace, paper.NorthArea, paper.SymbolCells, FrameLayer);
-
-                AddViewport(tr, paperSpace, plan.Format.ViewportArea(plan.Landscape), tile.ModelArea);
-                // Articulação: o desenho todo, pequeno, atrás do mapa das folhas
-                if (paper.Overview is (Rect onPaper, Rect shown)) AddViewport(tr, paperSpace, onPaper, shown);
-
-                tr.Commit();
+                return warning;
             }
-            return warning;
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                // A folha não saiu inteira (a transação desfez o desenho dela): sai também a folha, que senão ficava vazia
+                // no desenho enquanto o aviso diz que ela não foi criada
+                try
+                {
+                    lm.CurrentLayout = "Model";
+                    lm.DeleteLayout(name);
+                }
+                catch (Autodesk.AutoCAD.Runtime.Exception)
+                {
+                    // Não deu para tirar: o próximo Gerar Folhas com o mesmo prefixo apaga
+                }
+                throw;
+            }
         }
 
         /// <summary>Viewport travado em <paramref name="onPaper"/> (mm) mostrando <paramref name="shown"/> (metros), na mesma proporção.</summary>

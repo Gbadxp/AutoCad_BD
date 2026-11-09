@@ -54,9 +54,11 @@ namespace FiberPlugin.Commands
                     EffortResult result = EffortCalculator.AtPathIndex(points, i, span => traction.Tension(cable, span));
 
                     PoleInfo? pole = Poles.Nearest(poles, points[i], FiberSettings.PoleLinkRadius);
+                    int lockedBefore = markers.Locked;
                     PoleLoad load = markers.Place(points[i], result, pole);
                     string label = pole != null ? "Poste " + pole.Number : $"P{i + 1}";
-                    string arrow = !result.NeedsArrow ? result.WithoutArrowReason!
+                    string arrow = markers.Locked > lockedBefore ? "seta anterior em layer travada: ficou como estava"
+                        : !result.NeedsArrow ? result.WithoutArrowReason!
                         : pole == null ? "sem poste no clique: marcado \"SEM POSTE\" no desenho (insira o poste)"
                         : $"seta {load.ProjectKgf:F2} KGF, ANG. {result.AngleDeg:F0}°";
                     string? status = load.Text(pole);
@@ -66,6 +68,9 @@ namespace FiberPlugin.Commands
                 tr.Commit();
                 ed.WriteMessage($"\n[INFO]: Esforço calculado em {points.Count} postes: {markers.Placed} com seta (fim de rede, derivação ou ângulo acima de " +
                                 $"{EffortResult.ArrowDeflectionDeg:F0}°) e {markers.Skipped} em alinhamento, sem seta (NDU 009, Anexo B 2.2.18).");
+                if (markers.Locked > 0)
+                    ed.WriteMessage($"\n[AVISO]: {markers.Locked} ponto(s) com a seta anterior em layer travada ficaram como estavam: " +
+                                    "destrave a layer e calcule de novo.");
                 traction.WriteWarnings(ed);
             }
             ed.UpdateScreen();
