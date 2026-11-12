@@ -19,7 +19,7 @@ namespace FiberPlugin.Commands
     /// </summary>
     public class SheetLayoutCommand
     {
-        private const string PdfDevice = "DWG To PDF.pc3";
+        internal const string PdfDevice = "DWG To PDF.pc3";
         private const string SheetIndexLayer = "FIBRA_FOLHAS";       // Quadro de articulação no Model (não imprime)
         private const string FrameLayer = "FIBRA_MOLDURA";           // Moldura e textos da folha
         private const string ViewportLayer = "FIBRA_VIEWPORTS";      // Borda do viewport (não imprime)
@@ -744,7 +744,7 @@ namespace FiberPlugin.Commands
             return null;
         }
 
-        private static string? FindMedia(StringCollection media, string size)
+        internal static string? FindMedia(StringCollection media, string size)
         {
             return media.Cast<string>()
                 .Where(m => m.IndexOf(size, StringComparison.OrdinalIgnoreCase) >= 0)

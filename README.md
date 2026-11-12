@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.100.msi`](Instalador/FiberPlugin-1.9.100.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.101.msi`](Instalador/FiberPlugin-1.9.101.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -214,6 +214,7 @@ descrição de cada um. No menu `FIBRA` eles aparecem como os outros.
 | Norma NBR 16752 | `FIBRA_NORMA_FOLHAS` | Abre o PDF da NBR 16752:2020 (folhas de desenho), a norma que o Gerar Folhas segue. A norma é da ABNT (vendida por ela) e não vem com o plugin: quem tem a norma coloca o PDF (com `16752` no nome) em `Documentos\Fiber Plugin\Normas`. |
 | Produção do Dia | `FIBRA_PRODUCAO` | Quanto foi feito no dia, somando todos os desenhos: metros de cabo (no total e por tipo), CTO, CEO, postes, amarrações, reservas técnicas e cordoalha (veja abaixo). |
 | Gerar Folhas | `FIBRA_GERAR_FOLHAS` | Abre uma janela com área do projeto, folha (A0 a A4), orientação, escala, sobreposição e nomes (cada opção com um **?** que explica o que ela faz), e a prévia das folhas sobre o desenho. Gera as folhas com moldura, carimbo (logo, empresa, responsável técnico, assinatura, articulação das folhas), marcas de dobra, legenda e viewport, prontas para PDF; também apaga as folhas geradas (veja abaixo). |
+| Imprimir Folhas | `FIBRA_IMPRIMIR_FOLHAS` | Janela para gerar o PDF das folhas escolhidas: um PDF com todas ou um por folha, nome do arquivo, pasta, colorido ou preto e branco (veja abaixo). |
 
 ### Janelas
 Todas as janelas do plugin mudam de tamanho pelas bordas (ou maximizam): maiores, os campos e tabelas esticam;
@@ -292,6 +293,7 @@ um aviso na linha de comando.
 | FRE | Gerar Relatório | FSO | Sobre o plugin |
 | FNO | Norma NDU 009 | FNA | Numeração Automática |
 | FUC | Atualizar Coordenadas | FNM | Numerar Clicando |
+| FIF | Imprimir Folhas | | |
 
 ### Só pela linha de comando
 | Comando | Função |
@@ -491,12 +493,25 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
      desenho encostado num canto das folhas).
 6. No Model aparecem os retângulos e nomes das folhas (layer `FIBRA_FOLHAS`, que não imprime).
 
-Para gerar o PDF, use o comando **PUBLICAR** (PUBLISH) do AutoCAD e selecione as folhas.
+Para gerar o PDF, use o botão **Imprimir Folhas** (abaixo) ou o comando **PUBLICAR** (PUBLISH) do AutoCAD.
 Com folhas do mesmo prefixo no desenho, **Apagar e gerar novas** apaga e cria de novo, e **Apagar folhas** só apaga (as
 folhas e o quadro delas no Model, depois de confirmar). **Atualizar carimbo** refaz só a moldura e o carimbo das folhas
 do prefixo com os dados de agora (ex.: depois de mudar o projetista ou o endereço na Configuração de Projeto) e a data de
 hoje: os viewports ficam como estão, e o que você pôs nas folhas em outras layers também. O comando só abre na aba **Model**: numa folha, uma janela avisa
 para ir ao Model. O desenho deve estar em metros.
+
+**Imprimir Folhas** (`FIBRA_IMPRIMIR_FOLHAS`, painel Pranchas) abre uma janela para gerar o PDF das folhas:
+
+- **Folhas**: a lista das folhas (layouts) do desenho, na ordem das abas, com o papel de cada uma; vêm marcadas as do
+  prefixo do último Gerar Folhas (ou todas). **Todas** e **Nenhuma** marcam e desmarcam.
+- **Um PDF com todas** (as folhas uma atrás da outra, num arquivo) ou **Um PDF por folha**.
+- **Nome do arquivo** e **Pasta** (padrão: o nome e a pasta do desenho). Num PDF por folha, cada arquivo leva o nome
+  antes do nome da folha (`Projeto - FL-01.pdf`); sem nome, só o da folha (`FL-01.pdf`).
+- **Colorido** ou **Preto e branco** (tabela monochrome do AutoCAD) e **Abrir o PDF quando terminar**.
+
+Cada folha sai com a configuração de página dela pela impressora DWG To PDF; a de outra impressora vai para o papel do
+mesmo tamanho. PDF aberto no leitor não pode ser substituído: a janela avisa para fechar. As escolhas ficam gravadas no
+desenho.
 
 ## Escala das anotações
 

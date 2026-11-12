@@ -49,6 +49,7 @@ namespace FiberPlugin.Core
             ["FIBRA_NORMA"] = "FNO",
             ["FIBRA_PRODUCAO"] = "FPD",
             ["FIBRA_GERAR_FOLHAS"] = "FGF",
+            ["FIBRA_IMPRIMIR_FOLHAS"] = "FIF",
             ["FIBRA_IMPORTAR_KML"] = "FIK",
             ["FIBRA_EXPORTAR_KML"] = "FEK",
             ["FIBRA_IMPORTAR_RUAS"] = "FIR",

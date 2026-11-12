@@ -97,6 +97,7 @@ namespace FiberPlugin.UI
             ["FIBRA_GRUPO_CONFIGURAÇÃO"] = PaintSettings,
             ["FIBRA_DADOS_PROJETO"] = PaintProjectData,
             ["FIBRA_GERAR_FOLHAS"] = PaintSheets,
+            ["FIBRA_IMPRIMIR_FOLHAS"] = PaintPrint,
             ["FIBRA_IMPORTAR_KML"] = PaintKmlImport,
             ["FIBRA_EXPORTAR_KML"] = PaintKmlExport,
             ["FIBRA_GRUPO_KML"] = PaintKml,
@@ -604,6 +605,19 @@ namespace FiberPlugin.UI
             dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 9, 9, 6.5));
             dc.DrawRectangle(ink.Blue, null, new W.Rect(6, 17.5, 9, 6.5));
             dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 17.5, 9, 6.5));
+        }
+
+        /// <summary>Impressora com a folha saindo e o selo vermelho do PDF.</summary>
+        private static void PaintPrint(M.DrawingContext dc, Ink ink)
+        {
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.2), new W.Rect(9, 3, 14, 9));          // Folha entrando
+            dc.DrawRoundedRectangle(ink.Line, null, new W.Rect(3, 11, 26, 12), 2, 2);               // Corpo
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.2), new W.Rect(8, 19, 16, 10));         // Folha saindo
+            dc.DrawLine(Ink.Pen(ink.Line, 1), new W.Point(11, 23), new W.Point(21, 23));
+            dc.DrawLine(Ink.Pen(ink.Line, 1), new W.Point(11, 26), new W.Point(18, 26));
+            dc.DrawEllipse(ink.Green, null, new W.Point(25.5, 14.5), 1.3, 1.3);                     // Luz
+            dc.DrawRectangle(ink.Red, null, new W.Rect(18, 1, 12, 7));                              // PDF
+            dc.DrawLine(Ink.Pen(ink.White, 1.2), new W.Point(20.5, 4.5), new W.Point(27.5, 4.5));
         }
 
         /// <summary>Globo com marcador (Google Earth); a seta verde entra (importar) ou sai (exportar).</summary>
