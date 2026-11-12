@@ -46,7 +46,7 @@ namespace FiberPlugin.UI
         private readonly LabeledInput _scale, _overlap, _prefix;
         private readonly SheetPreview _preview;
         private readonly StatusLabel _status;
-        private readonly ThemedButton _ok, _delete;
+        private readonly ThemedButton _ok, _delete, _update;
         private Rect? _area;
         private string _areaSource;
         private string _prefixText = "";
@@ -57,6 +57,9 @@ namespace FiberPlugin.UI
 
         /// <summary>Botão Apagar folhas: o prefixo das folhas a apagar (null = gerar, ou cancelou).</summary>
         public string? DeletePrefix { get; private set; }
+
+        /// <summary>Botão Atualizar carimbo: o prefixo das folhas cujo carimbo é refeito (null = gerar, ou cancelou).</summary>
+        public string? UpdatePrefix { get; private set; }
 
         /// <summary>O que foi escolhido (null enquanto faltar algo ou houver erro).</summary>
         public SheetSettings? Result { get; private set; }
@@ -151,9 +154,11 @@ namespace FiberPlugin.UI
             _ok = new ThemedButton("Apagar e gerar novas", true); // Largura do texto mais longo; o texto muda com o prefixo
             var cancel = new ThemedButton("Cancelar", false) { DialogResult = DialogResult.Cancel };
             _delete = new ThemedButton("Apagar folhas", false);
+            _update = new ThemedButton("Atualizar carimbo", false);
             footer.AddButton(_ok);
             footer.AddButton(cancel);
             footer.AddButton(_delete);
+            footer.AddButton(_update);
 
             Controls.Add(body);
             Controls.Add(header);
@@ -197,6 +202,13 @@ namespace FiberPlugin.UI
                 DialogResult = DialogResult.OK;
                 Close();
             };
+            _update.Click += (s, e) =>
+            {
+                if (_existing == 0) return;
+                UpdatePrefix = _prefixText;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
             Shown += (s, e) =>
             {
                 _pick.Visible = PickInDrawing != null;
@@ -233,7 +245,8 @@ namespace FiberPlugin.UI
             int existing = prefix.Length > 0 ? _existingSheets(prefix) : 0;
             _prefixText = prefix;
             _existing = existing;
-            _delete.Enabled = existing > 0; // Apagar não depende do resto estar certo
+            _delete.Enabled = existing > 0; // Apagar e atualizar não dependem do resto estar certo
+            _update.Enabled = existing > 0;
 
             string? error = null;
             bool incomplete = false;
@@ -326,8 +339,9 @@ namespace FiberPlugin.UI
             _prefixHelp.HelpText = $"As folhas se chamam {name}-01, {name}-02... (uma aba de layout cada); no Model, o quadro das folhas usa os " +
                                    "mesmos nomes." +
                                    (existing > 0 ? $"\n\nAtenção: já existem {existing} folha{(existing == 1 ? "" : "s")} {name}-... neste desenho. " +
-                                                   "\"Apagar e gerar novas\" apaga e cria de novo; \"Apagar folhas\" só apaga. Para manter as " +
-                                                   "atuais, use outro prefixo." : "");
+                                                   "\"Apagar e gerar novas\" apaga e cria de novo; \"Apagar folhas\" só apaga; \"Atualizar " +
+                                                   "carimbo\" só refaz o carimbo delas com os dados de agora (Configuração de Projeto), sem " +
+                                                   "mexer nos viewports. Para manter as atuais, use outro prefixo." : "");
             _prefixHelp.Warning = existing > 0;
         }
 

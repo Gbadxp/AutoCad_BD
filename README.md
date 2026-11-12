@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.98.msi`](Instalador/FiberPlugin-1.9.98.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.99.msi`](Instalador/FiberPlugin-1.9.99.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -493,7 +493,9 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
 
 Para gerar o PDF, use o comando **PUBLICAR** (PUBLISH) do AutoCAD e selecione as folhas.
 Com folhas do mesmo prefixo no desenho, **Apagar e gerar novas** apaga e cria de novo, e **Apagar folhas** só apaga (as
-folhas e o quadro delas no Model, depois de confirmar). O comando só abre na aba **Model**: numa folha, uma janela avisa
+folhas e o quadro delas no Model, depois de confirmar). **Atualizar carimbo** refaz só a moldura e o carimbo das folhas
+do prefixo com os dados de agora (ex.: depois de mudar o projetista ou o endereço na Configuração de Projeto) e a data de
+hoje: os viewports ficam como estão, e o que você pôs nas folhas em outras layers também. O comando só abre na aba **Model**: numa folha, uma janela avisa
 para ir ao Model. O desenho deve estar em metros.
 
 ## Escala das anotações

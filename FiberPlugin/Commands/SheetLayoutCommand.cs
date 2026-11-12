@@ -68,6 +68,11 @@ namespace FiberPlugin.Commands
                     DeleteSheets(db, ed, deletePrefix);
                     return;
                 }
+                if (confirmed && form.UpdatePrefix is string updatePrefix)
+                {
+                    UpdateStamps(doc, updatePrefix, legend);
+                    return;
+                }
                 if (!confirmed || form.Result == null || form.Plan == null) return;
                 options = form.Result;
                 plan = form.Plan;
@@ -95,41 +100,8 @@ namespace FiberPlugin.Commands
             int digits = plan.Tiles.Count >= 100 ? 3 : 2;
             var names = new List<string?>(); // Nome de cada pedaço da grade (null = a folha não foi criada)
             var warnings = new HashSet<string>();
-
-            // Legenda (carimbo): empresa e responsável técnico (CREA e e-mail) da aba Empresa; projeto, ART, endereço, município,
-            // CEP, conteúdo, área e projetista das abas Projeto e Carimbo; a logo (e a assinatura, se houver) da pasta do memorial
-            CompanyInfo company = CompanyInfo.Read();
-            ProjectInfo project = ProjectInfo.Load(db);
             var images = new Dictionary<PaperImage, ObjectId>();
-            double ImageAspect(PaperImage kind, string file, bool required)
-            {
-                if (ImageDefinition(db, file, required, warnings) is not (ObjectId id, double aspect)) return 0;
-                images[kind] = id;
-                return aspect;
-            }
-            bool engineer = company.Qualification.IndexOf("engenheir", StringComparison.OrdinalIgnoreCase) >= 0;
-            var stamp = new SheetStamp
-            {
-                Company = company.LegalName,
-                Engineer = (engineer && company.Representative.Length > 0 ? "ENG. " : "") + company.Representative.ToUpper(DataFiles.Br),
-                Crea = company.Crea,
-                EngineerEmail = company.RepresentativeEmail,
-                Art = project.ArtNumber,
-                Designer = project.Designer.ToUpper(DataFiles.Br),
-                DesignerEmail = project.DesignerEmail,
-                Title = project.Route.Length > 0 ? project.Route : title,
-                Content = project.Content,
-                Area = project.Area,
-                Date = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
-                Address = project.WorkAddress,
-                City = project.City,
-                ZipCode = project.ZipCode,
-                Symbols = legend.Count,
-                LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
-                SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
-            };
-            if (company.IsEmpty || company.Representative.Length == 0)
-                warnings.Add("Empresa ou responsável técnico em branco na legenda: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
+            SheetStamp stamp = BuildStamp(db, legend, title, warnings, images);
 
             // Só com a legenda pronta: as folhas antigas saem logo antes de as novas serem criadas
             LayoutManager lm = LayoutManager.Current;
@@ -172,6 +144,226 @@ namespace FiberPlugin.Commands
             ed.WriteMessage("\n[DICA]: Os retângulos no Model (layer FIBRA_FOLHAS, não imprime) mostram a divisão. " +
                             "Para gerar o PDF, use o comando PUBLICAR e selecione as folhas.");
             ed.Regen();
+        }
+
+        /// <summary>
+        /// Dados da legenda (carimbo): empresa e responsável técnico (CREA e e-mail) da aba Empresa; projeto, ART, endereço,
+        /// município, CEP, conteúdo, área e projetista das abas Projeto e Carimbo; a logo (e a assinatura, se houver) da
+        /// pasta do memorial, cujas definições vão para <paramref name="images"/>.
+        /// </summary>
+        private static SheetStamp BuildStamp(Database db, SheetLegend legend, string title, HashSet<string> warnings,
+            Dictionary<PaperImage, ObjectId> images)
+        {
+            CompanyInfo company = CompanyInfo.Read();
+            ProjectInfo project = ProjectInfo.Load(db);
+            double ImageAspect(PaperImage kind, string file, bool required)
+            {
+                if (ImageDefinition(db, file, required, warnings) is not (ObjectId id, double aspect)) return 0;
+                images[kind] = id;
+                return aspect;
+            }
+            bool engineer = company.Qualification.IndexOf("engenheir", StringComparison.OrdinalIgnoreCase) >= 0;
+            var stamp = new SheetStamp
+            {
+                Company = company.LegalName,
+                Engineer = (engineer && company.Representative.Length > 0 ? "ENG. " : "") + company.Representative.ToUpper(DataFiles.Br),
+                Crea = company.Crea,
+                EngineerEmail = company.RepresentativeEmail,
+                Art = project.ArtNumber,
+                Designer = project.Designer.ToUpper(DataFiles.Br),
+                DesignerEmail = project.DesignerEmail,
+                Title = project.Route.Length > 0 ? project.Route : title,
+                Content = project.Content,
+                Area = project.Area,
+                Date = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                Address = project.WorkAddress,
+                City = project.City,
+                ZipCode = project.ZipCode,
+                Symbols = legend.Count,
+                LogoAspect = ImageAspect(PaperImage.Logo, LogoFile, true),
+                SignatureAspect = ImageAspect(PaperImage.Signature, SignatureFile, false)
+            };
+            if (company.IsEmpty || company.Representative.Length == 0)
+                warnings.Add("Empresa ou responsável técnico em branco na legenda: preencha em Configuração de Projeto, aba Empresa, e gere as folhas de novo.");
+            return stamp;
+        }
+
+        /// <summary>
+        /// Botão Atualizar carimbo da janela: refaz só a moldura e o carimbo das folhas do prefixo, com os dados de agora
+        /// (Configuração de Projeto), sem gerar as folhas de novo. O viewport de cada folha fica como está (com a mesma
+        /// escala e o mesmo pedaço do desenho), e o que o usuário pôs na folha em outras layers também. A divisão (formato,
+        /// escala e o pedaço de cada folha) sai dos viewports das próprias folhas.
+        /// </summary>
+        private static void UpdateStamps(Document doc, string prefix, SheetLegend legend)
+        {
+            Database db = doc.Database;
+            Editor ed = doc.Editor;
+            var warnings = new HashSet<string>();
+
+            // Cada folha: o viewport principal (o maior na layer dos viewports) diz o pedaço do desenho, a escala e o formato
+            var sheets = new List<(string Name, int Number, ObjectId LayoutId, Rect Model, double Scale, Rect Paper)>();
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                var layouts = (DBDictionary)tr.GetObject(db.LayoutDictionaryId, OpenMode.ForRead);
+                foreach (string name in LayoutsWithPrefix(db, prefix))
+                {
+                    var layout = (Layout)tr.GetObject(layouts.GetAt(name), OpenMode.ForRead);
+                    var paperSpace = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForRead);
+                    Viewport? main = paperSpace.Cast<ObjectId>().Select(id => tr.GetObject(id, OpenMode.ForRead)).OfType<Viewport>()
+                        .Where(v => v.Layer.Equals(ViewportLayer, StringComparison.OrdinalIgnoreCase) && v.CustomScale > 1e-9)
+                        .OrderByDescending(v => v.Width * v.Height).FirstOrDefault();
+                    if (main == null)
+                    {
+                        warnings.Add($"A folha {name} não tem o viewport do Gerar Folhas: ficou como estava.");
+                        continue;
+                    }
+                    double w = main.Width / main.CustomScale, h = main.Height / main.CustomScale;
+                    var model = new Rect(main.ViewCenter.X - w / 2, main.ViewCenter.Y - h / 2, main.ViewCenter.X + w / 2, main.ViewCenter.Y + h / 2);
+                    var paper = new Rect(main.CenterPoint.X - main.Width / 2, main.CenterPoint.Y - main.Height / 2,
+                                         main.CenterPoint.X + main.Width / 2, main.CenterPoint.Y + main.Height / 2);
+                    int number = int.Parse(name.Substring(prefix.Length + 1), CultureInfo.InvariantCulture);
+                    sheets.Add((name, number, layout.ObjectId, model, main.CustomScale, paper));
+                }
+            }
+            if (sheets.Count == 0)
+            {
+                foreach (string warning in warnings) ed.WriteMessage($"\n[AVISO]: {warning}");
+                ed.WriteMessage($"\n[AVISO]: Nenhuma folha {prefix}-... para atualizar.");
+                return;
+            }
+            sheets = sheets.OrderBy(s => s.Number).ToList();
+
+            // Formato e orientação: os de quadro da mesma largura do viewport e altura mais perto da dele
+            Rect first = sheets[0].Paper;
+            var (format, landscape) = SheetFormat.All.SelectMany(f => new[] { (Format: f, Landscape: true), (Format: f, Landscape: false) })
+                .Where(c => Math.Abs(c.Format.Frame(c.Landscape).Width - first.Width) < 1 && c.Format.Frame(c.Landscape).Height >= first.Height - 1)
+                .OrderBy(c => c.Format.Frame(c.Landscape).Height - first.Height)
+                .FirstOrDefault();
+            if (format == null)
+            {
+                ed.WriteMessage($"\n[AVISO]: Não deu para reconhecer o formato das folhas {prefix}-... (o viewport foi mudado à mão?). " +
+                                "Use Apagar e gerar novas.");
+                return;
+            }
+            var plan = new SheetPlan
+            {
+                Format = format,
+                Landscape = landscape,
+                Scale = (int)Math.Round(1000 / sheets[0].Scale),
+                StepX = Step(sheets.Select(s => s.Model).ToList(), horizontal: true),
+                StepY = Step(sheets.Select(s => s.Model).ToList(), horizontal: false)
+            };
+            plan.Tiles.AddRange(sheets.Select(s => new SheetTile { ModelArea = s.Model }));
+
+            // Camadas travadas: a moldura antiga não sairia e a nova ficaria por cima
+            using (Transaction tr = db.TransactionManager.StartOpenCloseTransaction())
+            {
+                var layers = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
+                foreach (string layer in new[] { FrameLayer, ViewportLayer })
+                {
+                    if (layers.Has(layer) && ((LayerTableRecord)tr.GetObject(layers[layer], OpenMode.ForRead)).IsLocked)
+                    {
+                        ed.WriteMessage($"\n[AVISO]: A layer {layer} está travada: destrave para atualizar o carimbo das folhas.");
+                        return;
+                    }
+                }
+            }
+
+            string title = Path.GetFileNameWithoutExtension(doc.Name);
+            var images = new Dictionary<PaperImage, ObjectId>();
+            SheetStamp stamp = BuildStamp(db, legend, title, warnings, images);
+
+            LayoutManager lm = LayoutManager.Current;
+            int updated = 0;
+            try
+            {
+                for (int i = 0; i < sheets.Count; i++)
+                {
+                    var (name, _, layoutId, _, _, _) = sheets[i];
+                    try
+                    {
+                        lm.CurrentLayout = name; // O viewport da articulação só pode ser ligado com a folha ativa
+                        SheetPaper paper = SheetFrame.Build(plan, i + 1, title, stamp);
+                        using (Transaction tr = db.TransactionManager.StartTransaction())
+                        {
+                            var layout = (Layout)tr.GetObject(layoutId, OpenMode.ForRead);
+                            var paperSpace = (BlockTableRecord)tr.GetObject(layout.BlockTableRecordId, OpenMode.ForWrite);
+                            var entities = paperSpace.Cast<ObjectId>().Select(id => (Entity)tr.GetObject(id, OpenMode.ForRead)).ToList();
+                            Viewport main = entities.OfType<Viewport>()
+                                .Where(v => v.Layer.Equals(ViewportLayer, StringComparison.OrdinalIgnoreCase) && v.CustomScale > 1e-9)
+                                .OrderByDescending(v => v.Width * v.Height).First();
+
+                            // Sai a moldura antiga (e o viewport da articulação, refeito junto); o viewport principal fica
+                            foreach (Entity ent in entities)
+                            {
+                                bool frame = ent.Layer.Equals(FrameLayer, StringComparison.OrdinalIgnoreCase);
+                                bool overview = ent is Viewport && ent.ObjectId != main.ObjectId &&
+                                                ent.Layer.Equals(ViewportLayer, StringComparison.OrdinalIgnoreCase);
+                                if (!frame && !overview) continue;
+                                ent.UpgradeOpen();
+                                ent.Erase();
+                            }
+
+                            DrawFrame(tr, paperSpace, paper, images);
+                            legend.Draw(tr, db, paperSpace, paper.NorthArea, paper.SymbolCells, FrameLayer);
+                            if (paper.Overview is (Rect onPaper, Rect shown)) AddViewport(tr, paperSpace, onPaper, shown);
+
+                            // Folha de uma versão com a faixa do carimbo de outra altura: o viewport vai para o lugar novo,
+                            // com a mesma escala e o mesmo centro
+                            Rect area = plan.Format.ViewportArea(plan.Landscape);
+                            Rect now = sheets[i].Paper;
+                            if (Math.Abs(area.Width - now.Width) > 0.01 || Math.Abs(area.Height - now.Height) > 0.01 ||
+                                Math.Abs(area.CenterX - now.CenterX) > 0.01 || Math.Abs(area.CenterY - now.CenterY) > 0.01)
+                            {
+                                main.UpgradeOpen();
+                                double scale = main.CustomScale;
+                                Point2d center = main.ViewCenter;
+                                main.CenterPoint = new Point3d(area.CenterX, area.CenterY, 0);
+                                main.Width = area.Width;
+                                main.Height = area.Height;
+                                main.ViewCenter = center;
+                                main.CustomScale = scale;
+                            }
+                            tr.Commit();
+                        }
+                        updated++;
+                    }
+                    catch (Autodesk.AutoCAD.Runtime.Exception ex)
+                    {
+                        warnings.Add($"O carimbo da folha {name} não foi atualizado ({ex.ErrorStatus}).");
+                    }
+                }
+            }
+            finally
+            {
+                lm.CurrentLayout = "Model";
+            }
+
+            foreach (string warning in warnings) ed.WriteMessage($"\n[AVISO]: {warning}");
+            if (updated > 0)
+                ed.WriteMessage($"\n[SUCESSO]: Carimbo atualizado em {updated} folha(s) {prefix}-..., com os dados da Configuração de Projeto " +
+                                "e a data de hoje. Os viewports ficaram como estavam.");
+            ed.Regen();
+        }
+
+        /// <summary>
+        /// Passo da grade (distância entre os centros de folhas vizinhas) numa direção, pelos pedaços das folhas; 0 se só
+        /// houver uma folha nessa direção (a articulação usa então o tamanho da folha).
+        /// </summary>
+        private static double Step(List<Rect> tiles, bool horizontal)
+        {
+            double step = double.MaxValue;
+            foreach (Rect a in tiles)
+            {
+                foreach (Rect b in tiles)
+                {
+                    double along = horizontal ? Math.Abs(a.CenterX - b.CenterX) : Math.Abs(a.CenterY - b.CenterY);
+                    double across = horizontal ? Math.Abs(a.CenterY - b.CenterY) : Math.Abs(a.CenterX - b.CenterX);
+                    double size = horizontal ? a.Height : a.Width;
+                    if (along > 1e-3 && across < size / 2) step = Math.Min(step, along);
+                }
+            }
+            return step < double.MaxValue ? step : 0;
         }
 
         /// <summary>
