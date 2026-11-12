@@ -116,8 +116,8 @@ namespace FiberPlugin.Core
         private const double Pad = 1.2;          // mm: da borda do quadro ao texto
 
         private const double GridBand = 5, GridField = 50, GridText = 3.5; // Malha de referência (NBR 16752, 4.4)
-        private const double CenterMarkInside = 10;                       // Marcas de centro: 10 mm para dentro do quadro (4.3)
-        private const double TrimLong = 10, TrimShort = 5;                // Marcas de corte em L (4.5)
+        private const double CenterMarkInside = 3;                        // Marcas de centro: 3 mm para dentro do quadro
+        private const double TrimLong = 10, TrimShort = 5;               // Marcas de corte em L (4.5)
         private const double FoldWeight = 0.18, CornerFoldMark = 8;      // Marcas de dobramento, tracejadas (4.6)
         private const string GridLetters = "ABCDEFGHJKLMNPQRSTUVWXYZ";    // Sem I e O
 
@@ -556,9 +556,10 @@ namespace FiberPlugin.Core
             index < GridLetters.Length ? GridLetters[index].ToString() : "A" + GridLetters[index - GridLetters.Length];
 
         /// <summary>
-        /// Marcas de centro (4.3): nas pontas dos eixos de simetria, da malha até 10 mm para dentro do quadro, em 0,7 mm. Onde o
-        /// carimbo encosta no quadro (de <paramref name="carimboLeft"/> à direita), a marca de baixo para na linha do quadro,
-        /// para não passar por cima dos textos.
+        /// Marcas de centro (4.3): nas pontas dos eixos de simetria, em 0,7 mm, da malha até um pouco para dentro do quadro
+        /// (<see cref="CenterMarkInside"/>; a norma pede 10 mm, mas assim a marca quase não entra no desenho). Onde o carimbo
+        /// encosta no quadro (de <paramref name="carimboLeft"/> à direita), a marca de baixo para na linha do quadro, para não
+        /// passar por cima dos textos.
         /// </summary>
         private static void CenterMarks(SheetPaper paper, Rect frame, double carimboLeft)
         {

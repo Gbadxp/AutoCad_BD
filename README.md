@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.99.msi`](Instalador/FiberPlugin-1.9.99.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.100.msi`](Instalador/FiberPlugin-1.9.100.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -465,7 +465,7 @@ diferente da do desenho, folhas que serão substituídas). A janela acompanha a 
    - folha pela **NBR 16752:2020** (folhas de desenho): quadro com margem de 20 mm à esquerda e 10 mm nas demais, linha
      de 1,0 mm (A0 e A1) ou 0,7 mm (A2 a A4); **malha de referência** na margem (campos de 50 mm a partir do meio, números
      em cima e embaixo, letras dos lados, sem I e O; no A4 só em cima e à direita); **marcas de centro** nos quatro lados
-     (a de baixo para na linha do quadro quando dá no carimbo) e **marcas de corte** em L (10 x 5 mm) nos cantos;
+     (entram só 3 mm no quadro; a de baixo para na linha do quadro quando dá no carimbo) e **marcas de corte** em L (10 x 5 mm) nos cantos;
    - **legenda** (carimbo) de 180 x 49 mm deitada no canto de baixo à direita, em dois blocos lado a lado: **logo** com o
      nome da empresa, projeto (o percurso da rede, ou o nome do desenho), endereço, município e CEP; **responsável
      técnico** com o CREA, a ART e o e-mail, espaço com linha para a **assinatura** (ou a imagem
