@@ -130,6 +130,16 @@ namespace FiberPlugin.Commands
             sheet.Row("CTO", boxes.Count(b => b.Data.Kind == BlockCategories.Cto));
             sheet.Row("CEO", boxes.Count(b => b.Data.Kind == BlockCategories.Ceo)).Blank();
 
+            // Splitters marcados nas caixas (Marcar Splitter), por nível e razão
+            var splitters = boxes.SelectMany(b => b.Data.Splitters).ToList();
+            if (splitters.Count > 0)
+            {
+                sheet.Header("Splitters", "Quantidade");
+                foreach (var group in splitters.GroupBy(s => s).OrderBy(g => g.Key.Level).ThenBy(g => g.Key.Ratio))
+                    sheet.Row($"{group.Key.Level}º nível 1:{group.Key.Ratio}", group.Count());
+                sheet.Row("Total de splitters", splitters.Count).Blank();
+            }
+
             sheet.Header("Cabos", "Metragem (m)");
             foreach (CableTotal c in cables) sheet.Row(c.Description, Math.Round(c.Length, 2));
             sheet.Row("Total de cabos", Math.Round(cables.Sum(c => c.Length), 2)).Blank();
@@ -197,8 +207,8 @@ namespace FiberPlugin.Commands
 
         private static void WriteBoxes(XlsxWriter workbook, List<BoxInfo> boxes, List<PoleInfo> poles, UtmSettings? utm)
         {
-            XlsxWriter.Sheet sheet = workbook.AddSheet("CTO e CEO").ColumnWidths(10, 7, 20, 14, 15, 11, 16, 16);
-            sheet.Header("ID", "Tipo", "Bloco", "Poste", "Poste (tipo)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)");
+            XlsxWriter.Sheet sheet = workbook.AddSheet("CTO e CEO").ColumnWidths(10, 7, 20, 14, 15, 11, 16, 16, 18);
+            sheet.Header("ID", "Tipo", "Bloco", "Poste", "Poste (tipo)", "Zona UTM", "Coordenada E (m)", "Coordenada N (m)", "Splitters");
 
             var polesByHandle = Poles.ByHandle(poles);
             foreach (BoxInfo box in boxes)
@@ -214,7 +224,8 @@ namespace FiberPlugin.Commands
                     pole?.Data?.Designation ?? pole?.Name,
                     utm != null ? UtmZone.ZoneText(box.Position, utm) : null,
                     Math.Round(box.Position.X, 2),
-                    Math.Round(box.Position.Y, 2));
+                    Math.Round(box.Position.Y, 2),
+                    box.Data.Splitters.Count > 0 ? string.Join(", ", box.Data.SplitterLines) : null);
             }
         }
 

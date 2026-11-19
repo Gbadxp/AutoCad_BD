@@ -12,6 +12,29 @@ namespace FiberPlugin.Core
 
         /// <summary>Identificação: CTO-01, CEO-03... (prefixos e dígitos da janela Configurações).</summary>
         public string Id => UserSettings.Current.Name(UserSettings.Current.BoxPrefix(Kind), Number);
+
+        /// <summary>Splitters da caixa (Marcar Splitter): nível (1º, 2º, 3º) e razão 1:X, em ordem de nível.</summary>
+        public List<(int Level, int Ratio)> Splitters { get; set; } = new List<(int, int)>();
+
+        /// <summary>"S1 1:8", um por splitter, para o texto da caixa.</summary>
+        public IEnumerable<string> SplitterLines => Splitters.Select(s => SplitterText(s.Level, s.Ratio));
+
+        public static string SplitterText(int level, int ratio) => $"S{level} 1:{ratio}";
+
+        /// <summary>Como fica gravado no XData: "1:8;2:4" (nível:razão).</summary>
+        public string SplittersCode => string.Join(";", Splitters.Select(s => $"{s.Level}:{s.Ratio}"));
+
+        public static List<(int Level, int Ratio)> ParseSplitters(string? code)
+        {
+            var list = new List<(int, int)>();
+            foreach (string part in (code ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] p = part.Split(':');
+                if (p.Length == 2 && int.TryParse(p[0], out int level) && int.TryParse(p[1], out int ratio) && level > 0 && ratio > 0)
+                    list.Add((level, ratio));
+            }
+            return list.OrderBy(s => s.Item1).ToList();
+        }
     }
 
     public class BoxInfo

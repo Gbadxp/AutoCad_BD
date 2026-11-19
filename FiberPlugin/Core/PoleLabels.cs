@@ -36,8 +36,8 @@ namespace FiberPlugin.Core
                    CoordinateLines(position, utm);
         }
 
-        /// <summary>Texto da CTO/CEO: só a identificação (CTO-01), sem coordenadas.</summary>
-        public static string BoxText(BoxData data) => data.Id;
+        /// <summary>Texto da CTO/CEO: a identificação (CTO-01), sem coordenadas, e embaixo os splitters ("S1 1:8").</summary>
+        public static string BoxText(BoxData data) => string.Join(LineBreak, new[] { data.Id }.Concat(data.SplitterLines));
 
         /// <summary>"20 L", "405110.92 m E" e "9032585.41 m S", uma por linha.</summary>
         private static string CoordinateLines(Point3d position, UtmSettings? utm)

@@ -75,6 +75,9 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_CEO"] = PaintCeo,
             ["FIBRA_INSERIR_ELETRICOS"] = PaintElectrical,
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
+            ["FIBRA_SPLITTER"] = PaintSplitter,
+            ["FIBRA_CADASTRO"] = PaintRegistration,
+            ["FIBRA_VISIBILIDADE"] = PaintVisibility,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
             ["FIBRA_NUMERAR_AUTO"] = PaintAutoNumber,
             ["FIBRA_NUMERAR_MANUAL"] = PaintManualNumber,
@@ -605,6 +608,36 @@ namespace FiberPlugin.UI
             dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 9, 9, 6.5));
             dc.DrawRectangle(ink.Blue, null, new W.Rect(6, 17.5, 9, 6.5));
             dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 17.5, 9, 6.5));
+        }
+
+        /// <summary>Splitter: uma fibra entra e se divide em quatro.</summary>
+        private static void PaintSplitter(M.DrawingContext dc, Ink ink)
+        {
+            M.Pen fiber = Ink.Pen(ink.Fiber, 2);
+            dc.DrawLine(fiber, new W.Point(2, 16), new W.Point(11, 16));
+            dc.DrawGeometry(ink.Blue, null, G("M11,9 L21,4 V28 L11,23 Z"));
+            foreach (double y in new[] { 6.5, 12.8, 19.2, 25.5 }) dc.DrawLine(fiber, new W.Point(21, y), new W.Point(30, y));
+        }
+
+        /// <summary>Cadastro: lista com um item marcado (verde) e um que falta (vermelho).</summary>
+        private static void PaintRegistration(M.DrawingContext dc, Ink ink)
+        {
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(5, 3, 22, 26));
+            dc.DrawEllipse(ink.Green, null, new W.Point(11, 11), 3.5, 3.5);
+            dc.DrawGeometry(null, Ink.Pen(ink.White, 1.4), G("M9.3,11 L10.6,12.4 L12.9,9.6"));
+            dc.DrawEllipse(ink.Red, null, new W.Point(11, 21), 3.5, 3.5);
+            M.Pen line = Ink.Pen(ink.Line, 1.4);
+            dc.DrawLine(line, new W.Point(17, 11), new W.Point(24, 11));
+            dc.DrawLine(line, new W.Point(17, 21), new W.Point(24, 21));
+        }
+
+        /// <summary>Olho, cortado pela metade (à vista e oculto).</summary>
+        private static void PaintVisibility(M.DrawingContext dc, Ink ink)
+        {
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.5), G("M2,16 Q16,3 30,16 Q16,29 2,16 Z"));
+            dc.DrawEllipse(ink.Blue, null, new W.Point(16, 16), 5.5, 5.5);
+            dc.DrawEllipse(ink.White, null, new W.Point(14.2, 14.2), 1.6, 1.6);
+            dc.DrawLine(Ink.Pen(ink.Red, 2.4), new W.Point(5, 28), new W.Point(27, 4));
         }
 
         /// <summary>Impressora com a folha saindo e o selo vermelho do PDF.</summary>

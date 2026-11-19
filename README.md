@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.101.msi`](Instalador/FiberPlugin-1.9.101.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.102.msi`](Instalador/FiberPlugin-1.9.102.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -163,6 +163,7 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Trocar Poste | `FIBRA_TROCAR_POSTE` | Troca o modelo de um poste já inserido sem inserir de novo (ex.: lançou DT 9/200 e era DT 11/300, ou DT por CC): escolha o modelo na lista e clique nos postes, um por vez (Enter termina; postes já selecionados antes do comando são trocados direto). O poste fica no mesmo lugar e continua o mesmo objeto, então setas de esforço, CTO/CEO e o texto continuam ligados a ele; mudam o desenho do bloco (DT ↔ CC), os atributos e o texto ("9/200" → "11/300"). Número, esforço existente e ID da Energisa ficam. Se a altura mudar, avisa para rodar o Esforço no Percurso de novo (a seta mostra o esforço a 20 cm do topo). |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
+| Splitter | `FIBRA_SPLITTER` | Clique na CTO/CEO e digite o nível do splitter (1º, 2º ou 3º) e a razão (1:2 a 1:64): ele fica gravado na caixa e aparece no texto dela, embaixo do nome (`S1 1:8`). Uma caixa pode ter um de cada nível; marcar o mesmo nível de novo troca a razão. **Remover** tira os splitters da caixa. O Gerar Relatório conta os splitters por nível e razão (Resumo) e lista os de cada caixa (aba CTO e CEO). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 
@@ -185,6 +186,8 @@ Numeração e tamanho dos blocos já inseridos (na aba Fibra, o painel ao lado d
 | Numerar Auto | `FIBRA_NUMERAR_AUTO` | Numeração automática: clique no primeiro poste (ou no texto dele) e digite o número dele (`1`, `P1` ou `P-01`); vale para todos os postes do desenho, ou só para os escolhidos com a opção **Selecionar** antes do clique. A numeração segue os cabos: continua pelo mesmo cabo até o fim (na esquina também) e depois entra nas derivações, como na numeração feita à mão; postes sem cabo entram no fim, pelo mais próximo. Pergunta se numera também as CTO e CEO desses postes, na ordem deles (CTO-01 no primeiro poste que tem CTO...). Com seleção, os números dos postes de fora são pulados. Atualiza atributo, texto e dados; **U** desfaz. |
 | Tamanho | `FIBRA_TAMANHO_BLOCO` | Muda o tamanho de blocos já inseridos: selecione um ou vários e digite o novo tamanho (maior lado, em m) ou use **Fator** (2 = dobro, 0,5 = metade). Cada bloco continua no ponto em que foi inserido (CTO/CEO: no centro do símbolo) e o texto de identificação acompanha. Também funciona selecionando antes. |
 | Padronizar | `FIBRA_PADRONIZAR_TAMANHOS` | Deixa postes, CTO/CEO, textos, setas de esforço, reservas e cordoalhas no tamanho da escala do desenho (o mesmo da inserção): o que foi colado de um desenho em outra escala fica igual ao resto. Com objetos selecionados antes, só eles. |
+| Cadastro | `FIBRA_CADASTRO` | O que já foi cadastrado na plataforma da Energisa. **Cadastrar** / **Pendente**: escolha o tipo (Todos, Postes, CTO, CEO, Cabos ou Outros: elétricos, amarrações, cordoalha e reserva) e selecione uma área ou clique nos objetos. Cada objeto ganha uma marca: círculo (ou faixa, no cabo) **verde** se cadastrado e **vermelho** se falta, nas layers `FIBRA_CADASTRO_OK` e `FIBRA_CADASTRO_FALTA`, que não imprimem. **Todos**, **Faltam** e **Feitos** mostram todas as marcas, só as vermelhas ou só as verdes; **Ocultar** esconde. A linha de comando mostra quantos de cada tipo já foram cadastrados. As marcas são refeitas a cada vez (rode de novo depois de mover ou copiar objetos). |
+| Visibilidade | `FIBRA_VISIBILIDADE` | Janela que oculta objetos do projeto, na tela, nas folhas e na impressão (continuam no desenho e contam no relatório, no esforço e no memorial). Marque os tipos que ficam à vista (Postes, CTO, CEO, Cabos, Setas de esforço, Outros) e, pelo cadastro na Energisa, **Todos**, **Só os cadastrados** ou **Só os que faltam**; a janela mostra quantos ficam ocultos. O texto de cada poste e caixa, os textos dos vãos de cada cabo e a seta da reserva somem junto. As combinações viram **presets** (nome + Salvar preset), que valem para todos os desenhos (`Documentos\Fiber Plugin\visibilidade.txt`); já vêm Tudo, Só CTO e CEO, Postes CTO e CEO, Faltam cadastrar e Só cadastrados. Duplo clique no preset aplica. **Mostrar tudo** volta tudo à vista. Objeto desenhado depois entra à vista: aplique o preset de novo. |
 
 ### Google Earth
 
@@ -294,6 +297,8 @@ um aviso na linha de comando.
 | FNO | Norma NDU 009 | FNA | Numeração Automática |
 | FUC | Atualizar Coordenadas | FNM | Numerar Clicando |
 | FIF | Imprimir Folhas | | |
+| FSP | Marcar Splitter | FCN | Cadastro Energisa |
+| FVI | Visibilidade | | |
 
 ### Só pela linha de comando
 | Comando | Função |

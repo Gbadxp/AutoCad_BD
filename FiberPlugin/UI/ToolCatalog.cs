@@ -88,6 +88,8 @@ namespace FiberPlugin.UI
                     "Trocar Poste", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CTO", "Inserir CTO", "CTO-01, CTO-02... ligadas ao poste mais próximo", "CTO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CEO", "Inserir CEO", "CEO-01, CEO-02... ligadas ao poste mais próximo", "CEO", largeOnRibbon: false),
+                new Tool("FIBRA_SPLITTER", "Marcar Splitter", "Clique na CTO/CEO e marque o splitter de 1º, 2º ou 3º nível (ex.: S1 1:8)",
+                    "Splitter", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false)
             }),
@@ -107,7 +109,13 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_TAMANHO_BLOCO", "Tamanho do Bloco", "Muda o tamanho dos blocos selecionados", "Tamanho", largeOnRibbon: false),
                 new Tool("FIBRA_PADRONIZAR_TAMANHOS", "Padronizar Tamanhos",
                     "Deixa postes, CTO/CEO, textos e setas no tamanho da escala do desenho (ex.: o que foi colado de outro desenho)",
-                    "Padronizar", largeOnRibbon: false)
+                    "Padronizar", largeOnRibbon: false),
+                new Tool("FIBRA_CADASTRO", "Cadastro Energisa",
+                    "Marca o que já foi cadastrado na plataforma da Energisa (área ou objetos): verde = cadastrado, vermelho = falta",
+                    "Cadastro", largeOnRibbon: false),
+                new Tool("FIBRA_VISIBILIDADE", "Visibilidade",
+                    "Oculta tipos de objeto ou os já cadastrados na Energisa (na tela e na impressão), com presets",
+                    "Visibilidade", largeOnRibbon: false)
             }),
             ("Google Earth", new[]
             {

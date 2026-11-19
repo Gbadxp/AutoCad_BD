@@ -24,15 +24,24 @@ namespace FiberPlugin.Core
         private static TypedValue Int(int value) => new TypedValue((int)DxfCode.ExtendedDataInteger32, value);
         private static TypedValue Real(double value) => new TypedValue((int)DxfCode.ExtendedDataReal, value);
 
-        /// <summary>Grava na CTO/CEO o tipo, o número e o poste vinculado.</summary>
-        public static void TagBox(Transaction tr, Database db, Entity ent, BoxData data) =>
-            Write(tr, db, ent, BoxKind, Text(data.Kind), Int(data.Number), Text(data.PoleHandle));
+        /// <summary>Grava na CTO/CEO o tipo, o número, o poste vinculado e os splitters (desde a 1.9.102).</summary>
+        public static void TagBox(Transaction tr, Database db, Entity ent, BoxData data)
+        {
+            if (data.Splitters.Count > 0)
+                Write(tr, db, ent, BoxKind, Text(data.Kind), Int(data.Number), Text(data.PoleHandle), Text(data.SplittersCode));
+            else
+                Write(tr, db, ent, BoxKind, Text(data.Kind), Int(data.Number), Text(data.PoleHandle));
+        }
 
         public static BoxData? ReadBox(Entity ent)
         {
             TypedValue[]? d = Read(ent, BoxKind, 3);
             if (d == null || d[0].Value is not string kind || d[1].Value is not int number) return null;
-            return new BoxData { Kind = kind, Number = number, PoleHandle = d[2].Value as string ?? "" };
+            return new BoxData
+            {
+                Kind = kind, Number = number, PoleHandle = d[2].Value as string ?? "",
+                Splitters = BoxData.ParseSplitters(d.Length > 3 ? d[3].Value as string : null)
+            };
         }
 
         /// <summary>Grava no bloco os dados do poste: número, tipo (DT/CC), altura, esforço nominal e esforço existente.</summary>
