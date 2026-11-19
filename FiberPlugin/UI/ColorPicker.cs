@@ -189,7 +189,7 @@ namespace FiberPlugin.UI
     }
 
     /// <summary>Escolha de uma cor do AutoCAD (1 a 255), opcionalmente com a opção de voltar para a cor padrão.</summary>
-    internal class ColorPickerForm : Form
+    internal class ColorPickerForm : ThemedForm
     {
         private readonly AciGrid _grid;
         private readonly Label _info;
@@ -201,7 +201,6 @@ namespace FiberPlugin.UI
         /// <param name="defaultColor">Cor padrão mostrada no botão; null = sem o botão.</param>
         public ColorPickerForm(string title, short? current, short? defaultColor)
         {
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - " + title;
             // Grade de 24 x 16 = 384 de largura e 10 x 16 + 12 + 22 = 194 de altura, com margens, informação e rodapé
             ClientSize = new Size(420, 356);

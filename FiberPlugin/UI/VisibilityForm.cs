@@ -6,7 +6,7 @@ namespace FiberPlugin.UI
     /// Janela Visibilidade: marca os tipos de objeto que ficam à vista e o filtro do cadastro na Energisa, mostra quantos
     /// ficam ocultos e guarda as combinações como presets (Documentos\Fiber Plugin\visibilidade.txt).
     /// </summary>
-    internal class VisibilityForm : Form
+    internal class VisibilityForm : ThemedForm
     {
         private static readonly Dictionary<string, string> CheckLabels = new Dictionary<string, string>
         {
@@ -41,10 +41,8 @@ namespace FiberPlugin.UI
             _objects = objects;
             _presets = presets;
 
-            Theme.ApplyForm(this);
-            AutoScaleMode = AutoScaleMode.None;
             Text = "Fiber Plugin - Visibilidade";
-            ClientSize = new Size(S(820), S(470));
+            ClientSize = new Size(820, 470);
 
             var header = new HeaderPanel
             {
@@ -61,12 +59,12 @@ namespace FiberPlugin.UI
                 BackColor = Theme.Input,
                 ForeColor = Theme.Text,
                 Font = Theme.Body,
-                ItemHeight = S(20),
-                Margin = new Padding(0, S(2), 0, S(4))
+                ItemHeight = 20,
+                Margin = new Padding(0, 2, 0, 4)
             };
             Theme.UseDarkScrollbars(_list);
             _name = new LabeledInput("Nome do preset", "ex.: Cadastro bairro Centro");
-            _save = new ThemedButton("Salvar preset", false) { Margin = new Padding(0, 0, S(6), 0) };
+            _save = new ThemedButton("Salvar preset", false) { Margin = new Padding(0, 0, 6, 0) };
             _delete = new ThemedButton("Apagar preset", false) { Margin = Padding.Empty };
             var presetButtons = new FlowLayoutPanel { WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
             presetButtons.Controls.AddRange(new Control[] { _save, _delete });
@@ -77,9 +75,9 @@ namespace FiberPlugin.UI
             checks.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (string kind in VisibilityFilter.Kinds)
             {
-                var check = new CheckBox { Text = CheckLabels[kind], ForeColor = Theme.Text, BackColor = Theme.Background, Font = Theme.Body, AutoSize = true, Margin = new Padding(0, S(2), 0, S(2)) };
+                var check = new CheckBox { Text = CheckLabels[kind], ForeColor = Theme.Text, BackColor = Theme.Background, Font = Theme.Body, AutoSize = true, Margin = new Padding(0, 2, 0, 2) };
                 _checks[kind] = check;
-                checks.RowStyles.Add(new RowStyle(SizeType.Absolute, S(25)));
+                checks.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
                 checks.Controls.Add(check, 0, checks.RowCount++);
             }
             _status = new ChoiceBar("Todos", "Só os cadastrados", "Só os que faltam");
@@ -88,9 +86,9 @@ namespace FiberPlugin.UI
             _summary = new StatusLabel { Margin = Padding.Empty };
             var right = Column((new SectionLabel("O que fica à vista"), 26), (checks, 156),
                 (new SectionLabel("Cadastro na Energisa"), 30), (_status, 38), (hint, 52), (new Panel { BackColor = Theme.Background }, 0), (_summary, 40));
-            right.Padding = new Padding(S(16), 0, 0, 0);
+            right.Padding = new Padding(16, 0, 0, 0);
 
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(S(18), S(6), S(18), S(8)), BackColor = Theme.Background };
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(18, 6, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -148,9 +146,6 @@ namespace FiberPlugin.UI
 
             UpdateAll();
         }
-
-        /// <summary>Pixels de 96 dpi na escala da tela.</summary>
-        private int S(int pixels) => Theme.Scale(this, pixels);
 
         private void Apply()
         {
@@ -239,7 +234,7 @@ namespace FiberPlugin.UI
             column.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in rows)
             {
-                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, S(height)) : new RowStyle(SizeType.Percent, 100));
+                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, height) : new RowStyle(SizeType.Percent, 100));
                 control.Dock = DockStyle.Fill;
                 column.Controls.Add(control, 0, column.RowCount++);
             }

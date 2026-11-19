@@ -7,7 +7,7 @@ namespace FiberPlugin.UI
     /// Janela Imprimir Folhas: quais folhas (layouts) vão para o PDF, um PDF com todas ou um por folha, o nome do arquivo,
     /// a pasta, colorido ou preto e branco e abrir no fim. Mostra os arquivos que vão sair enquanto o usuário escolhe.
     /// </summary>
-    internal class PrintForm : Form
+    internal class PrintForm : ThemedForm
     {
         private readonly CheckedListBox _sheets;
         private readonly IReadOnlyList<string> _names;
@@ -31,10 +31,8 @@ namespace FiberPlugin.UI
         {
             _names = sheets.Select(s => s.Name).ToList();
 
-            Theme.ApplyForm(this);
-            AutoScaleMode = AutoScaleMode.None;
             Text = "Fiber Plugin - Imprimir Folhas";
-            ClientSize = new Size(S(860), S(500));
+            ClientSize = new Size(860, 500);
 
             var header = new HeaderPanel
             {
@@ -52,12 +50,12 @@ namespace FiberPlugin.UI
                 BackColor = Theme.Input,
                 ForeColor = Theme.Text,
                 Font = Theme.Body,
-                Margin = new Padding(0, S(2), 0, S(4))
+                Margin = new Padding(0, 2, 0, 4)
             };
             Theme.UseDarkScrollbars(_sheets);
             foreach (var (name, detail) in sheets)
                 _sheets.Items.Add(new SheetItem(name, detail), checkedSheets.Contains(name));
-            var all = new ThemedButton("Todas", false) { Margin = new Padding(0, 0, S(6), 0) };
+            var all = new ThemedButton("Todas", false) { Margin = new Padding(0, 0, 6, 0) };
             var none = new ThemedButton("Nenhuma", false) { Margin = Padding.Empty };
             var listButtons = new FlowLayoutPanel { WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
             listButtons.Controls.AddRange(new Control[] { all, none });
@@ -67,7 +65,7 @@ namespace FiberPlugin.UI
             _mode = new ChoiceBar("Um PDF com todas", "Um PDF por folha");
             _fileName = new LabeledInput("Nome do arquivo", "ex.: Projeto Nova Califórnia");
             _folder = new LabeledInput("Pasta", "");
-            var browse = new ThemedButton("Escolher...", false) { Anchor = AnchorStyles.Left | AnchorStyles.Bottom, Margin = new Padding(S(6), 0, 0, S(4)) };
+            var browse = new ThemedButton("Escolher...", false) { Anchor = AnchorStyles.Left | AnchorStyles.Bottom, Margin = new Padding(6, 0, 0, 4) };
             var folderRow = new TableLayoutPanel { ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = Theme.Background };
             folderRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             folderRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -82,9 +80,9 @@ namespace FiberPlugin.UI
             var right = Column(
                 (new SectionLabel("Arquivo"), 26), (_mode, 38), (_fileName, 56), (folderRow, 56), (_files, 44),
                 (new SectionLabel("Impressão"), 30), (_colors, 38), (_open, 30), (new Panel { BackColor = Theme.Background }, 0), (_status, 40));
-            right.Padding = new Padding(S(16), 0, 0, 0);
+            right.Padding = new Padding(16, 0, 0, 0);
 
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(S(18), S(6), S(18), S(8)), BackColor = Theme.Background };
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Padding = new Padding(18, 6, 18, 8), BackColor = Theme.Background };
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
             body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
             body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -138,9 +136,6 @@ namespace FiberPlugin.UI
 
             UpdateAll();
         }
-
-        /// <summary>Pixels de 96 dpi na escala da tela.</summary>
-        private int S(int pixels) => Theme.Scale(this, pixels);
 
         private void SetAll(bool value)
         {
@@ -208,7 +203,7 @@ namespace FiberPlugin.UI
             column.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             foreach (var (control, height) in rows)
             {
-                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, S(height)) : new RowStyle(SizeType.Percent, 100));
+                column.RowStyles.Add(height > 0 ? new RowStyle(SizeType.Absolute, height) : new RowStyle(SizeType.Percent, 100));
                 if (control is not CheckBox) control.Dock = DockStyle.Fill;
                 column.Controls.Add(control, 0, column.RowCount++);
             }

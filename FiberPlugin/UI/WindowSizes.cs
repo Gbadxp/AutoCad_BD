@@ -18,7 +18,7 @@ namespace FiberPlugin.UI
 
         private static string FilePath => Path.Combine(PluginPaths.UserRoot, FileName);
 
-        /// <summary>Chamado no Load, quando a janela já tem o tamanho final e a escala do DPI aplicada.</summary>
+        /// <summary>Chamado pela ThemedForm no Load, com a janela já montada e na escala da tela.</summary>
         public static void Attach(Form form)
         {
             Size design = form.ClientSize;
@@ -57,6 +57,19 @@ namespace FiberPlugin.UI
                 Size closed = Logical(form.Size);
                 if (closed != opened) Save(key, closed);
             };
+        }
+
+        /// <summary>
+        /// Volta ao tamanho do Attach depois que o AutoCAD recolocou a janela. O ShowModalDialog põe de volta, no Load, o
+        /// tamanho e a posição da última vez (gravados no registro), e o tamanho pode ser de uma versão em que a janela era
+        /// de outro tamanho; o daqui só vale para o tamanho original atual. A posição fica a do AutoCAD, sem sair da área útil
+        /// da tela.
+        /// </summary>
+        public static void Keep(Form form, Size size)
+        {
+            Rectangle area = Screen.FromControl(form).WorkingArea;
+            form.Bounds = new Rectangle(Math.Max(area.X, Math.Min(form.Left, area.Right - size.Width)),
+                                        Math.Max(area.Y, Math.Min(form.Top, area.Bottom - size.Height)), size.Width, size.Height);
         }
 
         /// <summary>

@@ -171,7 +171,9 @@ namespace FiberPlugin.UI
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             Font = Theme.Body;
-            Size = new Size(Math.Max(88, TextRenderer.MeasureText(text, Theme.Body).Width + 28), 28);
+            // Em pixels de 96 dpi, como o resto da janela (a ThemedForm escala tudo no Load): o texto é medido na escala da tela
+            int textWidth = (TextRenderer.MeasureText(text, Theme.Body).Width * 96 + DeviceDpi - 1) / DeviceDpi;
+            Size = new Size(Math.Max(88, textWidth + 28), 28);
         }
 
         protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }

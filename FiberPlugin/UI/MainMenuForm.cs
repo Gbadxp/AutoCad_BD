@@ -4,7 +4,7 @@ using FiberPlugin.Models;
 
 namespace FiberPlugin.UI
 {
-    public class MainMenuForm : Form
+    internal class MainMenuForm : ThemedForm
     {
         private readonly FlowLayoutPanel flow;
         private readonly InputBox search;
@@ -15,7 +15,6 @@ namespace FiberPlugin.UI
 
         public MainMenuForm()
         {
-            Theme.ApplyForm(this);
             this.Text = "Fiber Plugin";
             this.ClientSize = new Size(800, 600);
             this.KeyPreview = true;

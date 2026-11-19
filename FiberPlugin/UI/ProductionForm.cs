@@ -10,7 +10,7 @@ namespace FiberPlugin.UI
     /// Produção do dia: metros de cabo (no total e por tipo), CTO, CEO, postes, reservas técnicas e cordoalha feitos no dia, somando
     /// os desenhos em que se trabalhou. Navega pelos dias, copia o resumo em texto e gera o Excel do mês.
     /// </summary>
-    internal class ProductionForm : Form
+    internal class ProductionForm : ThemedForm
     {
         private readonly ProductionLog _log;
         private readonly List<LiveDrawing> _open;
@@ -32,7 +32,6 @@ namespace FiberPlugin.UI
             _log = log;
             _open = open;
 
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - Produção do Dia";
             ClientSize = new Size(760, 560);
 

@@ -141,7 +141,7 @@ namespace FiberPlugin.UI
     /// vai na legenda das folhas: município, CEP, conteúdo e área deste desenho (ProjectInfo).
     /// Confere tudo enquanto o usuário digita.
     /// </summary>
-    internal class SettingsForm : Form
+    internal class SettingsForm : ThemedForm
     {
         private const int CableFull = 0, CableShort = 1, CableWeight = 2, CableFibers = 3, CableDiameter = 4, CableColor = 5,
             CableLinetype = 6, CableLineWeight = 7;
@@ -273,7 +273,6 @@ namespace FiberPlugin.UI
             _visible = tabs ?? Enumerable.Range(0, TabTitles.Length).ToArray();
             Settings = settings.Clone();
             Traction = traction;
-            Theme.ApplyForm(this);
             // Configuração de Projeto (dados deste projeto e da empresa) ou de Desenho (o plugin e o que ele põe no desenho)
             bool projectWindow = _visible.Contains(TabProject) && !_visible.Contains(TabCables);
             string title = projectWindow ? "Configuração de Projeto" : "Configuração de Desenho";
@@ -289,7 +288,8 @@ namespace FiberPlugin.UI
                     : "Cabos, postes, tração, nomes, desenho e atalhos: valem para todos os desenhos"
             };
 
-            _tabs = new ChoiceBar(_visible.Select(i => TabTitles[i]).ToArray());
+            // Dock: só assim a barra respeita a margem do painel (sem ele ficava colada na borda da janela)
+            _tabs = new ChoiceBar(_visible.Select(i => TabTitles[i]).ToArray()) { Dock = DockStyle.Fill };
             var tabBar = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(18, 10, 18, 4), BackColor = Theme.Background };
             tabBar.Controls.Add(_tabs);
 
@@ -566,14 +566,15 @@ namespace FiberPlugin.UI
                 grid.RowsRemoved += (s, e) => UpdateStatus();
                 grid.RowsAdded += (s, e) => UpdateStatus();
             }
-            // A aba inicial é marcada antes de ligar o evento: as páginas só se escondem no Load (por causa do DPI)
+            // A aba inicial é marcada antes de ligar o evento: as páginas só se escondem no Load (veja abaixo)
             _tabs.SelectedIndex = Math.Max(0, Array.IndexOf(_visible, initialTab));
             _tabs.SelectedChanged += (s, e) => { ShowPage(CurrentTab); UpdateStatus(); };
             Shown += (s, e) => { if (CurrentTab == TabProject) _project.FocusFirst(); };
             _defaults.Click += (s, e) => RestoreDefaults();
             _ok.Click += (s, e) => Save();
 
-            // As páginas ficam visíveis até a janela carregar: escondidas antes disso não acompanham a escala do DPI
+            // As páginas ficam visíveis até a janela carregar: assim as tabelas de todas as abas são criadas junto com ela e o
+            // ClearSelection tira de todas a seleção da primeira célula
             Load += (s, e) =>
             {
                 ShowPage(CurrentTab);
@@ -1011,7 +1012,7 @@ namespace FiberPlugin.UI
             page.Controls.Add(frame, 0, 0);
             page.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             page.Controls.Add(bar, 0, 1);
-            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            page.RowStyles.Add(new RowStyle(SizeType.Absolute, 50)); // Três linhas de dica também em 150%
             Label hintLabel = Hint(hint);
             hintLabel.Dock = DockStyle.Fill;
             page.Controls.Add(hintLabel, 0, 2);

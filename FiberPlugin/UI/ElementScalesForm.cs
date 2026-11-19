@@ -8,7 +8,7 @@ namespace FiberPlugin.UI
     /// nome e metragem dos cabos e setas de esforço. Campo vazio = escala do desenho. A linha Todos preenche a coluna
     /// inteira de uma vez (todos os ícones ou todos os textos) quando o valor digitado é uma escala válida.
     /// </summary>
-    internal class ElementScalesForm : Form
+    internal class ElementScalesForm : ThemedForm
     {
         private static readonly CultureInfo Br = CultureInfo.GetCultureInfo("pt-BR");
 
@@ -29,7 +29,6 @@ namespace FiberPlugin.UI
         {
             _drawing = drawing;
             Result = current.Clone();
-            Theme.ApplyForm(this);
             Text = "Fiber Plugin - Escala por elemento";
             ClientSize = new Size(600, 440);
 
