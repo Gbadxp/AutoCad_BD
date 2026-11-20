@@ -221,7 +221,8 @@ namespace FiberPlugin.Commands
                     var model = new Rect(main.ViewCenter.X - w / 2, main.ViewCenter.Y - h / 2, main.ViewCenter.X + w / 2, main.ViewCenter.Y + h / 2);
                     var paper = new Rect(main.CenterPoint.X - main.Width / 2, main.CenterPoint.Y - main.Height / 2,
                                          main.CenterPoint.X + main.Width / 2, main.CenterPoint.Y + main.Height / 2);
-                    int number = int.Parse(name.Substring(prefix.Length + 1), CultureInfo.InvariantCulture);
+                    // Só algarismos (LayoutsWithPrefix); número comprido demais vai para o fim, sem quebrar o comando
+                    int number = int.TryParse(name.Substring(prefix.Length + 1), NumberStyles.None, CultureInfo.InvariantCulture, out int n) ? n : int.MaxValue;
                     sheets.Add((name, number, layout.ObjectId, model, main.CustomScale, paper));
                 }
             }

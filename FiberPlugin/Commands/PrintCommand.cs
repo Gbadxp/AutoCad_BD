@@ -172,7 +172,8 @@ namespace FiberPlugin.Commands
                     progress.IsVisible = true;
                     engine.BeginPlot(progress, null);
 
-                    var settingsToDispose = new List<PlotSettings>();
+                    // Objetos de impressão do AutoCAD (com parte fora do .NET): liberados quando o documento termina
+                    var toDispose = new List<IDisposable>();
                     try
                     {
                         for (int i = 0; i < pages.Count; i++)
@@ -181,13 +182,16 @@ namespace FiberPlugin.Commands
                             lm.CurrentLayout = layout.LayoutName;
 
                             var settings = new PlotSettings(layout.ModelType);
-                            settingsToDispose.Add(settings);
+                            toDispose.Add(settings);
                             settings.CopyFrom(layout);
-                            ToPdf(settings, layout);
+                            if (ToPdf(settings, layout) is string paperWarning) warnings.Add(paperWarning);
                             if (monochrome) SetStyle(settings, db);
 
                             var info = new PlotInfo { Layout = layout.ObjectId, OverrideSettings = settings };
-                            new PlotInfoValidator { MediaMatchingPolicy = MatchingPolicy.MatchEnabled }.Validate(info);
+                            var validator = new PlotInfoValidator { MediaMatchingPolicy = MatchingPolicy.MatchEnabled };
+                            toDispose.Add(info);
+                            toDispose.Add(validator);
+                            validator.Validate(info);
 
                             if (i == 0) engine.BeginDocument(info, doc.Name, null, 1, true, file);
                             progress.set_PlotMsgString(PlotMessageIndex.Status, $"{layout.LayoutName} ({i + 1} de {pages.Count})");
@@ -196,7 +200,9 @@ namespace FiberPlugin.Commands
                             progress.UpperSheetProgressRange = 100;
                             progress.SheetProgressPos = 0;
 
-                            engine.BeginPage(new PlotPageInfo(), info, i == pages.Count - 1, null);
+                            var page = new PlotPageInfo();
+                            toDispose.Add(page);
+                            engine.BeginPage(page, info, i == pages.Count - 1, null);
                             engine.BeginGenerateGraphics(null);
                             progress.SheetProgressPos = 50;
                             engine.EndGenerateGraphics(null);
@@ -212,7 +218,7 @@ namespace FiberPlugin.Commands
                     }
                     finally
                     {
-                        foreach (PlotSettings s in settingsToDispose) s.Dispose();
+                        foreach (IDisposable d in toDispose) d.Dispose();
                     }
                     tr.Commit();
                 }
@@ -226,12 +232,12 @@ namespace FiberPlugin.Commands
         }
 
         /// <summary>
-        /// Folha configurada para outra impressora: passa para a DWG To PDF no papel do mesmo tamanho (sem papel igual, fica
-        /// como está e a impressão avisa).
+        /// Folha configurada para outra impressora: passa para a DWG To PDF no papel do mesmo tamanho. Sem papel igual na PDF,
+        /// ela sai no papel padrão da PDF e o aviso volta para a linha de comando (null quando está tudo certo).
         /// </summary>
-        private static void ToPdf(PlotSettings settings, Layout layout)
+        private static string? ToPdf(PlotSettings settings, Layout layout)
         {
-            if (layout.PlotConfigurationName.Equals(SheetLayoutCommand.PdfDevice, StringComparison.OrdinalIgnoreCase)) return;
+            if (layout.PlotConfigurationName.Equals(SheetLayoutCommand.PdfDevice, StringComparison.OrdinalIgnoreCase)) return null;
             PlotSettingsValidator psv = PlotSettingsValidator.Current;
             double w = layout.PlotPaperSize.X, h = layout.PlotPaperSize.Y;
             psv.SetPlotConfigurationName(settings, SheetLayoutCommand.PdfDevice, null);
@@ -240,7 +246,11 @@ namespace FiberPlugin.Commands
             string a = w.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
             string b = h.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
             string? paper = SheetLayoutCommand.FindMedia(media, $"{a}_x_{b}") ?? SheetLayoutCommand.FindMedia(media, $"{b}_x_{a}");
-            if (paper != null) psv.SetCanonicalMediaName(settings, paper);
+            if (paper == null)
+                return $"A folha {layout.LayoutName} usa outra impressora e a DWG To PDF não tem papel de {a} × {b} mm: saiu no papel " +
+                       "padrão do PDF (ajuste a configuração de página dela para a DWG To PDF).";
+            psv.SetCanonicalMediaName(settings, paper);
+            return null;
         }
 
         /// <summary>Preto e branco: a tabela de penas monochrome do AutoCAD (ctb ou stb, conforme o desenho).</summary>

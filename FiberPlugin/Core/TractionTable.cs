@@ -95,12 +95,16 @@ namespace FiberPlugin.Core
                 return Default();
             }
 
-            if (rows.Count == 0 || spans.Length == 0 || spans.Any(s => s <= 0))
+            // Os vãos têm que crescer da esquerda para a direita: a tração entre dois vãos é interpolada, e um vão repetido
+            // ou fora de ordem (arquivo editado à mão) dividiria por zero
+            bool increasing = spans.Zip(spans.Skip(1), (a, b) => b > a).All(ok => ok);
+            if (rows.Count == 0 || spans.Length == 0 || spans.Any(s => s <= 0) || !increasing)
             {
-                error = $"Tabela de tração inválida em '{path}'; usando a Tabela 08 que vem com o plugin.";
+                error = $"Tabela de tração inválida em '{path}' (vãos em branco, repetidos ou fora de ordem); usando a Tabela 08 que vem com o plugin.";
                 return Default();
             }
-            return new TractionTable(spans, rows);
+            // Faixas em ordem de fibras: a tração usa a primeira faixa que cobre o número de fibras do cabo
+            return new TractionTable(spans, rows.OrderBy(r => r.MaxFibers).ToList());
         }
 
         public string ToText()
