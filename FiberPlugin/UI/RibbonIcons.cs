@@ -77,6 +77,7 @@ namespace FiberPlugin.UI
             ["FIBRA_INSERIR_AMARRACAO"] = PaintAnchoring,
             ["FIBRA_SPLITTER"] = PaintSplitter,
             ["FIBRA_CADASTRO"] = PaintRegistration,
+            ["FIBRA_CADASTRO_VER"] = PaintRegistrationView,
             ["FIBRA_VISIBILIDADE"] = PaintVisibility,
             ["FIBRA_RENUMERAR"] = PaintRenumber,
             ["FIBRA_NUMERAR_AUTO"] = PaintAutoNumber,
@@ -601,13 +602,17 @@ namespace FiberPlugin.UI
             dc.DrawRectangle(ink.Fiber, Ink.Pen(ink.Line, 0.8), new W.Rect(28, 22, 3, 7));
         }
 
+        /// <summary>
+        /// Gerar Folhas: duas pranchas deitadas, uma atrás da outra; na da frente, a moldura, um trecho de rede e o carimbo
+        /// azul no canto de baixo à direita (antes eram quatro quadrados, que pareciam uma janela).
+        /// </summary>
         private static void PaintSheets(M.DrawingContext dc, Ink ink)
         {
-            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(3, 6, 26, 21));
-            dc.DrawRectangle(ink.Blue, null, new W.Rect(6, 9, 9, 6.5));
-            dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 9, 9, 6.5));
-            dc.DrawRectangle(ink.Blue, null, new W.Rect(6, 17.5, 9, 6.5));
-            dc.DrawRectangle(ink.Blue, null, new W.Rect(17, 17.5, 9, 6.5));
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.2), new W.Rect(9, 3, 20, 14));    // Prancha de trás
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.3), new W.Rect(3, 10, 22, 17));   // Prancha da frente
+            dc.DrawRectangle(null, Ink.Pen(ink.Line, 0.7), new W.Rect(5, 12, 18, 13));         // Moldura
+            dc.DrawGeometry(null, Ink.Pen(ink.Fiber, 1.6), G("M7,21 L10.5,16 L14.5,19 L20,14.5")); // Trecho de rede
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(15, 21.5, 8, 3.5));                    // Carimbo
         }
 
         /// <summary>Splitter: uma fibra entra e se divide em quatro.</summary>
@@ -631,6 +636,16 @@ namespace FiberPlugin.UI
             dc.DrawLine(line, new W.Point(17, 21), new W.Point(24, 21));
         }
 
+        /// <summary>Ver Cadastro: olho com uma marca verde e uma vermelha.</summary>
+        private static void PaintRegistrationView(M.DrawingContext dc, Ink ink)
+        {
+            dc.DrawGeometry(ink.Paper, Ink.Pen(ink.Line, 1.5), G("M2,15 Q16,3 30,15 Q16,27 2,15 Z"));
+            dc.DrawEllipse(ink.Blue, null, new W.Point(16, 15), 5, 5);
+            dc.DrawEllipse(ink.White, null, new W.Point(14.4, 13.4), 1.5, 1.5);
+            dc.DrawEllipse(ink.Green, Ink.Pen(ink.White, 1), new W.Point(7, 26), 4, 4);
+            dc.DrawEllipse(ink.Red, Ink.Pen(ink.White, 1), new W.Point(25, 26), 4, 4);
+        }
+
         /// <summary>Olho, cortado pela metade (à vista e oculto).</summary>
         private static void PaintVisibility(M.DrawingContext dc, Ink ink)
         {
@@ -640,17 +655,21 @@ namespace FiberPlugin.UI
             dc.DrawLine(Ink.Pen(ink.Red, 2.4), new W.Point(5, 28), new W.Point(27, 4));
         }
 
-        /// <summary>Impressora com a folha saindo e o selo vermelho do PDF.</summary>
+        /// <summary>
+        /// Impressora azul com a prancha saindo (moldura, rede e carimbo, como no Gerar Folhas) e o selo vermelho do PDF. O
+        /// corpo era cinza-claro e, no tema escuro, o ícone ficava quase todo branco.
+        /// </summary>
         private static void PaintPrint(M.DrawingContext dc, Ink ink)
         {
-            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.2), new W.Rect(9, 3, 14, 9));          // Folha entrando
-            dc.DrawRoundedRectangle(ink.Line, null, new W.Rect(3, 11, 26, 12), 2, 2);               // Corpo
-            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.2), new W.Rect(8, 19, 16, 10));         // Folha saindo
-            dc.DrawLine(Ink.Pen(ink.Line, 1), new W.Point(11, 23), new W.Point(21, 23));
-            dc.DrawLine(Ink.Pen(ink.Line, 1), new W.Point(11, 26), new W.Point(18, 26));
-            dc.DrawEllipse(ink.Green, null, new W.Point(25.5, 14.5), 1.3, 1.3);                     // Luz
-            dc.DrawRectangle(ink.Red, null, new W.Rect(18, 1, 12, 7));                              // PDF
-            dc.DrawLine(Ink.Pen(ink.White, 1.2), new W.Point(20.5, 4.5), new W.Point(27.5, 4.5));
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.1), new W.Rect(8, 3, 13, 9));            // Folha entrando
+            dc.DrawRoundedRectangle(ink.Blue, null, new W.Rect(2, 10, 28, 12), 2.5, 2.5);            // Corpo
+            dc.DrawRectangle(ink.White, null, new W.Rect(6, 17, 20, 1.6));                            // Fenda da saída
+            dc.DrawEllipse(ink.Green, Ink.Pen(ink.White, 0.8), new W.Point(25.5, 13.5), 1.6, 1.6);    // Luz
+            dc.DrawRectangle(ink.Paper, Ink.Pen(ink.Line, 1.1), new W.Rect(8, 18, 16, 12));           // Prancha saindo
+            dc.DrawGeometry(null, Ink.Pen(ink.Fiber, 1.4), G("M10,27 L13,22.5 L16.5,25 L21,21"));     // Rede
+            dc.DrawRectangle(ink.Blue, null, new W.Rect(17.5, 26.5, 5, 2));                           // Carimbo
+            dc.DrawRoundedRectangle(ink.Red, null, new W.Rect(18, 1, 13, 7.5), 1.2, 1.2);            // PDF
+            dc.DrawLine(Ink.Pen(ink.White, 1.3), new W.Point(20.5, 4.75), new W.Point(28.5, 4.75));
         }
 
         /// <summary>Globo com marcador (Google Earth); a seta verde entra (importar) ou sai (exportar).</summary>

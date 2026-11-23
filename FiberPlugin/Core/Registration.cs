@@ -50,7 +50,8 @@ namespace FiberPlugin.Core
 
         /// <summary>
         /// Marca do objeto no desenho, na layer verde ou vermelha: em volta do bloco ou do texto um círculo; no cabo e na
-        /// cordoalha uma faixa larga por cima do percurso. Null se o objeto não tem extensão.
+        /// cordoalha uma linha fina por cima do percurso, que só troca a cor dele na tela (a espessura fica a do cabo).
+        /// Null se o objeto não tem extensão.
         /// </summary>
         public static Entity? DrawMark(Transaction tr, Database db, BlockTableRecord space, Entity ent, bool done, double scale)
         {
@@ -61,7 +62,6 @@ namespace FiberPlugin.Core
                 var band = new Polyline { Layer = layer };
                 for (int i = 0; i < poly.NumberOfVertices; i++) band.AddVertexAt(i, poly.GetPoint2dAt(i), 0, 0, 0);
                 band.Closed = poly.Closed;
-                band.ConstantWidth = 1.5 * scale;
                 mark = band;
             }
             else

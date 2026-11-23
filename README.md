@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.104.msi`](Instalador/FiberPlugin-1.9.104.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.105.msi`](Instalador/FiberPlugin-1.9.105.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -152,7 +152,6 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Lançar Cabo | `FIBRA_LANCAR_CABO` | Desenha o cabo clicando nos pontos, como o comando LINE: cada trecho aparece na tela ao clicar, **D** desfaz o último ponto e Enter finaliza. Escreve nome e metragem vão a vão. Na aba Fibra é um botão dividido: o clique lança cabo, e a setinha abre a lista com Lançar Cabo e Lançar Backbone. |
 | Lançar Backbone | `FIBRA_LANCAR_BACKBONE` | Cabo tronco: lançado como o Lançar Cabo (escolha o cabo na lista e clique nos postes), na layer `FIBRA_BACKBONE_<cabo>` (azul por padrão: a cor fica em Configuração de Desenho > Desenho; o tipo de linha e a espessura são os do cabo) e com a linha bem mais grossa (0,6 mm no papel em 1:1000, que aparece na tela e na impressão). No esforço, relatório, memorial, produção, amarração e Trocar Cabo ele conta como os outros cabos (o Trocar Cabo mantém o backbone). |
 | Roteamento Automático | `FIBRA_ROTEAMENTO_AUTO` | Seleciona blocos e gera a rota mais curta entre eles (vizinho mais próximo testando todos os inícios + otimização 2-opt), afastada 1,8 m dos postes. Antes da seleção, pergunta de que lado o cabo passa (`Cima`, `Baixo`, `Esquerda` ou `Direita`; a última escolha fica como padrão enquanto o AutoCAD estiver aberto) e mantém o cabo desse lado na rota inteira, sem trocar de lado nas curvas. No poste DT o cabo vai na face do poste que fica desse lado (segue a rotação do bloco); se o DT estiver girado com as faces na direção do cabo, ele é tratado como poste redondo e o comando avisa. |
-| Trocar Cabo | `FIBRA_TROCAR_CABO` | Troca o tipo de um cabo já lançado sem desenhar de novo (ex.: lançou 06F.O e era 12F.O): escolha o cabo novo na lista e clique nos cabos a trocar, um por vez (Enter termina; cabos já selecionados antes do comando são trocados direto). O percurso fica; a linha vai para a layer do cabo novo e os textos dele (nome e metragens dos vãos) vão junto, com o nome trocado. São os textos da layer do cabo antigo mais perto deste cabo que de qualquer outro, então dois cabos do mesmo tipo lado a lado não trocam os textos um do outro. Avisa se a tração do cabo novo é outra (rode o Esforço no Percurso de novo) e se algum vão passa do vão do cabo novo. |
 | Reserva Técnica | `FIBRA_RESERVA_TECNICA` | Pede a metragem (padrão 30 m; a última usada fica como padrão), o ponto da reserva (poste ou cabo) e o lado do texto, mostrando a seta enquanto o mouse anda. Desenha a seta vermelha apontando para o ponto, com **RESERVA TÉCNICA 30m** ao longo dela, na layer `FIBRA_RESERVA_TECNICA`. Clicando num poste, a seta aponta para o centro dele com a ponta encostada no desenho do poste. Repete para a próxima reserva até o Enter. |
 | Cordoalha | `FIBRA_CORDOALHA` | Desenha a cordoalha clicando nos pontos, como o Lançar Cabo: linha laranja tracejada e grossa (largura de 0,5 mm no papel, que aparece na tela e na impressão; layer `FIBRA_CORDOALHA`) com a metragem de cada trecho em verde ("36.97", layer `FIBRA_CORDOALHA_TEXTO`). Não é cabo de fibra: não entra no esforço nem na metragem de cabos do relatório; aparece na Produção do Dia. |
 
@@ -160,7 +159,6 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Botão | Comando | Função |
 |---|---|---|
 | Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes da Configuração de Desenho) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. Desenho novo, ainda sem zona UTM, recebe a do projeto (a que aparece em Configuração de Projeto, do último projeto; ou a da geolocalização do DWG; sem nenhuma, pergunta), e os postes que já estavam no desenho ganham a linha da zona (ex.: 20 L) no texto. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
-| Trocar Poste | `FIBRA_TROCAR_POSTE` | Troca o modelo de um poste já inserido sem inserir de novo (ex.: lançou DT 9/200 e era DT 11/300, ou DT por CC): escolha o modelo na lista e clique nos postes, um por vez (Enter termina; postes já selecionados antes do comando são trocados direto). O poste fica no mesmo lugar e continua o mesmo objeto, então setas de esforço, CTO/CEO e o texto continuam ligados a ele; mudam o desenho do bloco (DT ↔ CC), os atributos e o texto ("9/200" → "11/300"). Número, esforço existente e ID da Energisa ficam. Se a altura mudar, avisa para rodar o Esforço no Percurso de novo (a seta mostra o esforço a 20 cm do topo). |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
 | Splitter | `FIBRA_SPLITTER` | Clique na CTO/CEO e digite o nível do splitter (1º, 2º ou 3º) e a razão (1:2 a 1:64): ele fica gravado na caixa e aparece no texto dela, embaixo do nome (`S1 1:8`). Uma caixa pode ter um de cada nível; marcar o mesmo nível de novo troca a razão. **Remover** tira os splitters da caixa. O Gerar Relatório conta os splitters por nível e razão (Resumo) e lista os de cada caixa (aba CTO e CEO). |
@@ -168,6 +166,8 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 
 ### Esforços
+Na aba Fibra os quatro ficam num botão só, como o Lançar: o clique roda o **Esforço no Percurso** e a setinha abre os outros.
+
 | Botão | Comando | Função |
 |---|---|---|
 | Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
@@ -177,16 +177,25 @@ Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
 
 ### Editar
 
-Numeração e tamanho dos blocos já inseridos (na aba Fibra, o painel ao lado de Inserir).
+Numeração, troca de cabo e de poste e tamanho do que já está desenhado (na aba Fibra, o painel ao lado de Esforços). Numerar Auto e Numerar Clicando ficam num botão só, como o Lançar: o clique roda o **Numerar Auto** e a setinha abre o Numerar Clicando.
 
 | Botão | Comando | Função |
 |---|---|---|
 | Renumerar | `FIBRA_RENUMERAR` | Corrige a numeração: clique nos blocos na ordem desejada. No primeiro de cada tipo você digita o número; os seguintes recebem o próximo automaticamente. Funciona em postes, CTO, CEO e qualquer bloco com atributo NÚMERO/ID; atualiza atributo, texto de identificação (sem mudar de lugar) e dados do relatório. **N** define o próximo número; avisa se o número já existir em outro bloco. |
+| Trocar Cabo | `FIBRA_TROCAR_CABO` | Troca o tipo de um cabo já lançado sem desenhar de novo (ex.: lançou 06F.O e era 12F.O): escolha o cabo novo na lista e clique nos cabos a trocar, um por vez (Enter termina; cabos já selecionados antes do comando são trocados direto). O percurso fica; a linha vai para a layer do cabo novo e os textos dele (nome e metragens dos vãos) vão junto, com o nome trocado. São os textos da layer do cabo antigo mais perto deste cabo que de qualquer outro, então dois cabos do mesmo tipo lado a lado não trocam os textos um do outro. Avisa se a tração do cabo novo é outra (rode o Esforço no Percurso de novo) e se algum vão passa do vão do cabo novo. |
+| Trocar Poste | `FIBRA_TROCAR_POSTE` | Troca o modelo de um poste já inserido sem inserir de novo (ex.: lançou DT 9/200 e era DT 11/300, ou DT por CC): escolha o modelo na lista e clique nos postes, um por vez (Enter termina; postes já selecionados antes do comando são trocados direto). O poste fica no mesmo lugar e continua o mesmo objeto, então setas de esforço, CTO/CEO e o texto continuam ligados a ele; mudam o desenho do bloco (DT ↔ CC), os atributos e o texto ("9/200" → "11/300"). Número, esforço existente e ID da Energisa ficam. Se a altura mudar, avisa para rodar o Esforço no Percurso de novo (a seta mostra o esforço a 20 cm do topo). |
 | Numerar Clicando | `FIBRA_NUMERAR_MANUAL` | Numeração na ordem dos cliques: digite o número inicial (ex.: `10`, `P10`) e clique nos postes (ou nos textos deles) na ordem que quiser; cada clique já recebe o próximo número (P-10, P-11, P-12...), com o texto atualizado na hora. **Desfazer** volta o último clique, **Numero** muda o próximo número e Enter termina. No fim avisa os números que ficaram repetidos com postes que não foram clicados. **U** desfaz tudo. |
 | Numerar Auto | `FIBRA_NUMERAR_AUTO` | Numeração automática: clique no primeiro poste (ou no texto dele) e digite o número dele (`1`, `P1` ou `P-01`); vale para todos os postes do desenho, ou só para os escolhidos com a opção **Selecionar** antes do clique. A numeração segue os cabos: continua pelo mesmo cabo até o fim (na esquina também) e depois entra nas derivações, como na numeração feita à mão; postes sem cabo entram no fim, pelo mais próximo. Pergunta se numera também as CTO e CEO desses postes, na ordem deles (CTO-01 no primeiro poste que tem CTO...). Com seleção, os números dos postes de fora são pulados. Atualiza atributo, texto e dados; **U** desfaz. |
 | Tamanho | `FIBRA_TAMANHO_BLOCO` | Muda o tamanho de blocos já inseridos: selecione um ou vários e digite o novo tamanho (maior lado, em m) ou use **Fator** (2 = dobro, 0,5 = metade). Cada bloco continua no ponto em que foi inserido (CTO/CEO: no centro do símbolo) e o texto de identificação acompanha. Também funciona selecionando antes. |
 | Padronizar | `FIBRA_PADRONIZAR_TAMANHOS` | Deixa postes, CTO/CEO, textos, setas de esforço, reservas e cordoalhas no tamanho da escala do desenho (o mesmo da inserção): o que foi colado de um desenho em outra escala fica igual ao resto. Com objetos selecionados antes, só eles. |
-| Cadastro | `FIBRA_CADASTRO` | O que já foi cadastrado na plataforma da Energisa. **Cadastrar** / **Pendente**: escolha o tipo (Todos, Postes, CTO, CEO, Cabos ou Outros: elétricos, amarrações, cordoalha e reserva) e selecione uma área ou clique nos objetos. Cada objeto ganha uma marca: círculo (ou faixa, no cabo) **verde** se cadastrado e **vermelho** se falta, nas layers `FIBRA_CADASTRO_OK` e `FIBRA_CADASTRO_FALTA`, que não imprimem. **Todos**, **Faltam** e **Feitos** mostram todas as marcas, só as vermelhas ou só as verdes; **Ocultar** esconde. A linha de comando mostra quantos de cada tipo já foram cadastrados. As marcas são refeitas a cada vez (rode de novo depois de mover ou copiar objetos). |
+
+### Cadastro
+Cadastro na plataforma da Energisa e o que fica à vista no projeto (na aba Fibra, o painel ao lado de Editar).
+
+| Botão | Comando | Função |
+|---|---|---|
+| Cadastro | `FIBRA_CADASTRO` | O que já foi cadastrado na plataforma da Energisa. **Cadastrar** / **Pendente**: escolha o tipo (Todos, Postes, CTO, CEO, Cabos ou Outros: elétricos, amarrações, cordoalha e reserva) e selecione uma área ou clique nos objetos; nada aparece no desenho (para ver, use o Ver Cadastro). **Faltam** e **Feitos** mostram só as marcas vermelhas ou só as verdes. A linha de comando mostra quantos de cada tipo já foram cadastrados. |
+| Ver Cadastro | `FIBRA_CADASTRO_VER` | Um clique mostra as marcas do cadastro e o seguinte esconde: círculo em volta de cada poste, caixa ou bloco e, no cabo, a linha na cor da marca (mesma espessura), **verde** se cadastrado e **vermelho** se falta, nas layers `FIBRA_CADASTRO_OK` e `FIBRA_CADASTRO_FALTA`, que não imprimem. As marcas são desenhadas na hora, com o desenho de agora. |
 | Visibilidade | `FIBRA_VISIBILIDADE` | Janela que oculta objetos do projeto, na tela, nas folhas e na impressão (continuam no desenho e contam no relatório, no esforço e no memorial). Marque os tipos que ficam à vista (Postes, CTO, CEO, Cabos, Setas de esforço, Outros) e, pelo cadastro na Energisa, **Todos**, **Só os cadastrados** ou **Só os que faltam**; a janela mostra quantos ficam ocultos. O texto de cada poste e caixa, os textos dos vãos de cada cabo e a seta da reserva somem junto. As combinações viram **presets** (nome + Salvar preset), que valem para todos os desenhos (`Documentos\Fiber Plugin\visibilidade.txt`); já vêm Tudo, Só CTO e CEO, Postes CTO e CEO, Faltam cadastrar e Só cadastrados. Duplo clique no preset aplica. **Mostrar tudo** volta tudo à vista. Objeto desenhado depois entra à vista: aplique o preset de novo. |
 
 ### Google Earth
@@ -298,7 +307,7 @@ um aviso na linha de comando.
 | FUC | Atualizar Coordenadas | FNM | Numerar Clicando |
 | FIF | Imprimir Folhas | | |
 | FSP | Marcar Splitter | FCN | Cadastro Energisa |
-| FVI | Visibilidade | | |
+| FVI | Visibilidade | FVC | Ver Cadastro |
 
 ### Só pela linha de comando
 | Comando | Função |

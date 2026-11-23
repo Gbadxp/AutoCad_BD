@@ -34,6 +34,7 @@ namespace FiberPlugin.Core
             ["FIBRA_INSERIR_AMARRACAO"] = "FAM",
             ["FIBRA_SPLITTER"] = "FSP",
             ["FIBRA_CADASTRO"] = "FCN",
+            ["FIBRA_CADASTRO_VER"] = "FVC",
             ["FIBRA_VISIBILIDADE"] = "FVI",
             ["FIBRA_RENUMERAR"] = "FRN",
             ["FIBRA_NUMERAR_AUTO"] = "FNA",

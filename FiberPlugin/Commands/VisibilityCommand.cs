@@ -52,7 +52,6 @@ namespace FiberPlugin.Commands
             }
 
             int hidden = 0, locked = 0;
-            bool hasMarks;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 void Set(ObjectId id, bool show)
@@ -74,12 +73,11 @@ namespace FiberPlugin.Commands
                 foreach (var (id, pole) in arrows) Set(id, filter.Shows(VisibilityFilter.Arrows, pole?.Done));
 
                 filter.Save(tr, db);
-                hasMarks = CadHelpers.OpenModelSpace(tr, db, OpenMode.ForRead).Cast<ObjectId>()
-                    .Any(id => tr.GetObject(id, OpenMode.ForRead) is Entity e && Registration.IsMark(e));
                 tr.Commit();
             }
-            // As marcas do cadastro acompanham: objeto oculto fica sem marca
-            if (hasMarks) RegistrationCommand.RedrawMarks(db);
+            // As marcas do cadastro à vista acompanham (as mesmas cores): objeto oculto fica sem marca
+            var (marksDone, marksPending) = RegistrationCommand.ShownMarks(db);
+            if (marksDone || marksPending) RegistrationCommand.RedrawMarks(db, marksDone, marksPending);
 
             ed.WriteMessage(showAll || filter.ShowsEverything
                 ? "\n[SUCESSO]: Tudo à vista de novo."

@@ -57,13 +57,13 @@ namespace FiberPlugin.UI
                 .Concat(Sections.SelectMany(s => s.Tools).Select(t => (t.Command, t.Title)))
                 .Concat(CommandLineOnly);
 
-        private const string LaunchMenu = "Lançar";
+        private const string LaunchMenu = "Lançar", EffortMenu = "Esforço", NumberMenu = "Numerar";
 
         /// <summary>
         /// Botões de lista divididos: o clique no botão roda a primeira ferramenta (com o nome e o ícone dela) e só a setinha
         /// abre a lista, como os botões divididos do AutoCAD. Nos outros, o botão inteiro abre a lista.
         /// </summary>
-        public static readonly HashSet<string> SplitMenus = new HashSet<string> { LaunchMenu };
+        public static readonly HashSet<string> SplitMenus = new HashSet<string> { LaunchMenu, EffortMenu, NumberMenu };
 
         /// <summary>Chave do ícone do botão de lista (Tool.RibbonMenu).</summary>
         public static string MenuIcon(string menu) => "FIBRA_GRUPO_" + menu.ToUpperInvariant();
@@ -77,15 +77,12 @@ namespace FiberPlugin.UI
                     "Cabo tronco: como o Lançar Cabo, com a linha mais grossa, na layer FIBRA_BACKBONE_<cabo>", "Lançar\nBackbone",
                     ribbonMenu: LaunchMenu),
                 new Tool("FIBRA_ROTEAMENTO_AUTO", "Roteamento Automático", "Rota mais curta entre os blocos", "Roteamento\nAutomático"),
-                new Tool("FIBRA_TROCAR_CABO", "Trocar Cabo", "Troca o tipo do cabo clicado (ex.: 06F.O por 12F.O) sem desenhar de novo", "Trocar Cabo", largeOnRibbon: false),
                 new Tool("FIBRA_RESERVA_TECNICA", "Reserva Técnica", "Seta com \"RESERVA TÉCNICA 30m\" apontando para o poste ou o vão", "Reserva Técnica", largeOnRibbon: false),
                 new Tool("FIBRA_CORDOALHA", "Lançar Cordoalha", "Linha laranja tracejada clicando nos postes, com a metragem de cada trecho", "Cordoalha", largeOnRibbon: false)
             }),
             ("Inserir", new[]
             {
                 new Tool("FIBRA_INSERIR_POSTE", "Inserir Postes", "DT/CC já com número, 11/300 e UTM", "Postes", largeOnRibbon: false),
-                new Tool("FIBRA_TROCAR_POSTE", "Trocar Poste", "Troca o modelo do poste clicado (ex.: 9/200 por 11/300, ou DT por CC) sem inserir de novo",
-                    "Trocar Poste", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CTO", "Inserir CTO", "CTO-01, CTO-02... ligadas ao poste mais próximo", "CTO", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_CEO", "Inserir CEO", "CEO-01, CEO-02... ligadas ao poste mais próximo", "CEO", largeOnRibbon: false),
                 new Tool("FIBRA_SPLITTER", "Marcar Splitter", "Clique na CTO/CEO e marque o splitter de 1º, 2º ou 3º nível (ex.: S1 1:8)",
@@ -93,26 +90,44 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false)
             }),
+            // Um botão dividido, como o Lançar: o clique roda o Esforço no Percurso e a setinha abre os outros
             ("Esforços", new[]
             {
-                new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste"),
-                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Esforço em todos os postes do cabo; seta onde a NDU 009 pede", "Esforço no\nPercurso"),
-                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros", largeOnRibbon: false),
-                new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente", largeOnRibbon: false)
+                new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Esforço em todos os postes do cabo; seta onde a NDU 009 pede", "Esforço no\nPercurso",
+                    ribbonMenu: EffortMenu),
+                new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste", ribbonMenu: EffortMenu),
+                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros",
+                    ribbonMenu: EffortMenu),
+                new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente",
+                    ribbonMenu: EffortMenu)
             }),
-            // Numeração e tamanho dos blocos já inseridos: comandos à parte, não de inserir
+            // O que mexe no que já está desenhado (numeração, troca de cabo e de poste, tamanho): comandos à parte, não de
+            // lançar nem de inserir
             ("Editar", new[]
             {
                 new Tool("FIBRA_RENUMERAR", "Renumerar", "Clique nos blocos na ordem para corrigir a numeração", "Renumerar", largeOnRibbon: false),
-                new Tool("FIBRA_NUMERAR_AUTO", "Numeração Automática", "Clique no primeiro poste: a numeração segue os cabos (e as CTO/CEO junto)", "Numerar Auto", largeOnRibbon: false),
-                new Tool("FIBRA_NUMERAR_MANUAL", "Numerar Clicando", "Digite o número inicial e clique nos postes na ordem: cada clique recebe o próximo", "Numerar Clicando", largeOnRibbon: false),
+                new Tool("FIBRA_TROCAR_CABO", "Trocar Cabo", "Troca o tipo do cabo clicado (ex.: 06F.O por 12F.O) sem desenhar de novo", "Trocar Cabo", largeOnRibbon: false),
+                new Tool("FIBRA_TROCAR_POSTE", "Trocar Poste", "Troca o modelo do poste clicado (ex.: 9/200 por 11/300, ou DT por CC) sem inserir de novo",
+                    "Trocar Poste", largeOnRibbon: false),
+                // Um botão dividido, como o Lançar: o clique roda a Numeração Automática e a setinha abre o Numerar Clicando
+                new Tool("FIBRA_NUMERAR_AUTO", "Numeração Automática", "Clique no primeiro poste: a numeração segue os cabos (e as CTO/CEO junto)", "Numerar\nAuto",
+                    ribbonMenu: NumberMenu),
+                new Tool("FIBRA_NUMERAR_MANUAL", "Numerar Clicando", "Digite o número inicial e clique nos postes na ordem: cada clique recebe o próximo", "Numerar\nClicando",
+                    ribbonMenu: NumberMenu),
                 new Tool("FIBRA_TAMANHO_BLOCO", "Tamanho do Bloco", "Muda o tamanho dos blocos selecionados", "Tamanho", largeOnRibbon: false),
                 new Tool("FIBRA_PADRONIZAR_TAMANHOS", "Padronizar Tamanhos",
                     "Deixa postes, CTO/CEO, textos e setas no tamanho da escala do desenho (ex.: o que foi colado de outro desenho)",
-                    "Padronizar", largeOnRibbon: false),
+                    "Padronizar", largeOnRibbon: false)
+            }),
+            // Cadastro na plataforma da Energisa e o que fica à vista no projeto, num painel só deles
+            ("Cadastro", new[]
+            {
                 new Tool("FIBRA_CADASTRO", "Cadastro Energisa",
-                    "Marca o que já foi cadastrado na plataforma da Energisa (área ou objetos): verde = cadastrado, vermelho = falta",
+                    "Marca como cadastrado na plataforma da Energisa (ou pendente) uma área ou os objetos clicados",
                     "Cadastro", largeOnRibbon: false),
+                new Tool("FIBRA_CADASTRO_VER", "Ver Cadastro",
+                    "Mostra no desenho o que já foi cadastrado (verde) e o que falta (vermelho); clique de novo para esconder",
+                    "Ver Cadastro", largeOnRibbon: false),
                 new Tool("FIBRA_VISIBILIDADE", "Visibilidade",
                     "Oculta tipos de objeto ou os já cadastrados na Energisa (na tela e na impressão), com presets",
                     "Visibilidade", largeOnRibbon: false)
