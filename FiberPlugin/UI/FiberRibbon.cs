@@ -116,7 +116,7 @@ namespace FiberPlugin.UI
                 Orientation = Wpf.Controls.Orientation.Vertical,
                 LargeImage = RibbonIcons.Get(icon, 32),
                 Image = RibbonIcons.Get(icon, 16),
-                ToolTip = split ? SplitToolTip(tools) : string.Join("\n", tools.Select(t => t.Title)),
+                ToolTip = split ? SplitToolTip(tools) : (object)string.Join("\n", tools.Select(t => t.Title)),
                 IsSplit = split,
                 IsSynchronizedWithCurrentItem = false, // Continua com o nome do grupo (ou da primeira), não o do último usado
                 ListStyle = RibbonSplitButtonListStyle.Descriptive
@@ -137,9 +137,9 @@ namespace FiberPlugin.UI
             return menu;
         }
 
-        /// <summary>Dica do botão dividido: a da primeira ferramenta (com o atalho) e as outras da setinha.</summary>
-        private static string SplitToolTip(List<Tool> tools) =>
-            ToolTipFor(tools[0]) + "\nNa setinha: " + string.Join(", ", tools.Skip(1).Select(t => t.Title));
+        /// <summary>Dica do botão dividido: a da primeira ferramenta (com o atalho e a animação) e as outras da setinha.</summary>
+        private static RibbonToolTip SplitToolTip(List<Tool> tools) =>
+            ToolTipFor(tools[0], "Na setinha: " + string.Join(", ", tools.Skip(1).Select(t => t.Title)));
 
         private static RibbonButton Button(Tool tool, bool large)
         {
@@ -159,11 +159,34 @@ namespace FiberPlugin.UI
             };
         }
 
-        /// <summary>Descrição do botão e, se houver, o atalho ativo do comando.</summary>
-        private static string ToolTipFor(Tool tool)
+        /// <summary>
+        /// Dica no estilo das do AutoCAD: nome, descrição e o atalho ativo do comando. Nos comandos de desenho e edição,
+        /// com o mouse parado mais um pouco em cima do botão, a dica cresce e mostra a animação do comando
+        /// (Dados\Animacoes\&lt;COMANDO&gt;.mp4) e o passo a passo (ToolHelp).
+        /// </summary>
+        private static RibbonToolTip ToolTipFor(Tool tool, string? extra = null)
         {
             string alias = Commands.ShortcutRegistry.AliasFor(tool.Command);
-            return alias.Length > 0 ? $"{tool.Description}\nAtalho: {alias}" : tool.Description;
+            string content = tool.Description;
+            if (alias.Length > 0) content += "\nAtalho: " + alias;
+            if (extra != null) content += "\n" + extra;
+
+            var tip = new RibbonToolTip
+            {
+                Title = tool.Title,
+                Content = content,
+                Command = tool.Command,
+                IsHelpEnabled = false // F1 abriria a ajuda do AutoCAD, que não conhece os comandos do plugin
+            };
+            string? steps = ToolHelp.StepsFor(tool.Command);
+            string? video = Core.PluginPaths.AnimationFile(tool.Command);
+            if (steps != null || video != null)
+            {
+                tip.IsProgressive = true; // Primeiro a dica curta; a animação e o passo a passo vêm logo depois
+                tip.ExpandedContent = steps;
+                if (video != null) tip.ExpandedVideo = new Uri(video);
+            }
+            return tip;
         }
 
         /// <summary>Atalhos mudaram (janela Configurações): atualiza a dica de cada botão da aba Fibra.</summary>

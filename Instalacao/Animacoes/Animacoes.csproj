@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Gerador dos vídeos das dicas dos botões da aba Fibra (FiberPlugin\Dados\Animacoes\<COMANDO>.mp4). Não faz parte do
+    plugin: rode só quando mudar uma animação (dotnet run, na pasta Instalacao\Animacoes), e o build.ps1 leva os vídeos
+    para o instalador junto com a pasta Dados. Precisa do Windows 10 ou 11 (o vídeo é gravado pelo Windows.Media.Editing).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

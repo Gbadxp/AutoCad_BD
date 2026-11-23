@@ -128,9 +128,23 @@ namespace FiberPlugin.Core
             return dir == null ? null : Path.Combine(dir, fileName);
         }
 
+        /// <summary>Subpasta de Dados com os vídeos das dicas dos botões (um por comando: FIBRA_LANCAR_CABO.mp4...).</summary>
+        public const string AnimationsFolderName = "Animacoes";
+
+        /// <summary>
+        /// Vídeo da dica do botão do comando, lido sempre do pacote (ou do código-fonte, no desenvolvimento): não vai para
+        /// Documentos, onde a cópia nunca seria atualizada. Null se o comando não tem vídeo.
+        /// </summary>
+        public static string? AnimationFile(string command)
+        {
+            string? dir = FindUpwards(DataFolderName);
+            string? file = dir == null ? null : Path.Combine(dir, AnimationsFolderName, command + ".mp4");
+            return file != null && File.Exists(file) ? file : null;
+        }
+
         /// <summary>
         /// Prepara Documentos\Fiber Plugin: copia do pacote os arquivos de Dados que ainda não existem lá
-        /// (nunca sobrescreve o que o usuário editou).
+        /// (nunca sobrescreve o que o usuário editou). Os vídeos das dicas ficam só no pacote.
         /// </summary>
         public static void EnsureUserFolders()
         {
@@ -165,6 +179,7 @@ namespace FiberPlugin.Core
             foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
             {
                 string relative = file.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (relative.StartsWith(AnimationsFolderName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;
                 string destination = Path.Combine(target, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? target);
                 if (!File.Exists(destination)) File.Copy(file, destination);

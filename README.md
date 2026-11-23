@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.105.msi`](Instalador/FiberPlugin-1.9.105.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.106.msi`](Instalador/FiberPlugin-1.9.106.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -90,6 +90,18 @@ Carregado por `NETLOAD`, o plugin usa diretamente as pastas `FiberPlugin/Dados` 
 `FiberPlugin/Blocos` e `FiberPlugin/Normas` do código-fonte. Se a versão instalada também estiver ativa, desinstale-a antes de testar para não
 carregar duas cópias.
 
+As animações das dicas dos botões (`FiberPlugin/Dados/Animacoes/<COMANDO>.mp4`) são desenhadas por código no
+projeto `Instalacao/Animacoes` (cenas em `Scenes.cs`). Depois de mudar uma cena, gere os vídeos de novo:
+
+```bash
+cd Instalacao/Animacoes
+dotnet build -c Release
+dotnet bin/Release/net8.0-windows10.0.19041.0/Animacoes.dll
+```
+
+Opções: `--only FIBRA_LANCAR_CABO` gera um só; `--sheets <pasta>` grava também 8 quadros de cada vídeo num PNG,
+para conferir sem abrir o vídeo. O passo a passo que aparece embaixo do vídeo fica em `FiberPlugin/UI/ToolHelp.cs`.
+
 ## Estrutura de pastas
 
 ```
@@ -100,7 +112,8 @@ AutoCad_BD/
 │   ├── Models/             catálogo de cabos
 │   ├── UI/                 aba Fibra, menu e janelas
 │   ├── Dados/
-│   │   └── Memorial/       logo.png e figuras de instalação do memorial
+│   │   ├── Memorial/       logo.png e figuras de instalação do memorial
+│   │   └── Animacoes/      vídeos das dicas dos botões (um .mp4 por comando)
 │   ├── Blocos/
 │   │   └── BLOCOS.dwg      todos os blocos do plugin (a única biblioteca)
 │   └── Normas/
@@ -109,6 +122,7 @@ AutoCad_BD/
 │   ├── build.ps1           compila e gera o .msi em Instalador/
 │   ├── PackageContents.xml manifesto do Autoloader do AutoCAD
 │   ├── Installer/          projeto WiX do .msi (e texto da tela de instalação)
+│   ├── Animacoes/          gerador dos vídeos das dicas (não vai no instalador)
 │   └── criar-certificado-teste.ps1   opcional, para assinar as DLLs
 ├── Instalador/
 │   └── FiberPlugin-<versão>.msi      instalador da versão atual (só um)
@@ -145,6 +159,10 @@ Regras dos blocos:
 ## Comandos
 
 Todos ficam na aba **Fibra** da faixa de opções e no menu `FIBRA`.
+
+**Dica animada**: nos comandos de Cabos, Inserir, Editar e Esforços, deixe o mouse parado em cima do botão. Primeiro
+aparece a dica curta (o que faz e o atalho); mais um instante e ela cresce com uma animação curta do comando sendo
+usado e o passo a passo. O tempo até a dica crescer é o do AutoCAD (Opções → Exibir → Dicas de ferramenta).
 
 ### Cabos
 | Botão | Comando | Função |
