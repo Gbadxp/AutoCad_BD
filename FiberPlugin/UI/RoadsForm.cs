@@ -8,28 +8,29 @@ namespace FiberPlugin.UI
     /// Janela do Importar Ruas: área por retângulo (os quatro lados, dispostos como no mapa) ou centro e raio,
     /// em latitude/longitude (graus decimais) ou UTM (metros), zona UTM, como desenhar, nomes e mapa de fundo. Confere
     /// enquanto digita e mostra o tamanho da área; trocar Lat/Long ↔ UTM ou Retângulo ↔ Centro converte o que já foi
-    /// preenchido. Se a área já tem ruas no desenho, oferece escrever só os nomes.
+    /// preenchido. "Só os nomes" escreve só os nomes das ruas, sem as linhas; fica marcada sozinha quando a área já tem
+    /// ruas no desenho.
     /// </summary>
     internal class RoadsForm : ThemedForm
     {
-        private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos" };
+        private static readonly string[] Styles = { "Contorno", "Eixo", "Ambos", RoadImportSettings.NamesStyle };
+        private const int NamesOnlyIndex = 3; // "Só os nomes" em Ruas como
         private const int RowHeight = 36;  // Linha "rótulo | opções": botão de 28 + margens e folga
         private const int LabelWidth = 140; // Coluna dos rótulos das opções (cabe "Ruas no desenho" numa linha)
-        private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "só os nomes" sozinho
+        private const double MostlyDrawn = 0.5; // Ruas do desenho cobrindo pelo menos metade da área: "Só os nomes" sozinho
         private const int OpenStreetMap = 1, EsriSatellite = 2; // Opções do mapa de fundo (RoadImportSettings.Backgrounds)
 
         private readonly UtmSettings? _projectZone;
         private readonly IReadOnlyList<DrawnRoad> _drawn;
         private readonly string _roadLayer;
-        private readonly ChoiceBar _existing;
         private readonly ThemedButton _useDrawn;
         private readonly Label _existingHint;
         private readonly ChoiceBar _background;
         private readonly Label _mapHint;
-        private bool _existingTouched;      // O usuário já escolheu entre desenhar e só os nomes
-        private bool _drawnInArea;          // A área digitada tem ruas do desenho
-        private bool _mostlyDrawn;          // E elas cobrem a maior parte dela
-        private int _namesBeforeOnly = -1;  // Escolha de nomes antes de passar para "só os nomes"
+        private bool _styleTouched;         // O usuário já escolheu o Ruas como (aí não muda mais sozinho)
+        private int _styleBeforeAuto = -1;  // Ruas como antes de passar sozinho para "Só os nomes"
+        private bool _mostlyDrawn;          // As ruas do desenho cobrem a maior parte da área
+        private int _namesBeforeOnly = -1;  // Escolha de nomes antes de passar para "Só os nomes"
         private readonly ChoiceBar _mode;
         private readonly ChoiceBar _kind;
         private readonly InputBox _zone;
@@ -60,7 +61,7 @@ namespace FiberPlugin.UI
         public RoadImportSettings Settings => Read();
 
         /// <param name="projectZone">Zona UTM gravada no desenho; com ela a zona não é editável aqui.</param>
-        /// <param name="drawn">Linhas que já estão na layer das ruas (para oferecer escrever só os nomes).</param>
+        /// <param name="drawn">Linhas que já estão na layer das ruas (com elas na área, "Só os nomes" já vem marcado).</param>
         /// <param name="roadLayer">Nome da layer das ruas, para as mensagens.</param>
         public RoadsForm(RoadImportSettings saved, UtmSettings? projectZone, IReadOnlyList<DrawnRoad>? drawn = null, string roadLayer = "RUAS")
         {
@@ -127,15 +128,14 @@ namespace FiberPlugin.UI
             statusRow.Controls.Add(_status, 1, 0);
 
             // ---------- Desenho ----------
-            _style = new ChoiceBar("Contorno (meio-fio)", "Eixo", "Contorno e eixo");
+            _style = new ChoiceBar("Contorno (meio-fio)", "Eixo", "Contorno e eixo", "Só os nomes");
             _paths = new ChoiceBar("Só vias de veículos", "Também calçadas, ciclovias e trilhas");
             _names = new ChoiceBar("Sem nomes", "Com os nomes das ruas");
 
-            // Ruas que já estão no desenho: desenhar de novo ou escrever só os nomes nelas
-            _existing = new ChoiceBar("Desenhar as ruas", "Só escrever os nomes");
-            _useDrawn = new ThemedButton("Usar a área delas", false) { Margin = new Padding(8, 3, 0, 3) };
+            // Ruas que já estão no desenho: o botão leva a área até elas e a dica diz se estão nesta área
+            _useDrawn = new ThemedButton("Usar a área delas", false) { Margin = new Padding(0, 3, 0, 3) };
             var existingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, BackColor = Theme.Background };
-            existingRow.Controls.AddRange(new Control[] { _existing, _useDrawn });
+            existingRow.Controls.Add(_useDrawn);
             _existingHint = Hint();
             // Mapa de fundo: imagem do mapa do OpenStreetMap ou do satélite da Esri, baixada pelo plugin (sem conta) e posta
             // atrás das ruas, na layer FIBRA_MAPA
@@ -225,9 +225,9 @@ namespace FiberPlugin.UI
             foreach (LabeledInput field in new[] { _north, _south, _east, _west, _centerA, _centerB, _radius })
                 field.Box.Input.TextChanged += (s, e) => UpdateStatus();
             _zone.Input.TextChanged += (s, e) => UpdateStatus();
-            _existing.SelectedChanged += (s, e) =>
+            _style.SelectedChanged += (s, e) =>
             {
-                if (!_loading) _existingTouched = true;
+                if (!_loading) _styleTouched = true;
                 ApplyNamesOnly();
             };
             _background.SelectedChanged += (s, e) => ApplyBackground();
@@ -275,7 +275,6 @@ namespace FiberPlugin.UI
             IncludePaths = _paths.SelectedIndex == 1,
             // Em "só os nomes" a opção de nomes fica marcada à força: vale (e fica gravada) a escolha de antes
             IncludeNames = NamesOnlyChosen ? _namesBeforeOnly == 1 : _names.SelectedIndex == 1,
-            NamesOnly = NamesOnlyChosen,
             Background = RoadImportSettings.Backgrounds[Math.Max(0, _background.SelectedIndex)]
         };
 
@@ -293,10 +292,10 @@ namespace FiberPlugin.UI
             };
         }
 
-        /// <summary>"Só escrever os nomes" escolhido, numa área que tem ruas do desenho.</summary>
-        private bool NamesOnlyChosen => _drawnInArea && _existing.SelectedIndex == 1;
+        /// <summary>"Só os nomes" escolhido em Ruas como.</summary>
+        private bool NamesOnlyChosen => _style.SelectedIndex == NamesOnlyIndex;
 
-        /// <summary>"Só escrever os nomes": as ruas não são desenhadas, então o jeito de desenhar não vale e os nomes vão.</summary>
+        /// <summary>"Só os nomes": as ruas não são desenhadas, então os nomes vão de qualquer jeito.</summary>
         private void ApplyNamesOnly()
         {
             bool only = NamesOnlyChosen;
@@ -310,14 +309,13 @@ namespace FiberPlugin.UI
                 _names.SelectedIndex = _namesBeforeOnly;
                 _namesBeforeOnly = -1;
             }
-            _style.Enabled = !only;
             _names.Enabled = !only;
         }
 
         /// <summary>
-        /// Ruas que já estão no desenho, na área digitada: com elas, a opção de escrever só os nomes. Enquanto o usuário não
-        /// escolhe, ela fica marcada sozinha quando as ruas do desenho cobrem a maior parte da área (com só um trecho num
-        /// canto, as ruas são desenhadas).
+        /// Ruas que já estão no desenho, na área digitada. Enquanto o usuário não mexe no Ruas como, "Só os nomes" fica
+        /// marcado sozinho quando as ruas do desenho cobrem a maior parte da área (com só um trecho num canto, as ruas são
+        /// desenhadas) e volta ao de antes quando a área sai delas.
         /// </summary>
         private void UpdateDrawn()
         {
@@ -326,13 +324,20 @@ namespace FiberPlugin.UI
             int inArea = inside.Count;
             bool mostly = Area != null && inArea > 0 && DrawnRoad.Coverage(inside, Area) >= MostlyDrawn;
             bool hadMostly = _mostlyDrawn;
-            _drawnInArea = inArea > 0;
             _mostlyDrawn = mostly;
-            _existing.Enabled = inArea > 0;
-            if (mostly != hadMostly && !_existingTouched)
+            if (mostly != hadMostly && !_styleTouched)
             {
                 _loading = true;
-                _existing.SelectedIndex = mostly ? 1 : 0;
+                if (mostly && _style.SelectedIndex != NamesOnlyIndex)
+                {
+                    _styleBeforeAuto = _style.SelectedIndex;
+                    _style.SelectedIndex = NamesOnlyIndex;
+                }
+                else if (!mostly && _styleBeforeAuto >= 0)
+                {
+                    _style.SelectedIndex = _styleBeforeAuto;
+                    _styleBeforeAuto = -1;
+                }
                 _loading = false;
             }
             ApplyNamesOnly();
@@ -342,10 +347,10 @@ namespace FiberPlugin.UI
                 : inArea == 0
                     ? $"O desenho tem {_drawn.Count} linha(s) de rua ({Layers(_drawn)}), fora desta área (\"Usar a área delas\" vai até elas)."
                     : mostly
-                        ? $"Já há {inArea} linha(s) de rua aqui ({Layers(inside)}). \"Só escrever os nomes\" não redesenha as " +
-                          "ruas e troca os nomes antigos."
-                        : $"Há {inArea} linha(s) de rua só em parte desta área ({Layers(inside)}). Marque \"Só escrever os " +
-                          "nomes\" se as ruas daqui já estão desenhadas.";
+                        ? $"Já há {inArea} linha(s) de rua aqui ({Layers(inside)}). \"Só os nomes\" (em Ruas como) não " +
+                          "redesenha as ruas e troca os nomes antigos."
+                        : $"Há {inArea} linha(s) de rua só em parte desta área ({Layers(inside)}). Marque \"Só os nomes\" " +
+                          "em Ruas como se as ruas daqui já estão desenhadas.";
         }
 
         /// <summary>"layer RUAS" ou "layers RUAS, MEIO-FIO".</summary>

@@ -16,10 +16,19 @@ namespace FiberPlugin.Core
         /// <summary>Splitters da caixa (Marcar Splitter): nível (1º, 2º, 3º) e razão 1:X, em ordem de nível.</summary>
         public List<(int Level, int Ratio)> Splitters { get; set; } = new List<(int, int)>();
 
-        /// <summary>"S1 1:8", um por splitter, para o texto da caixa.</summary>
-        public IEnumerable<string> SplitterLines => Splitters.Select(s => SplitterText(s.Level, s.Ratio));
+        /// <summary>Uma linha por splitter, para o texto da caixa, no formato escolhido (UserSettings.SplitterLabel).</summary>
+        public IEnumerable<string> SplitterLines => Splitters.Select(s => SplitterText(s.Level, s.Ratio, UserSettings.Current.SplitterLabel));
 
-        public static string SplitterText(int level, int ratio) => $"S{level} 1:{ratio}";
+        /// <summary>"1º nível 1:8", um por splitter, para o relatório e as mensagens (não depende do formato do desenho).</summary>
+        public IEnumerable<string> SplitterDescriptions => Splitters.Select(s => $"{s.Level}º nível 1:{s.Ratio}");
+
+        public static string SplitterText(int level, int ratio, SplitterLabel format) => format switch
+        {
+            SplitterLabel.Notice => $"SPLITTER DE {level}º NÍVEL",
+            SplitterLabel.NoticeAndRatio => $"SPLITTER DE {level}º NÍVEL 1:{ratio}",
+            SplitterLabel.RatioOnly => $"1:{ratio}",
+            _ => $"S{level} 1:{ratio}"
+        };
 
         /// <summary>Como fica gravado no XData: "1:8;2:4" (nível:razão).</summary>
         public string SplittersCode => string.Join(";", Splitters.Select(s => $"{s.Level}:{s.Ratio}"));
@@ -35,6 +44,15 @@ namespace FiberPlugin.Core
             }
             return list.OrderBy(s => s.Item1).ToList();
         }
+    }
+
+    /// <summary>Como o splitter aparece no texto da CTO/CEO (Marcar Splitter → Texto).</summary>
+    public enum SplitterLabel
+    {
+        Short,           // S1 1:8
+        Notice,          // SPLITTER DE 1º NÍVEL
+        NoticeAndRatio,  // SPLITTER DE 1º NÍVEL 1:8
+        RatioOnly        // 1:8
     }
 
     public class BoxInfo

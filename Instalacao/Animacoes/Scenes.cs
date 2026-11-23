@@ -282,7 +282,7 @@ internal static class Scenes
         Poles(s);
         DrawnCable(s);
         Pt box = new(B.X + 2, B.Y + 18);
-        s.Prompt(0, "Clique na CTO/CEO do splitter (Enter para terminar) [Remover]:");
+        s.Prompt(0, "Clique na CTO/CEO do splitter (Enter para terminar) [Remover/Texto]:");
         s.Click(1.4, box);
         s.Prompt(1.5, "Nível do splitter na CTO-01 (1, 2 ou 3) <1>: 1");
         s.Prompt(2.5, "Razão do splitter 1:X (2, 4, 8, 16, 32 ou 64) <8>: 8");

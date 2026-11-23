@@ -58,7 +58,8 @@ namespace FiberPlugin.UI
             ["FIBRA_SPLITTER"] = new[]
             {
                 "Clique na CTO ou CEO.",
-                "Digite o nível (1, 2 ou 3) e a razão (2 a 64): o texto da caixa ganha \"S1 1:8\".",
+                "Digite o nível (1, 2 ou 3) e a razão (2 a 64): o texto da caixa ganha o splitter (ex.: \"S1 1:8\").",
+                "Texto escolhe como ele aparece: Curto (S1 1:8), Aviso (SPLITTER DE 1º NÍVEL), Ambos (com 1:8) ou Razao (só 1:8).",
                 "Uma caixa pode ter um splitter de cada nível. Remover tira os splitters dela."
             },
             ["FIBRA_INSERIR_ELETRICOS"] = new[]

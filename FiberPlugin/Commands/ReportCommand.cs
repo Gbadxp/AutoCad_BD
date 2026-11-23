@@ -225,7 +225,7 @@ namespace FiberPlugin.Commands
                     utm != null ? UtmZone.ZoneText(box.Position, utm) : null,
                     Math.Round(box.Position.X, 2),
                     Math.Round(box.Position.Y, 2),
-                    box.Data.Splitters.Count > 0 ? string.Join(", ", box.Data.SplitterLines) : null);
+                    box.Data.Splitters.Count > 0 ? string.Join(", ", box.Data.SplitterDescriptions) : null);
             }
         }
 

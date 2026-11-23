@@ -72,6 +72,19 @@ namespace FiberPlugin.Core
 
         public LayerStyle RoadStyle => new LayerStyle(RoadColor, RoadLinetype, RoadLineWeightMm);
 
+        /// <summary>Como o splitter aparece no texto da CTO/CEO: "S1 1:8" (padrão), aviso, aviso e razão ou só a razão.</summary>
+        public SplitterLabel SplitterLabel { get; set; } = SplitterLabel.Short;
+
+        /// <summary>Nome do formato do splitter no arquivo e na linha de comando.</summary>
+        public static readonly (SplitterLabel Format, string Keyword)[] SplitterLabelKeywords =
+        {
+            (SplitterLabel.Short, "Curto"), (SplitterLabel.Notice, "Aviso"), (SplitterLabel.NoticeAndRatio, "Ambos"),
+            (SplitterLabel.RatioOnly, "Razao")
+        };
+
+        public static string SplitterLabelKeyword(SplitterLabel format) =>
+            SplitterLabelKeywords.First(k => k.Format == format).Keyword;
+
         /// <summary>Até que revisão os modelos de poste novos do padrão já entraram na lista do usuário (PoleModels.AddNewDefaults).</summary>
         public int PoleModelsRevision { get; set; }
 
@@ -171,6 +184,8 @@ namespace FiberPlugin.Core
             settings.RoadColor = Color("Cor das ruas", settings.RoadColor);
             settings.RoadLinetype = LayerStyle.LinetypeFromLabel(Text("Tipo de linha das ruas"));
             settings.RoadLineWeightMm = LayerStyle.WeightFromText(Text("Espessura das ruas (mm)"));
+            string splitter = Text("Texto do splitter")?.Trim() ?? "";
+            settings.SplitterLabel = SplitterLabelKeywords.FirstOrDefault(k => k.Keyword.Equals(splitter, StringComparison.OrdinalIgnoreCase)).Format;
             settings.PoleModelsRevision = Text("Revisao dos modelos de poste") is string revision && int.TryParse(revision, out int r) && r >= 0 ? r : 0;
             return settings;
         }
@@ -203,6 +218,8 @@ namespace FiberPlugin.Core
             sb.AppendLine($"Cor das ruas: {RoadColor}");
             sb.AppendLine($"Tipo de linha das ruas: {RoadLinetype ?? "Continuous"}");
             sb.AppendLine($"Espessura das ruas (mm): {(RoadLineWeightMm is double w ? N(w) : LayerStyle.DefaultWeightLabel)}");
+            sb.AppendLine("# Texto do splitter na CTO/CEO: Curto (S1 1:8), Aviso (SPLITTER DE 1º NÍVEL), Ambos (com a razão) ou Razao (1:8)");
+            sb.AppendLine($"Texto do splitter: {SplitterLabelKeyword(SplitterLabel)}");
             sb.AppendLine($"Revisao dos modelos de poste: {PoleModelsRevision}");
 
             try

@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.107.msi`](Instalador/FiberPlugin-1.9.107.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.108.msi`](Instalador/FiberPlugin-1.9.108.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -179,7 +179,7 @@ usado e o passo a passo. O tempo até a dica crescer é o do AutoCAD (Opções �
 | Postes | `FIBRA_INSERIR_POSTE` | Escolhe o modelo na lista, em ordem de altura e esforço (29 que vêm com o plugin: DT 9/200 a 13/1500 e CC 11/300 a 13/1500, ou os da aba Postes da Configuração de Desenho) e insere o bloco DT ou CC já numerado (P-01, P-02...), com texto de número, altura/esforço e coordenada UTM. Desenho novo, ainda sem zona UTM, recebe a do projeto (a que aparece em Configuração de Projeto, do último projeto; ou a da geolocalização do DWG; sem nenhuma, pergunta), e os postes que já estavam no desenho ganham a linha da zona (ex.: 20 L) no texto. O poste **DT** gira acompanhando o mouse depois do clique (clique para fixar, digite o ângulo ou Enter = 0°); o CC não gira. **M** troca o modelo e **N** o número durante a inserção. |
 | CTO | `FIBRA_INSERIR_CTO` | Insere CTO numerada (CTO-01, CTO-02...), vinculada ao poste mais próximo, sem coordenadas. O símbolo sai com **7 mm no papel** no maior lado (7 m em 1:1000; acompanha a Escala), centrado no clique, e o nome fica centralizado logo abaixo. |
 | CEO | `FIBRA_INSERIR_CEO` | Igual à CTO, para CEO (blocos `CEO_1`, `CEO_2`: **M** troca o modelo). |
-| Splitter | `FIBRA_SPLITTER` | Clique na CTO/CEO e digite o nível do splitter (1º, 2º ou 3º) e a razão (1:2 a 1:64): ele fica gravado na caixa e aparece no texto dela, embaixo do nome (`S1 1:8`). Uma caixa pode ter um de cada nível; marcar o mesmo nível de novo troca a razão. **Remover** tira os splitters da caixa. O Gerar Relatório conta os splitters por nível e razão (Resumo) e lista os de cada caixa (aba CTO e CEO). |
+| Splitter | `FIBRA_SPLITTER` | Clique na CTO/CEO e digite o nível do splitter (1º, 2º ou 3º) e a razão (1:2 a 1:64): ele fica gravado na caixa e aparece no texto dela, embaixo do nome. Uma caixa pode ter um de cada nível; marcar o mesmo nível de novo troca a razão. **Remover** tira os splitters da caixa. **Texto** escolhe como o splitter aparece: **Curto** `S1 1:8` (padrão), **Aviso** `SPLITTER DE 1º NÍVEL`, **Ambos** `SPLITTER DE 1º NÍVEL 1:8` ou **Razao** só `1:8`; a escolha vale para todos os desenhos (fica em `configuracoes.txt`) e as caixas com splitter do desenho aberto já são reescritas (as dos outros desenhos mudam quando forem mexidas, ou rodando o Texto neles). O Gerar Relatório conta os splitters por nível e razão (Resumo) e lista os de cada caixa (aba CTO e CEO). |
 | Elétricos | `FIBRA_INSERIR_ELETRICOS` | TRAFO, TRAFO COM CHAVE FU, CHAVE FU, CHAVE CH, PARA-RAIO, ATERRAMENTO. |
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 
@@ -226,7 +226,7 @@ Ruas fica ao lado.
 |---|---|---|
 | Importar KML | `FIBRA_IMPORTAR_KML` | Traz pontos, linhas e polígonos de um KML/KMZ para o desenho, na zona UTM do projeto (veja abaixo). |
 | Exportar KML | `FIBRA_EXPORTAR_KML` | Gera um KMZ (ou KML) do projeto para abrir no Google Earth (veja abaixo). |
-| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto, com nomes e mapa de fundo opcionais; se as ruas já estiverem no desenho, escreve só os nomes (veja abaixo). |
+| Importar Ruas | `FIBRA_IMPORTAR_RUAS` | Baixa as ruas do OpenStreetMap de uma área e desenha na posição UTM do projeto, com nomes e mapa de fundo opcionais. **Só os nomes** escreve só os nomes das ruas, sem as linhas (veja abaixo). |
 
 ### Documentos e Pranchas
 
@@ -427,7 +427,10 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
     quadra, cruzamentos e rotatórias abertos, sem linhas sobrepostas. Vãos de menos de 60 cm entre pistas são
     fechados.
   - **Eixo**: a linha do centro de cada via.
-  - **Ambos**: contorno e eixo.
+  - **Contorno e eixo**: os dois.
+  - **Só os nomes**: só os nomes das ruas, sem nenhuma linha (para ruas que já estão no desenho, uma base da
+    prefeitura, ou um desenho só com os nomes). O nome fica no eixo da rua do OpenStreetMap, apoiado no eixo se houver
+    eixo desenhado ali.
 
   A largura vem da tag `width` do OSM, senão do número de faixas (3,3 m cada), senão do tipo de via
   (residencial 7 m, secundária 12 m...).
@@ -440,10 +443,9 @@ internet) e desenha no Model já prontas, sem precisar de TRIM, BOUNDARY ou OVER
   mais curtos que o texto ficam sem nome.
 - **Ruas no desenho**: se a área já tem linhas de rua (na layer das ruas, de uma importação anterior, ou numa layer
   com nome de rua, como `RUA`, `MEIO-FIO`, `QUADRA` ou `SISTEMA VIARIO`, soltas no Model ou dentro de um XREF ou
-  bloco, como a base da prefeitura), a janela avisa quantas e libera **Só escrever os nomes**: as ruas não são
-  desenhadas de novo, só os nomes, no eixo das ruas do OpenStreetMap (apoiados no eixo, se houver eixo desenhado
-  ali). A opção já vem marcada quando as ruas do desenho cobrem a maior parte da área; com só um trecho num canto,
-  as ruas são desenhadas, a não ser que você marque. Os nomes que o plugin já tinha escrito na área (na layer das
+  bloco, como a base da prefeitura), a janela avisa quantas. **Só os nomes** (em Ruas como) já vem marcado quando
+  as ruas do desenho cobrem a maior parte da área; com só um trecho num canto, as ruas são desenhadas, a não ser que
+  você marque. Os nomes que o plugin já tinha escrito na área (na layer das
   ruas) e que são escritos de novo agora são trocados, para não ficarem dois; o de rua que não ganha nome agora
   fica. **Usar a área delas** preenche a área com o retângulo das ruas que já estão no desenho (linhas soltas longe
   delas, como uma legenda, ficam de fora).

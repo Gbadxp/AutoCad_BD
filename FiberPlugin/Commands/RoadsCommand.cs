@@ -22,8 +22,8 @@ namespace FiberPlugin.Commands
         /// o contorno já unido (meio-fio, sem sobreposição nos cruzamentos), o eixo ou os dois, e os nomes, tudo na layer
         /// das ruas (RUAS por padrão; nome, cor, tipo de linha e espessura no botão Configurações).
         /// As ruas são cortadas na borda da área e ficam na zona UTM do projeto, alinhadas com postes e KML; o desenho
-        /// recebe a geolocalização do AutoCAD se ainda não tiver. Se a área já tem ruas no desenho, dá para escrever só os
-        /// nomes. Opcional: mapa de fundo do AutoCAD (satélite, mapa ou os dois), só na tela ou gravado como imagem.
+        /// recebe a geolocalização do AutoCAD se ainda não tiver. "Só os nomes" escreve só os nomes, sem as linhas (para
+        /// ruas que já estão no desenho ou um desenho só com os nomes). Opcional: mapa de fundo do AutoCAD (satélite, mapa ou os dois), só na tela ou gravado como imagem.
         /// </summary>
         [CommandMethod("FIBRA_IMPORTAR_RUAS")]
         public void Import()
@@ -39,7 +39,7 @@ namespace FiberPlugin.Commands
             if (UtmZone.Get(db) is UtmSettings zoneNow && UtmZone.HasGeoLocation(db))
                 UtmZone.RepairOldGeoLocation(db, zoneNow);
 
-            // Ruas que já estão no desenho (para a janela oferecer escrever só os nomes)
+            // Ruas que já estão no desenho (com elas na área, a janela já marca "Só os nomes")
             UserSettings prefs = UserSettings.Current;
             string layer = prefs.RoadLayer;
             List<DrawnRoad> drawn;
@@ -71,8 +71,8 @@ namespace FiberPlugin.Commands
                 ed.WriteMessage($"\n[INFO]: Zona UTM do projeto definida: {utm.Zone} {(utm.South ? "Sul" : "Norte")} (troca em Configuração de Projeto).");
 
             double minX = area.MinX, minY = area.MinY, maxX = area.MaxX, maxY = area.MaxY;
-            // Só os nomes: as ruas já estão no desenho; o nome vai apoiado no eixo se houver eixo do plugin (linha aberta
-            // na layer das ruas) ali
+            // Só os nomes, sem as linhas: o nome vai apoiado no eixo se houver eixo do plugin (linha aberta na layer das
+            // ruas) ali; sem ele, no meio da rua
             bool namesOnly = settings.NamesOnly;
             bool outline = !namesOnly && settings.Style != "Eixo", axes = !namesOnly && settings.Style != "Contorno";
             bool includeNames = namesOnly || settings.IncludeNames;
@@ -222,7 +222,7 @@ namespace FiberPlugin.Commands
                 }
                 else
                 {
-                    ed.WriteMessage($"\n[SUCESSO]: {names} nome(s) de rua na layer {layer}, sem desenhar as ruas de novo" +
+                    ed.WriteMessage($"\n[SUCESSO]: {names} nome(s) de rua na layer {layer}, sem desenhar as ruas" +
                                     (replaced > 0 ? $" ({replaced} nome(s) que já estavam ali foram trocados)." : ".") +
                                     " Os nomes seguem o eixo das ruas do OpenStreetMap.");
                 }

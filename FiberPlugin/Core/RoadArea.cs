@@ -113,15 +113,18 @@ namespace FiberPlugin.Core
         public string Zone { get; set; } = "";
         public bool SouthHemisphere { get; set; } = true;
 
-        public string Style { get; set; } = "Contorno"; // Contorno, Eixo ou Ambos
+        public string Style { get; set; } = "Contorno"; // Contorno, Eixo, Ambos ou Nomes (NamesStyle)
+
+        /// <summary>Ruas como "Só os nomes".</summary>
+        public const string NamesStyle = "Nomes";
         public bool IncludePaths { get; set; }
         public bool IncludeNames { get; set; }
 
         /// <summary>
-        /// Só os nomes: as ruas já estão no desenho (importadas antes ou desenhadas à mão) e só os nomes são escritos,
-        /// no eixo das ruas do OpenStreetMap. Não fica gravado: depende de já haver ruas na área.
+        /// Só os nomes: só os nomes das ruas são escritos, no eixo das ruas do OpenStreetMap, sem as linhas (ruas que já
+        /// estão no desenho, importadas antes ou desenhadas à mão, ou um desenho só com os nomes).
         /// </summary>
-        public bool NamesOnly { get; set; }
+        public bool NamesOnly => Style == NamesStyle;
 
         /// <summary>
         /// Mapa de fundo: Nenhum; OSM = imagem do mapa do OpenStreetMap e Esri = foto de satélite da Esri (uso não
@@ -153,7 +156,7 @@ namespace FiberPlugin.Core
             s.CenterA = v[6]; s.CenterB = v[7]; s.Radius = v[8];
             s.Zone = v[9];
             s.SouthHemisphere = v[10] != "N";
-            s.Style = v[11] is "Eixo" or "Ambos" ? v[11] : "Contorno";
+            s.Style = v[11] is "Eixo" or "Ambos" or NamesStyle ? v[11] : "Contorno";
             s.IncludePaths = v[12] == "1";
             s.IncludeNames = v.Length > 13 && v[13] == "1"; // Gravado a partir da 1.9.21
             // A partir da 1.9.54; os mapas do AutoCAD das 1.9.54 a 1.9.68 viram os baixados pelo plugin: "Mapa" (ruas) o do
