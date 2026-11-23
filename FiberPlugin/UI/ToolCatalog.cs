@@ -90,16 +90,16 @@ namespace FiberPlugin.UI
                 new Tool("FIBRA_INSERIR_ELETRICOS", "Itens Elétricos", "Trafo, chaves, para-raio, aterramento", "Elétricos", largeOnRibbon: false),
                 new Tool("FIBRA_INSERIR_AMARRACAO", "Amarração", "Uma de cada lado do cabo nos postes selecionados (fim de rede: uma)", "Amarração", largeOnRibbon: false)
             }),
-            // Um botão dividido, como o Lançar: o clique roda o Esforço no Percurso e a setinha abre os outros
+            // Um botão dividido, como o Lançar: o clique roda o Esforço no Percurso e a setinha abre os outros cálculos. Os
+            // Parâmetros de Cálculo (ajuste, não cálculo) ficam num botão grande próprio, ao lado
             ("Esforços", new[]
             {
                 new Tool("FIBRA_ESFORCO_PERCURSO", "Esforço no Percurso", "Esforço em todos os postes do cabo; seta onde a NDU 009 pede", "Esforço no\nPercurso",
                     ribbonMenu: EffortMenu),
                 new Tool("FIBRA_ESFORCO_TOTAL", "Esforço Total no Poste", "Soma todos os cabos do poste clicado", "Esforço\nno Poste", ribbonMenu: EffortMenu),
-                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros",
-                    ribbonMenu: EffortMenu),
                 new Tool("FIBRA_ESFORCO_EXISTENTE", "Esforço Existente", "Esforço que já existe no poste (Energisa e outras ocupantes)", "Esforço Existente",
-                    ribbonMenu: EffortMenu)
+                    ribbonMenu: EffortMenu),
+                new Tool("FIBRA_PARAMETROS", "Parâmetros de Cálculo", "Altura do cabo no poste e tração (Tabela 08 da NDU 009)", "Parâmetros\nde Cálculo")
             }),
             // O que mexe no que já está desenhado (numeração, troca de cabo e de poste, tamanho): comandos à parte, não de
             // lançar nem de inserir

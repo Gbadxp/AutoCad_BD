@@ -14,7 +14,7 @@ Compatível com **AutoCAD 2022, 2023, 2024, 2025 e 2026** (inclusive verticais c
 ## Instalação
 
 ### Instalador pronto (recomendado)
-O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.106.msi`](Instalador/FiberPlugin-1.9.106.msi).
+O instalador da versão atual fica em [`Instalador/FiberPlugin-1.9.107.msi`](Instalador/FiberPlugin-1.9.107.msi).
 Baixe, feche o AutoCAD e execute; não precisa compilar nada. Ao abrir o AutoCAD aparece a aba **Fibra**
 e a mensagem *"Fiber Plugin v&lt;versão&gt; carregado"* na linha de comando.
 
@@ -184,13 +184,14 @@ usado e o passo a passo. O tempo até a dica crescer é o do AutoCAD (Opções �
 | Amarração | `FIBRA_INSERIR_AMARRACAO` | Selecione os postes (um, vários ou uma janela; também dá para selecionar antes): cada poste recebe uma amarração em cada direção de cabo que sai dele, sobre a linha do cabo, com a parte redonda logo depois da borda do poste e a parte aberta apontando para o cabo. Passagem = uma de cada lado, derivação com 3 linhas = uma em cada linha, fim de rede = só uma. Rodar de novo troca as amarrações que já estavam em volta do poste. Os cabos são os vértices a até 2,5 m do poste (como no cálculo de esforço). **Enter** sem selecionar insere uma à mão: ponto e direção com o mouse. Sem coordenadas. |
 
 ### Esforços
-Na aba Fibra os quatro ficam num botão só, como o Lançar: o clique roda o **Esforço no Percurso** e a setinha abre os outros.
+Na aba Fibra os três cálculos ficam num botão só, como o Lançar: o clique roda o **Esforço no Percurso** e a setinha abre o
+Esforço no Poste e o Esforço Existente. **Parâmetros de Cálculo** é um botão próprio, ao lado.
 
 | Botão | Comando | Função |
 |---|---|---|
 | Esforço no Poste | `FIBRA_ESFORCO_TOTAL` | Esforço resultante de todos os cabos no poste clicado, comparado com o nominal. A seta só vai se o poste precisar dela (veja abaixo). |
 | Esforço no Percurso | `FIBRA_ESFORCO_PERCURSO` | Calcula o esforço em todos os postes do percurso dos cabos selecionados (total no poste ou só o cabo) e põe a seta só onde a NDU 009 pede: **fim de rede** e **ângulo acima de 10°**. Nos postes de passagem o esforço sai só na linha de comando, e a seta de um cálculo anterior é apagada. Na **derivação** (um cabo termina no poste e outro passa) também vai seta. Cada ponto é vinculado ao poste mais próximo (até 10 m); cabo que termina ou faz ângulo sem poste perto ganha o aviso **SEM POSTE** (não imprime) no lugar da seta. |
-| Parâmetros | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
+| Parâmetros de Cálculo | `FIBRA_PARAMETROS` | Abre uma janela com a altura de fixação do cabo no poste (NDU 009: 5,20 a 5,70 m; padrão 5,40), a tração pela **Tabela 08** da norma ou pelo **peso do cabo**, e a altura mínima do cabo ao solo, com atalhos da Tabela 02 (ruas 5,0 m, rural com veículos 4,5 m, só pedestres 3,0 m). Avisa valor fora da norma; **Padrão da norma** volta aos valores padrão. Gravados no DWG. |
 | Esforço Existente | `FIBRA_ESFORCO_EXISTENTE` | Esforço que já existe nos postes selecionados (redes da Energisa e outras ocupantes), em kgf a 20 cm do topo; é somado ao do projeto na comparação com o nominal. |
 
 ### Editar
